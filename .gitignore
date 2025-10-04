@@ -36,3 +36,6 @@ import_temp/
 test_fresh_setup.sh
 test_complete_setup.sh
 test_prerequisites.sh
+
+# Carpeta de markdowns de documentación
+/transformed_doc/
