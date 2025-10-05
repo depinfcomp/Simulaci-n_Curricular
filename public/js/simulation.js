@@ -617,7 +617,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Add click event listeners to subject cards using event delegation
     document.addEventListener('click', function(e) {
-        console.log('🔍 CLICK EVENT TRIGGERED');
+        console.log('CLICK EVENT TRIGGERED');
         console.log('Target:', e.target);
         console.log('Target tagName:', e.target.tagName);
         console.log('Target classes:', e.target.className);
@@ -632,12 +632,12 @@ document.addEventListener('DOMContentLoaded', function() {
             e.stopPropagation();
             
             const subjectId = subjectCard.dataset.subjectId;
-            console.log(`🎯 PROCESSING CLICK on: ${subjectId}`);
-            console.log(`📍 Currently selected: ${selectedSubjectId || 'none'}`);
+            console.log(`PROCESSING CLICK on: ${subjectId}`);
+            console.log(`Currently selected: ${selectedSubjectId || 'none'}`);
             
             // If clicking the same card (by ID), toggle off
             if (selectedSubjectId === subjectId) {
-                console.log('🔄 DESELECTING - Same subject clicked');
+                console.log('DESELECTING - Same subject clicked');
                 clearHighlights();
                 selectedCard = null;
                 selectedSubjectId = null;
@@ -645,14 +645,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // Highlight related subjects
-            console.log('🎨 HIGHLIGHTING - New subject selected');
+            console.log('HIGHLIGHTING - New subject selected');
             highlightRelated(subjectCard);
             selectedCard = subjectCard;
             selectedSubjectId = subjectId;
         } else {
             // Click outside - clear highlights
             if (selectedSubjectId) {
-                console.log('🚫 CLICK OUTSIDE - Clearing selection');
+                console.log('CLICK OUTSIDE - Clearing selection');
                 clearHighlights();
                 selectedCard = null;
                 selectedSubjectId = null;
@@ -1394,7 +1394,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Update unlocks relationships when new subjects are added
     function updateUnlocksRelationships() {
-        console.log('🔄 Updating unlocks relationships...');
+        console.log('[UPDATE] Updating unlocks relationships...');
         
         // Clear all existing unlocks
         document.querySelectorAll('.subject-card').forEach(card => {
@@ -1407,7 +1407,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const prerequisites = card.dataset.prerequisites.split(',').filter(p => p.trim());
             
             if (prerequisites.length > 0) {
-                console.log(`📋 Subject ${subjectCode} has prerequisites: [${prerequisites.join(', ')}]`);
+                console.log(`Subject ${subjectCode} has prerequisites: [${prerequisites.join(', ')}]`);
             }
             
             // For each prerequisite, add this subject to their unlocks
@@ -1418,15 +1418,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (!currentUnlocks.includes(subjectCode)) {
                         currentUnlocks.push(subjectCode);
                         prereqCard.dataset.unlocks = currentUnlocks.join(',');
-                        console.log(`🔗 Added ${subjectCode} to unlocks of ${prereqCode}. Now unlocks: [${currentUnlocks.join(', ')}]`);
+                        console.log(`Added ${subjectCode} to unlocks of ${prereqCode}. Now unlocks: [${currentUnlocks.join(', ')}]`);
                     }
                 } else {
-                    console.warn(`⚠️ Prerequisite ${prereqCode} not found for subject ${subjectCode}`);
+                    console.warn(`Prerequisite ${prereqCode} not found for subject ${subjectCode}`);
                 }
             });
         });
         
-        console.log('✅ Unlocks relationships updated');
+        console.log('Unlocks relationships updated');
     }
 
     // Get current curriculum state for export

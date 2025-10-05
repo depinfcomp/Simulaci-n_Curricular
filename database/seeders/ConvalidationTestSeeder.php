@@ -36,7 +36,7 @@ class ConvalidationTestSeeder extends Seeder
             ['code' => 'PROG201E', 'name' => 'Programación Avanzada', 'semester' => 2, 'credits' => 3],
             ['code' => 'BD101E', 'name' => 'Bases de Datos', 'semester' => 3, 'credits' => 3],
             ['code' => 'FIS101E', 'name' => 'Física I', 'semester' => 1, 'credits' => 4],
-            // FREE ELECTIVES - Para demostrar el sistema de límites
+            // FREE ELECTIVES - To demonstrate the limits system
             ['code' => 'QUI101E', 'name' => 'Química General', 'semester' => 1, 'credits' => 3],
             ['code' => 'BIO101E', 'name' => 'Biología Básica', 'semester' => 2, 'credits' => 4],
             ['code' => 'PSI101E', 'name' => 'Psicología General', 'semester' => 3, 'credits' => 3],

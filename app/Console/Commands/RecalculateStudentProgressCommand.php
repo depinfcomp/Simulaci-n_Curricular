@@ -22,7 +22,7 @@ class RecalculateStudentProgressCommand extends Command
      */
     public function handle()
     {
-        $this->info('🔄 Recalculating progress for all students...');
+        $this->info('Recalculating progress for all students...');
         
         $progressBar = $this->output->createProgressBar(Student::count());
         $progressBar->start();
@@ -46,8 +46,8 @@ class RecalculateStudentProgressCommand extends Command
         $progressBar->finish();
         $this->newLine(2);
         
-        $this->info("✅ Progress recalculation completed!");
-        $this->line("📊 Students with updated progress: {$updatedCount}");
+        $this->info("Progress recalculation completed!");
+        $this->line("Students with updated progress: {$updatedCount}");
         
         return 0;
     }
