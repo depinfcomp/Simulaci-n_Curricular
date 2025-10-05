@@ -17,9 +17,9 @@ class CheckMustChangePassword
     {
         $user = $request->user();
         
-        // Si el usuario está autenticado y debe cambiar su contraseña
+        // If the user is authenticated and must change their password
         if ($user && $user->must_change_password) {
-            // Permitir acceso solo a la ruta de cambio de contraseña y logout
+            // Allow access only to password change route and logout
             if (!$request->routeIs('password.change', 'password.update', 'logout')) {
                 return redirect()->route('password.change');
             }

@@ -5,7 +5,7 @@ use App\Http\Controllers\Auth\ChangePasswordController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
-    // Solo login, sin registro
+    // Login only, no registration
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
 
@@ -13,7 +13,7 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
-    // Ruta para cambiar contraseña obligatoria
+    // Route for mandatory password change
     Route::get('change-password', [ChangePasswordController::class, 'show'])
         ->name('password.change');
 

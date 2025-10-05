@@ -51,15 +51,15 @@ class ImportAcademicHistoryCommand extends Command
             $this->displayResults($result);
             
             if (!$dryRun) {
-                $this->info("✅ Import completed successfully!");
+                $this->info("Import completed successfully!");
             } else {
-                $this->info("✅ Dry run completed - no data was imported");
+                $this->info("Dry run completed - no data was imported");
             }
             
             return 0;
             
         } catch (\Exception $e) {
-            $this->error("❌ Import failed: " . $e->getMessage());
+            $this->error("Import failed: " . $e->getMessage());
             return 1;
         }
     }
@@ -67,11 +67,11 @@ class ImportAcademicHistoryCommand extends Command
     private function displayResults(array $result)
     {
         $this->newLine();
-        $this->info("📊 IMPORT RESULTS:");
+        $this->info("IMPORT RESULTS:");
         $this->line("─────────────────────────────────────");
         
         // Students
-        $this->info("👥 STUDENTS:");
+        $this->info("STUDENTS:");
         $this->line("  • Total students processed: " . $result['students']['total']);
         $this->line("  • New students created: " . $result['students']['created']);
         $this->line("  • Existing students found: " . $result['students']['existing']);
@@ -79,14 +79,14 @@ class ImportAcademicHistoryCommand extends Command
         $this->newLine();
         
         // Subjects
-        $this->info("📚 SUBJECTS:");
+        $this->info("SUBJECTS:");
         $this->line("  • Total subject records: " . $result['subjects']['total_records']);
         $this->line("  • Valid subjects (in system): " . $result['subjects']['valid']);
         $this->line("  • Invalid subjects (discarded): " . $result['subjects']['invalid']);
         
         if (!empty($result['subjects']['invalid_codes'])) {
             $this->newLine();
-            $this->warn("⚠️  DISCARDED SUBJECT CODES:");
+            $this->warn("DISCARDED SUBJECT CODES:");
             foreach (array_slice($result['subjects']['invalid_codes'], 0, 10) as $code) {
                 $this->line("    • {$code}");
             }
@@ -99,7 +99,7 @@ class ImportAcademicHistoryCommand extends Command
         $this->newLine();
         
         // Academic History
-        $this->info("📖 ACADEMIC HISTORY:");
+        $this->info("ACADEMIC HISTORY:");
         $this->line("  • Historical records (with grades): " . $result['history']['created']);
         $this->line("  • Current subjects (no grades): " . $result['current']['created']);
         $this->line("  • Duplicate records skipped: " . $result['duplicates']);
@@ -107,7 +107,7 @@ class ImportAcademicHistoryCommand extends Command
         $this->newLine();
         
         // Performance
-        $this->info("⚡ PERFORMANCE:");
+        $this->info("PERFORMANCE:");
         $this->line("  • Processing time: " . number_format($result['processing_time'], 2) . " seconds");
         $this->line("  • Records per second: " . number_format($result['records_per_second'], 0));
     }

@@ -39,3 +39,6 @@ test_prerequisites.sh
 
 # Carpeta de markdowns de documentación
 /transformed_doc/
+
+# Carpeta de documentación
+/documentation/

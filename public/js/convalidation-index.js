@@ -74,15 +74,15 @@ function runImpactAnalysis() {
         return;
     }
 
-    // Cerrar el modal de configuración
+    // Close the configuration modal
     const configModal = bootstrap.Modal.getInstance(document.getElementById('impactConfigModal'));
     configModal.hide();
 
-    // Abrir el modal de análisis
+    // Open the analysis modal
     const analysisModal = new bootstrap.Modal(document.getElementById('impactAnalysisModal'));
     analysisModal.show();
 
-    // Obtener valores del formulario
+    // Get form values
     const maxFreeElectiveCredits = document.getElementById('maxFreeElectiveCredits').value || 12;
     const priorityCriteria = document.querySelector('input[name="priority_criteria"]:checked')?.value || 'credits';
 
@@ -105,7 +105,7 @@ function runImpactAnalysis() {
         return;
     }
 
-    // Realizar la petición AJAX
+    // Perform the AJAX request
     fetch(`/convalidation/${currentCurriculumId}/analyze-impact`, {
         method: 'POST',
         headers: {
@@ -473,7 +473,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Event delegation para los botones de explicación
+// Event delegation for explanation buttons
 document.addEventListener('click', function(e) {
     if (e.target.classList.contains('show-explanation-btn') || 
         e.target.closest('.show-explanation-btn')) {
@@ -490,7 +490,7 @@ document.addEventListener('click', function(e) {
         const newSubjectsCount = parseInt(button.getAttribute('data-new-subjects-count')) || 0;
         const lostCreditsCount = parseInt(button.getAttribute('data-lost-credits-count')) || 0;
         
-        // Mostrar el modal con todos los datos
+        // Show the modal with all data
         showProgressExplanationDetailed(
             studentName, 
             explanation, 
@@ -587,7 +587,7 @@ function showProgressExplanationDetailed(studentName, explanation, originalProgr
     modal.show();
 }
 
-// Inicialización cuando el documento esté listo
+// Initialize when document is ready
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Sistema de convalidación cargado correctamente');
+    console.log('Convalidation system loaded successfully');
 });

@@ -61,10 +61,10 @@ class ExternalCurriculum extends Model
             $grouped[$semester][] = $subject;
         }
         
-        // Ordenar los semestres numéricamente
+        // Sort semesters numerically
         ksort($grouped, SORT_NUMERIC);
         
-        // Ordenar las materias dentro de cada semestre por nombre
+        // Sort subjects within each semester by name
         foreach ($grouped as $semester => $subjects) {
             usort($grouped[$semester], function($a, $b) {
                 return strcmp($a->name, $b->name);

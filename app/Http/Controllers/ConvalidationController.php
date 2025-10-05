@@ -405,7 +405,7 @@ class ConvalidationController extends Controller
                         $results['affected_students']++;
                     } else {
                         $results['students_with_no_change']++;
-                        // Los estudiantes sin cambio también están "afectados" por el análisis
+                        // Students with no change are also "affected" by the analysis
                         if (abs($impact['progress_change'] ?? 0) > 0) {
                             $results['affected_students']++;
                         }
@@ -916,23 +916,23 @@ class ConvalidationController extends Controller
     ): string {
         $explanation = [];
         
-        // Cálculo técnico directo
-        $explanation[] = "CÁLCULO DE PROGRESO CURRICULAR";
+        // Direct technical calculation
+        $explanation[] = "CURRICULUM PROGRESS CALCULATION";
         $explanation[] = "";
-        $explanation[] = "Malla Original:";
-        $explanation[] = "Materias aprobadas: {$originalSubjectsPassed}";
-        $explanation[] = "Total de materias: {$originalTotalSubjects}";
-        $explanation[] = "Progreso: " . round($originalProgress, 1) . "% ({$originalSubjectsPassed}/{$originalTotalSubjects})";
-        $explanation[] = "";
-        
-        $explanation[] = "Nueva Malla:";
-        $explanation[] = "Total de materias: {$newTotalSubjects}";
-        $explanation[] = "Materias convalidables: {$convalidatedCount}";
-        $explanation[] = "Progreso: " . round($newProgress, 1) . "% ({$convalidatedCount}/{$newTotalSubjects})";
+        $explanation[] = "Original Curriculum:";
+        $explanation[] = "Passed subjects: {$originalSubjectsPassed}";
+        $explanation[] = "Total subjects: {$originalTotalSubjects}";
+        $explanation[] = "Progress: " . round($originalProgress, 1) . "% ({$originalSubjectsPassed}/{$originalTotalSubjects})";
         $explanation[] = "";
         
-        // Análisis matemático del cambio
-        $explanation[] = "ANÁLISIS DEL CAMBIO:";
+        $explanation[] = "New Curriculum:";
+        $explanation[] = "Total subjects: {$newTotalSubjects}";
+        $explanation[] = "Convalidated subjects: {$convalidatedCount}";
+        $explanation[] = "Progress: " . round($newProgress, 1) . "% ({$convalidatedCount}/{$newTotalSubjects})";
+        $explanation[] = "";
+        
+        // Mathematical analysis of the change
+        $explanation[] = "CHANGE ANALYSIS:";
         if ($progressChange > 0.1) {
             $explanation[] = "Incremento: " . round(abs($progressChange), 1) . " puntos porcentuales";
             
@@ -1154,14 +1154,14 @@ class ConvalidationController extends Controller
             // Diagnosis
             if ($directMatches === 0 && $freeElectiveMatches === 0) {
                 if ($directConvalidations->count() === 0 && $freeElectiveConvalidations->count() === 0) {
-                    $debugData['problem_diagnosis'][] = "❌ NO HAY CONVALIDACIONES CONFIGURADAS para esta malla externa";
+                    $debugData['problem_diagnosis'][] = "NO HAY CONVALIDACIONES CONFIGURADAS para esta malla externa";
                 } else {
-                    $debugData['problem_diagnosis'][] = "❌ El estudiante NO CURSÓ ninguna de las materias externas que están en las convalidaciones";
-                    $debugData['problem_diagnosis'][] = "💡 Esto es normal si el estudiante está en la malla original y la malla externa es diferente";
-                    $debugData['problem_diagnosis'][] = "💡 Las convalidaciones solo aplican si el estudiante cursó materias de la malla EXTERNA";
+                    $debugData['problem_diagnosis'][] = "El estudiante NO CURSÓ ninguna de las materias externas que están en las convalidaciones";
+                    $debugData['problem_diagnosis'][] = "Esto es normal si el estudiante está en la malla original y la malla externa es diferente";
+                    $debugData['problem_diagnosis'][] = "Las convalidaciones solo aplican si el estudiante cursó materias de la malla EXTERNA";
                 }
             } else {
-                $debugData['problem_diagnosis'][] = "✅ Se encontraron {$directMatches} convalidaciones directas y {$freeElectiveMatches} de libre elección";
+                $debugData['problem_diagnosis'][] = "Se encontraron {$directMatches} convalidaciones directas y {$freeElectiveMatches} de libre elección";
             }
             
             return response()->json($debugData, 200, [], JSON_PRETTY_PRINT);

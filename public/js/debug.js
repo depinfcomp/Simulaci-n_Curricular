@@ -65,7 +65,7 @@ function showAllSubjectData() {
 }
 
 function cleanupModals() {
-    console.log('🧹 Starting modal cleanup...');
+    console.log('Starting modal cleanup...');
     
     // Find all modals and backdrops
     const modals = document.querySelectorAll('.modal');
@@ -120,7 +120,7 @@ function cleanupModals() {
     const bodyClasses = document.body.className.split(' ').filter(cls => !cls.includes('modal'));
     document.body.className = bodyClasses.join(' ');
     
-    console.log('✅ Modal cleanup completed');
+    console.log('Modal cleanup completed');
 }
 
 // Check for orphaned backdrops
@@ -128,7 +128,7 @@ function checkBackdrops() {
     const backdrops = document.querySelectorAll('.modal-backdrop');
     const modals = document.querySelectorAll('.modal');
     
-    console.log('🔍 Backdrop Analysis:');
+    console.log('Backdrop Analysis:');
     console.log(`Found ${backdrops.length} backdrops and ${modals.length} modals`);
     
     if (backdrops.length > 0) {

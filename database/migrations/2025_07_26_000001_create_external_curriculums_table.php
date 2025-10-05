@@ -13,11 +13,11 @@ return new class extends Migration
     {
         Schema::create('external_curriculums', function (Blueprint $table) {
             $table->id();
-            $table->string('name'); // Nombre de la malla externa (ej: "Universidad XYZ - Ingeniería de Sistemas")
-            $table->string('institution')->nullable(); // Institución de origen
-            $table->text('description')->nullable(); // Descripción de la malla
-            $table->string('uploaded_file')->nullable(); // Ruta del archivo Excel original
-            $table->json('metadata')->nullable(); // Metadata adicional
+            $table->string('name'); // External curriculum name (e.g., "XYZ University - Systems Engineering")
+            $table->string('institution')->nullable(); // Source institution
+            $table->text('description')->nullable(); // Curriculum description
+            $table->string('uploaded_file')->nullable(); // Path to original Excel file
+            $table->json('metadata')->nullable(); // Additional metadata
             $table->enum('status', ['active', 'inactive'])->default('active');
             $table->timestamps();
         });

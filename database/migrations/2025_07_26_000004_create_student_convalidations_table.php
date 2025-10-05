@@ -15,11 +15,11 @@ return new class extends Migration
             $table->id();
             $table->foreignId('student_id')->constrained()->onDelete('cascade');
             $table->foreignId('subject_convalidation_id')->constrained()->onDelete('cascade');
-            $table->decimal('external_grade', 4, 2); // Nota obtenida en la materia externa
-            $table->decimal('internal_grade', 4, 2)->nullable(); // Nota convertida al sistema interno
+            $table->decimal('external_grade', 4, 2); // Grade obtained in the external subject
+            $table->decimal('internal_grade', 4, 2)->nullable(); // Grade converted to internal system
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
-            $table->text('admin_notes')->nullable(); // Notas del administrador
-            $table->string('processed_by')->nullable(); // Usuario que procesó
+            $table->text('admin_notes')->nullable(); // Administrator notes
+            $table->string('processed_by')->nullable(); // User who processed it
             $table->timestamp('processed_at')->nullable();
             $table->timestamps();
             

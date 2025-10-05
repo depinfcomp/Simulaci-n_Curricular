@@ -73,7 +73,7 @@ class SubjectSeeder extends Seeder
 
         foreach ($subjects as $subject) {
             DB::table('subjects')->updateOrInsert(
-                ['code' => $subject['code']], // Condition to check
+                ['code' => $subject['code']], // Condition to check for existing record
                 [
                     'name' => $subject['name'],
                     'semester' => $subject['semester'],

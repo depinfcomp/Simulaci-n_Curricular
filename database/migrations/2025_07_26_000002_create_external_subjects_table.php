@@ -14,15 +14,15 @@ return new class extends Migration
         Schema::create('external_subjects', function (Blueprint $table) {
             $table->id();
             $table->foreignId('external_curriculum_id')->constrained()->onDelete('cascade');
-            $table->string('code'); // Código de la materia externa
-            $table->string('name'); // Nombre de la materia externa
-            $table->integer('credits'); // Créditos de la materia
-            $table->integer('semester'); // Semestre en la malla externa
-            $table->text('description')->nullable(); // Descripción adicional
-            $table->json('additional_data')->nullable(); // Datos adicionales del Excel
+            $table->string('code'); // External subject code
+            $table->string('name'); // External subject name
+            $table->integer('credits'); // Subject credits
+            $table->integer('semester'); // Semester in external curriculum
+            $table->text('description')->nullable(); // Additional description
+            $table->json('additional_data')->nullable(); // Additional data from Excel
             $table->timestamps();
             
-            $table->unique(['external_curriculum_id', 'code']); // Un código por malla
+            $table->unique(['external_curriculum_id', 'code']); // One code per curriculum
         });
     }
 
