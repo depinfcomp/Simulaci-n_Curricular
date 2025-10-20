@@ -199,7 +199,9 @@
                 const classes = card.className;
                 const hasTypeClass = card.classList.contains('fundamental') || 
                                     card.classList.contains('profesional') || 
-                                    card.classList.contains('optativa_profesional') || 
+                                    card.classList.contains('optativa_profesional') ||
+                                    card.classList.contains('optativa_fundamentacion') ||
+                                    card.classList.contains('lengua_extranjera') ||
                                     card.classList.contains('libre_eleccion');
                 
                 typeCount[type] = (typeCount[type] || 0) + 1;
