@@ -22,6 +22,7 @@ return new class extends Migration
                   ->default('fundamental')
                   ->comment('Subject type classification');
             $table->boolean('is_required')->default(true)->comment('True for required subjects, false for elective');
+            $table->boolean('is_leveling')->default(false)->comment('True for leveling subjects (e.g., English), false for career credits');
             $table->timestamps();
         });
     }

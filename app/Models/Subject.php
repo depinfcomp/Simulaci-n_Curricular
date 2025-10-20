@@ -22,6 +22,7 @@ class Subject extends Model
         'student_hours',
         'type',
         'is_required',
+        'is_leveling',
     ];
 
     /**

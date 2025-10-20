@@ -75,25 +75,37 @@
         <!-- Statistics -->
         <div class="stats-container">
             <div class="row">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="stat-card">
                         <div class="stat-number">{{ \App\Models\Subject::count() }}</div>
                         <div class="stat-label">Total Materias</div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <div class="stat-card">
+                        <div class="stat-number" id="career-credits">{{ \App\Models\Subject::where('is_leveling', false)->sum('credits') }}</div>
+                        <div class="stat-label">Créditos Carrera</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-credits">{{ \App\Models\Subject::sum('credits') }}</div>
+                        <div class="stat-label">Créditos Totales</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
                     <div class="stat-card">
                         <div class="stat-number">10</div>
                         <div class="stat-label">Semestres</div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="stat-card">
                         <div class="stat-number">{{ \App\Models\Student::count() }}</div>
                         <div class="stat-label">Estudiantes</div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="stat-card">
                         <div class="stat-number" id="affected-percentage">0%</div>
                         <div class="stat-label">Estudiantes Afectados</div>

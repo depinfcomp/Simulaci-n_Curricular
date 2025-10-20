@@ -27,6 +27,46 @@ document.addEventListener('DOMContentLoaded', function() {
     let simulationChanges = [];
     let originalCurriculum = {};
     
+    // Global variables for credits
+    let careerCredits = 0;  // Credits excluding leveling subjects
+    let totalCredits = 0;   // All credits including leveling
+    
+    // Initialize total credits from all visible cards
+    function initializeTotalCredits() {
+        careerCredits = 0;
+        totalCredits = 0;
+        document.querySelectorAll('.subject-card').forEach(card => {
+            const creditsElement = card.querySelector('.info-box:first-child .info-value');
+            if (creditsElement) {
+                const credits = parseInt(creditsElement.textContent) || 0;
+                totalCredits += credits;
+                
+                // Check if it's a leveling subject (lengua_extranjera type)
+                const isLeveling = card.classList.contains('lengua_extranjera');
+                if (!isLeveling) {
+                    careerCredits += credits;
+                }
+            }
+        });
+        updateCreditsDisplay();
+    }
+    
+    // Update credits display
+    function updateCreditsDisplay() {
+        const careerCreditsElement = document.getElementById('career-credits');
+        const totalCreditsElement = document.getElementById('total-credits');
+        
+        if (careerCreditsElement) {
+            careerCreditsElement.textContent = careerCredits;
+        }
+        if (totalCreditsElement) {
+            totalCreditsElement.textContent = totalCredits;
+        }
+    }
+    
+    // Initialize on page load
+    initializeTotalCredits();
+    
     // Robust modal cleanup function
     function cleanupModal(modalElement) {
         if (!modalElement) return;
@@ -1332,7 +1372,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Create the new subject card
-        const newSubjectCard = createSubjectCard(code, name, semester, prerequisiteArray.join(','), description);
+        const newSubjectCard = createSubjectCard(code, name, semester, prerequisiteArray.join(','), description, credits, classroomHours, studentHours, type, isRequired);
         
         // Add to the appropriate semester column
         const semesterColumn = document.querySelector(`[data-semester="${semester}"] .subject-list`);
@@ -1342,6 +1382,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         semesterColumn.appendChild(newSubjectCard);
+        
+        // Update credits (check if it's a leveling subject)
+        const creditsNum = parseInt(credits) || 0;
+        totalCredits += creditsNum;
+        
+        // Only add to career credits if it's NOT a leveling subject
+        const isLeveling = type === 'lengua_extranjera';
+        if (!isLeveling) {
+            careerCredits += creditsNum;
+        }
+        
+        updateCreditsDisplay();
 
         // Update drag and drop functionality
         enableDragAndDropForCard(newSubjectCard);
