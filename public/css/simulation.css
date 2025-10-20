@@ -1,51 +1,267 @@
-/* Simulation View Styles */
+/* Simulation View Styles - Redesigned Cards */
+/* Base Card Styles */
 .subject-card {
-    width: 85px;
-    height: 75px;
-    border: 2px solid #dee2e6;
+    width: 100px;
+    height: 90px;
     border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+    cursor: move;
+    position: relative;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    padding: 3px;
-    margin: 3px;
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    transition: all 0.3s ease;
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
+    background: white;
+    padding: 0;
+    margin: 1px;
+    box-sizing: border-box;
 }
 
 .subject-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-    border-color: #0d6efd;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.12);
 }
 
-.subject-card.available {
-    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-    border-color: #28a745;
+/* Card Header with Info Boxes */
+.subject-card-header {
+    font-size: 10px !important;
+    height: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    padding: 0;
+    margin: 0;
+    border-bottom: 2px solid rgba(0, 0, 0, 0.15);
+    border-radius: 6px 6px 0 0;
+    width: 100%;
 }
 
-.subject-card.taken {
-    background: linear-gradient(135deg, #cce5ff 0%, #b3d9ff 100%);
-    border-color: #007bff;
+.info-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin: 0;
+    height: 100%;
+    border-right: 1px solid rgba(255, 255, 255, 0.3);
+    box-sizing: border-box;
 }
 
-.subject-card.blocked {
-    background: linear-gradient(135deg, #f8d7da 0%, #f1aeb5 100%);
-    border-color: #dc3545;
-    opacity: 0.7;
+.info-box:last-child {
+    border-right: none;
 }
 
-.subject-card.prerequisite {
-    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%) !important;
-    border-color: #ffc107 !important;
-    border-width: 3px !important;
-    transform: scale(1.05) !important;
+.info-value {
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.9);
+    line-height: 1;
+    margin: 0;
+    padding: 0;
+}
+
+/* Subject name area */
+.subject-card-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 6px;
+    text-align: center;
+}
+
+.subject-name {
+    font-size: 8px;
+    font-weight: 600;
+    line-height: 1.1;
+    color: #333;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+/* Card Footer with Code and Icon */
+.subject-card-footer {
+    height: 20px;
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 0;
+    padding: 0;
+    margin: 0;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 0 0 6px 6px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    width: 100%;
+}
+
+.subject-code {
+    font-size: 10px !important;
+    font-weight: 700;
+    color: black !important;
+    letter-spacing: 0.3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-sizing: border-box;
+    height: 100%;
+}
+
+.subject-icon {
+    width: 100%;
+    height: 100%;
+    border-radius: 0 0 6px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: white;
+    box-sizing: border-box;
+}
+
+.subject-icon svg {
+    width: 12px;
+    height: 12px;
+}
+
+.subject-icon.required {
+    background: #e53935;
+}
+
+.subject-icon.elective {
+    background: #42a5f5;
+}
+
+/* Gradients for fundamental subjects (orange tones) - Horizontal gradient */
+.subject-card.fundamental .subject-card-header {
+    background: linear-gradient(90deg, #ff9800 0%, #ffb74d 50%, #ffe0b2 100%);
+}
+
+.subject-card.fundamental .subject-card-header::after {
+    background: linear-gradient(90deg, #ff9800 0%, #ffb74d 100%);
+}
+
+/* Individual box colors for fundamental */
+.subject-card.fundamental .info-box:nth-child(1) {
+    background: #ff9800;
+}
+
+.subject-card.fundamental .info-box:nth-child(2) {
+    background: #ffb74d;
+}
+
+.subject-card.fundamental .info-box:nth-child(3) {
+    background: #ffe0b2;
+}
+
+/* Gradients for profesional subjects (green tones) - Horizontal gradient */
+.subject-card.profesional .subject-card-header {
+    background: linear-gradient(90deg, #66bb6a 0%, #81c784 50%, #c8e6c9 100%);
+}
+
+.subject-card.profesional .subject-card-header::after {
+    background: linear-gradient(90deg, #66bb6a 0%, #81c784 100%);
+}
+
+/* Individual box colors for profesional */
+.subject-card.profesional .info-box:nth-child(1) {
+    background: #66bb6a;
+}
+
+.subject-card.profesional .info-box:nth-child(2) {
+    background: #81c784;
+}
+
+.subject-card.profesional .info-box:nth-child(3) {
+    background: #c8e6c9;
+}
+
+/* Gradients for optativa_profesional (also green) - Horizontal gradient */
+.subject-card.optativa_profesional .subject-card-header {
+    background: linear-gradient(90deg, #66bb6a 0%, #81c784 50%, #c8e6c9 100%);
+}
+
+.subject-card.optativa_profesional .subject-card-header::after {
+    background: linear-gradient(90deg, #66bb6a 0%, #81c784 100%);
+}
+
+/* Individual box colors for optativa_profesional */
+.subject-card.optativa_profesional .info-box:nth-child(1) {
+    background: #66bb6a;
+}
+
+.subject-card.optativa_profesional .info-box:nth-child(2) {
+    background: #81c784;
+}
+
+.subject-card.optativa_profesional .info-box:nth-child(3) {
+    background: #c8e6c9;
+}
+
+/* Gradients for libre_eleccion (blue tones) - Horizontal gradient */
+.subject-card.libre_eleccion .subject-card-header {
+    background: linear-gradient(90deg, #42a5f5 0%, #64b5f6 50%, #bbdefb 100%);
+}
+
+.subject-card.libre_eleccion .subject-card-header::after {
+    background: linear-gradient(90deg, #42a5f5 0%, #64b5f6 100%);
+}
+
+/* Individual box colors for libre_eleccion */
+.subject-card.libre_eleccion .info-box:nth-child(1) {
+    background: #42a5f5;
+}
+
+.subject-card.libre_eleccion .info-box:nth-child(2) {
+    background: #64b5f6;
+}
+
+.subject-card.libre_eleccion .info-box:nth-child(3) {
+    background: #bbdefb;
+}
+
+/* Gradients for optativa_fundamentacion (orange tones like fundamental) - Horizontal gradient */
+.subject-card.optativa_fundamentacion .subject-card-header {
+    background: linear-gradient(90deg, #ff9800 0%, #ffb74d 50%, #ffe0b2 100%);
+}
+
+.subject-card.optativa_fundamentacion .subject-card-header::after {
+    background: linear-gradient(90deg, #ff9800 0%, #ffb74d 100%);
+}
+
+/* Individual box colors for optativa_fundamentacion */
+.subject-card.optativa_fundamentacion .info-box:nth-child(1) {
+    background: #ff9800;
+}
+
+.subject-card.optativa_fundamentacion .info-box:nth-child(2) {
+    background: #ffb74d;
+}
+
+.subject-card.optativa_fundamentacion .info-box:nth-child(3) {
+    background: #ffe0b2;
+}
+
+/* Footer code background colors matching first header box */
+.subject-card.fundamental .subject-code {
+    background: #ff9800;
+}
+
+.subject-card.optativa_fundamentacion .subject-code {
+    background: #ff9800;
+}
+
+.subject-card.profesional .subject-code {
+    background: #66bb6a;
+}
+
+.subject-card.optativa_profesional .subject-code {
+    background: #66bb6a;
+}
+
+.subject-card.libre_eleccion .subject-code {
+    background: #42a5f5;
 }
 
 .subject-card .semester-badge {
@@ -87,6 +303,7 @@
     border: 2px solid transparent;
     border-radius: 10px;
     transition: all 0.3s ease;
+    margin: 1px !important;
 }
 
 .subject-list {
@@ -270,7 +487,7 @@
 }
 
 .semester-title {
-    writing-mode: vertical-lr;
+    writing-mode: horizontal-tb;
     text-orientation: mixed;
     font-size: 14px;
     font-weight: bold;

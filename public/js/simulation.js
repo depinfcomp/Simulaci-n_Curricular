@@ -1367,19 +1367,39 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // Create subject card HTML
-    function createSubjectCard(code, name, semester, prerequisites, description) {
+    function createSubjectCard(code, name, semester, prerequisites, description, credits = 3, classroomHours = 3, studentHours = 6, type = 'profesional', isRequired = true) {
         const card = document.createElement('div');
-        card.className = 'subject-card available added-subject';
+        card.className = `subject-card ${type} added-subject`;
         card.dataset.subjectId = code;
+        card.dataset.type = type;
         card.dataset.prerequisites = prerequisites;
         card.dataset.unlocks = '';
         card.title = description || name;
 
+        const iconSvg = isRequired 
+            ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/></svg>'
+            : '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+
         card.innerHTML = `
-            <div class="subject-name">${name}</div>
-            <div class="subject-code">${code}</div>
-            <div class="added-badge">
-                <i class="fas fa-plus"></i>
+            <div class="subject-card-header">
+                <div class="info-box">
+                    <span class="info-value">${credits}</span>
+                </div>
+                <div class="info-box">
+                    <span class="info-value">${classroomHours}</span>
+                </div>
+                <div class="info-box">
+                    <span class="info-value">${studentHours}</span>
+                </div>
+            </div>
+            <div class="subject-card-body">
+                <div class="subject-name">${name}</div>
+            </div>
+            <div class="subject-card-footer">
+                <div class="subject-code">${code}</div>
+                <div class="subject-icon ${isRequired ? 'required' : 'elective'}">
+                    ${iconSvg}
+                </div>
             </div>
         `;
 
