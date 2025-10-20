@@ -12,14 +12,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('external_subjects', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('external_curriculum_id')->constrained()->onDelete('cascade');
-            $table->string('code'); // External subject code
-            $table->string('name'); // External subject name
-            $table->integer('credits'); // Subject credits
-            $table->integer('semester'); // Semester in external curriculum
-            $table->text('description')->nullable(); // Additional description
-            $table->json('additional_data')->nullable(); // Additional data from Excel
+            $table->id()->comment('Auto-incrementable ID');
+            $table->foreignId('external_curriculum_id')->constrained()->onDelete('cascade')->comment('Foreign key to external_curriculums');
+            $table->string('code')->comment('External subject code');
+            $table->string('name')->comment('External subject name');
+            $table->integer('credits')->comment('Academic credits');
+            $table->integer('semester')->comment('Semester in external curriculum');
+            $table->text('description')->nullable()->comment('Subject description');
+            $table->json('additional_data')->nullable()->comment('Additional data from Excel import');
             $table->timestamps();
             
             $table->unique(['external_curriculum_id', 'code']); // One code per curriculum

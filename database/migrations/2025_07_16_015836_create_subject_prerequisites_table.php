@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('subject_prerequisites', function (Blueprint $table) {
-            $table->id();
-            $table->string('subject_code', 10); // The subject that requires prerequisites
-            $table->string('prerequisite_code', 10); // The prerequisite subject
+            $table->id()->comment('Auto-incrementable ID');
+            $table->string('subject_code', 10)->comment('Subject that requires prerequisites');
+            $table->string('prerequisite_code', 10)->comment('Required prerequisite subject code');
             $table->timestamps();
             
             // Foreign key constraints
