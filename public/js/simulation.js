@@ -27,6 +27,46 @@ document.addEventListener('DOMContentLoaded', function() {
     let simulationChanges = [];
     let originalCurriculum = {};
     
+    // Global variables for credits
+    let careerCredits = 0;  // Credits excluding leveling subjects
+    let totalCredits = 0;   // All credits including leveling
+    
+    // Initialize total credits from all visible cards
+    function initializeTotalCredits() {
+        careerCredits = 0;
+        totalCredits = 0;
+        document.querySelectorAll('.subject-card').forEach(card => {
+            const creditsElement = card.querySelector('.info-box:first-child .info-value');
+            if (creditsElement) {
+                const credits = parseInt(creditsElement.textContent) || 0;
+                totalCredits += credits;
+                
+                // Check if it's a leveling subject (lengua_extranjera type)
+                const isLeveling = card.classList.contains('lengua_extranjera');
+                if (!isLeveling) {
+                    careerCredits += credits;
+                }
+            }
+        });
+        updateCreditsDisplay();
+    }
+    
+    // Update credits display
+    function updateCreditsDisplay() {
+        const careerCreditsElement = document.getElementById('career-credits');
+        const totalCreditsElement = document.getElementById('total-credits');
+        
+        if (careerCreditsElement) {
+            careerCreditsElement.textContent = careerCredits;
+        }
+        if (totalCreditsElement) {
+            totalCreditsElement.textContent = totalCredits;
+        }
+    }
+    
+    // Initialize on page load
+    initializeTotalCredits();
+    
     // Robust modal cleanup function
     function cleanupModal(modalElement) {
         if (!modalElement) return;
@@ -1332,7 +1372,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Create the new subject card
-        const newSubjectCard = createSubjectCard(code, name, semester, prerequisiteArray.join(','), description);
+        const newSubjectCard = createSubjectCard(code, name, semester, prerequisiteArray.join(','), description, credits, classroomHours, studentHours, type, isRequired);
         
         // Add to the appropriate semester column
         const semesterColumn = document.querySelector(`[data-semester="${semester}"] .subject-list`);
@@ -1342,6 +1382,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         semesterColumn.appendChild(newSubjectCard);
+        
+        // Update credits (check if it's a leveling subject)
+        const creditsNum = parseInt(credits) || 0;
+        totalCredits += creditsNum;
+        
+        // Only add to career credits if it's NOT a leveling subject
+        const isLeveling = type === 'lengua_extranjera';
+        if (!isLeveling) {
+            careerCredits += creditsNum;
+        }
+        
+        updateCreditsDisplay();
 
         // Update drag and drop functionality
         enableDragAndDropForCard(newSubjectCard);
@@ -1367,19 +1419,39 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // Create subject card HTML
-    function createSubjectCard(code, name, semester, prerequisites, description) {
+    function createSubjectCard(code, name, semester, prerequisites, description, credits = 3, classroomHours = 3, studentHours = 6, type = 'profesional', isRequired = true) {
         const card = document.createElement('div');
-        card.className = 'subject-card available added-subject';
+        card.className = `subject-card ${type} added-subject`;
         card.dataset.subjectId = code;
+        card.dataset.type = type;
         card.dataset.prerequisites = prerequisites;
         card.dataset.unlocks = '';
         card.title = description || name;
 
+        const iconSvg = isRequired 
+            ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/></svg>'
+            : '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+
         card.innerHTML = `
-            <div class="subject-name">${name}</div>
-            <div class="subject-code">${code}</div>
-            <div class="added-badge">
-                <i class="fas fa-plus"></i>
+            <div class="subject-card-header">
+                <div class="info-box">
+                    <span class="info-value">${credits}</span>
+                </div>
+                <div class="info-box">
+                    <span class="info-value">${classroomHours}</span>
+                </div>
+                <div class="info-box">
+                    <span class="info-value">${studentHours}</span>
+                </div>
+            </div>
+            <div class="subject-card-body">
+                <div class="subject-name">${name}</div>
+            </div>
+            <div class="subject-card-footer">
+                <div class="subject-code">${code}</div>
+                <div class="subject-icon ${isRequired ? 'required' : 'elective'}">
+                    ${iconSvg}
+                </div>
             </div>
         `;
 

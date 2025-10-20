@@ -18,6 +18,11 @@ class Subject extends Model
         'name',
         'semester',
         'credits',
+        'classroom_hours',
+        'student_hours',
+        'type',
+        'is_required',
+        'is_leveling',
     ];
 
     /**
