@@ -12,10 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('students', function (Blueprint $table) {
-            $table->id(); // Auto-incrementable ID
-            $table->string('name'); // Student name
-            $table->string('document', 20)->nullable()->unique()->after('name'); // Document number
-            $table->decimal('progress_percentage', 5, 2)->default(0); // Progress percentage (0-100)
+            $table->id()->comment('Auto-incrementable ID');
+            $table->string('name')->comment('Student full name');
+            $table->string('document', 20)->nullable()->unique()->after('name')->comment('Student ID document number');
+            $table->decimal('progress_percentage', 5, 2)->default(0)->comment('Academic progress percentage (0-100)');
             $table->timestamps();
         });
     }

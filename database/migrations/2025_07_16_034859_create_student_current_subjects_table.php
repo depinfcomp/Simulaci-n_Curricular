@@ -12,12 +12,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('student_current_subjects', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('student_id');
-            $table->string('subject_code', 10);
-            $table->string('semester_period', 20); // Ejemplo: "2025-1", "2025-2"
-            $table->enum('status', ['cursando', 'en_examen', 'perdida'])->default('cursando');
-            $table->decimal('partial_grade', 3, 1)->nullable(); // Nota parcial actual
+            $table->id()->comment('Auto-incrementable ID');
+            $table->unsignedBigInteger('student_id')->comment('Foreign key to students table');
+            $table->string('subject_code', 10)->comment('Foreign key to subjects table');
+            $table->string('semester_period', 20)->comment('Academic period (e.g., "2025-1", "2025-2")');
+            $table->enum('status', ['cursando', 'en_examen', 'perdida'])->default('cursando')->comment('Current enrollment status');
+            $table->decimal('partial_grade', 3, 1)->nullable()->comment('Current partial grade');
             $table->timestamps();
             
             // Foreign keys

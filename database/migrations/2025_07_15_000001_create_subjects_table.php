@@ -12,10 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('subjects', function (Blueprint $table) {
-            $table->string('code', 10)->primary(); // Subject code as primary key
-            $table->string('name'); // Subject name
-            $table->integer('semester'); // Semester number (1-10)
-            $table->integer('credits'); // Credits for the subject
+            $table->string('code', 10)->primary()->comment('Subject code - Primary key');
+            $table->string('name')->comment('Subject name');
+            $table->integer('semester')->comment('Semester number (1-10)');
+            $table->integer('credits')->comment('Academic credits');
             $table->timestamps();
         });
     }
