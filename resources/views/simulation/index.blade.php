@@ -12,21 +12,27 @@
         <div class="mb-4">
             <div class="d-flex align-items-center gap-4 justify-content-center flex-wrap" style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
                 <div class="d-flex align-items-center gap-2">
-                    <div style="width: 40px; height: 30px; background: linear-gradient(180deg, #ffe0b2 0%, #ffcc80 50%, #fff 100%); border: 1px solid #ddd; border-radius: 4px; position: relative;">
-                        <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #ff9800 0%, #ffb74d 100%);"></div>
-                    </div>
+                    <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #ff9800 0%, #ffb74d 50%, #ffe0b2 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
                     <span style="font-weight: 500;">Fundamentales</span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <div style="width: 40px; height: 30px; background: linear-gradient(180deg, #c8e6c9 0%, #a5d6a7 50%, #fff 100%); border: 1px solid #ddd; border-radius: 4px; position: relative;">
-                        <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #66bb6a 0%, #81c784 100%);"></div>
-                    </div>
-                    <span style="font-weight: 500;">Profesionales / Optativas Prof.</span>
+                    <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #ff9800 0%, #ffb74d 50%, #ffe0b2 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
+                    <span style="font-weight: 500;">Optativas Fundamentación</span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <div style="width: 40px; height: 30px; background: linear-gradient(180deg, #bbdefb 0%, #90caf9 50%, #fff 100%); border: 1px solid #ddd; border-radius: 4px; position: relative;">
-                        <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #42a5f5 0%, #64b5f6 100%);"></div>
-                    </div>
+                    <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #66bb6a 0%, #81c784 50%, #c8e6c9 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
+                    <span style="font-weight: 500;">Profesionales</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #66bb6a 0%, #81c784 50%, #c8e6c9 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
+                    <span style="font-weight: 500;">Optativas Profesionales</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #df8c9d 0%, #e9b5bf 50%, #f5dbdf 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
+                    <span style="font-weight: 500;">Lengua Extranjera</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #42a5f5 0%, #64b5f6 50%, #bbdefb 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
                     <span style="font-weight: 500;">Libre Elección</span>
                 </div>
                 <div class="d-flex align-items-center gap-3 ms-4" style="border-left: 2px solid #ddd; padding-left: 20px;">

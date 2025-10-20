@@ -243,6 +243,28 @@
     background: #ffe0b2;
 }
 
+/* Gradients for lengua_extranjera (pink/rose tones) - Horizontal gradient */
+.subject-card.lengua_extranjera .subject-card-header {
+    background: linear-gradient(90deg, #df8c9d 0%, #e9b5bf 50%, #f5dbdf 100%);
+}
+
+.subject-card.lengua_extranjera .subject-card-header::after {
+    background: linear-gradient(90deg, #df8c9d 0%, #e9b5bf 100%);
+}
+
+/* Individual box colors for lengua_extranjera */
+.subject-card.lengua_extranjera .info-box:nth-child(1) {
+    background: #df8c9d;
+}
+
+.subject-card.lengua_extranjera .info-box:nth-child(2) {
+    background: #e9b5bf;
+}
+
+.subject-card.lengua_extranjera .info-box:nth-child(3) {
+    background: #f5dbdf;
+}
+
 /* Footer code background colors matching first header box */
 .subject-card.fundamental .subject-code {
     background: #ff9800;
@@ -258,6 +280,10 @@
 
 .subject-card.optativa_profesional .subject-code {
     background: #66bb6a;
+}
+
+.subject-card.lengua_extranjera .subject-code {
+    background: #df8c9d;
 }
 
 .subject-card.libre_eleccion .subject-code {
