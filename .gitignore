@@ -42,3 +42,7 @@ test_prerequisites.sh
 
 # Carpeta de documentación
 /documentation/
+
+# Adornos estéticos a la carpeta del directorio principal (En caso de usar) -- Linux
+
+.directory
