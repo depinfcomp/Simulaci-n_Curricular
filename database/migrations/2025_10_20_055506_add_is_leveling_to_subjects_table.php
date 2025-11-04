@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('subjects', function (Blueprint $table) {
-            $table->boolean('is_leveling')->default(false)->after('is_required');
-        });
+        if (!Schema::hasColumn('subjects', 'is_leveling')) {
+            Schema::table('subjects', function (Blueprint $table) {
+                $table->boolean('is_leveling')->default(false)->after('is_required');
+            });
+        }
     }
 
     /**
@@ -21,8 +23,10 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('subjects', function (Blueprint $table) {
-            $table->dropColumn('is_leveling');
-        });
+        if (Schema::hasColumn('subjects', 'is_leveling')) {
+            Schema::table('subjects', function (Blueprint $table) {
+                $table->dropColumn('is_leveling');
+            });
+        }
     }
 };
