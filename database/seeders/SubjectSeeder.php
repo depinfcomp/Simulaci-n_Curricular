@@ -74,7 +74,7 @@ class SubjectSeeder extends Seeder
             ['code' => '4100544', 'name' => 'PSICOLOGÍA SOCIAL', 'semester' => 7, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'fundamental', 'is_required' => true, 'is_leveling' => false],
             ['code' => '#OPTDIS-02', 'name' => 'ASIGNATURA OPTATIVA DISCIPLINAR', 'semester' => 7, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'optativa_profesional', 'is_required' => false, 'is_leveling' => false],
             ['code' => '#LIBRE-05', 'name' => 'LIBRE ELECCIÓN', 'semester' => 7, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'libre_eleccion', 'is_required' => false, 'is_leveling' => false],
-            ['code' => '#LIBRE-06', 'name' => 'LIBRE ELECCIÓN', 'semester' => 7, 'credits' => 4, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'libre_eleccion', 'is_required' => false, 'is_leveling' => false],
+            ['code' => '#LIBRE-06', 'name' => 'LIBRE ELECCIÓN', 'semester' => 7, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'libre_eleccion', 'is_required' => false, 'is_leveling' => false],
 
             // 8th semester
             ['code' => '4200914', 'name' => 'MODELOS DE GESTIÓN DE TECNOLOGÍAS DE LA INFORMACIÓN', 'semester' => 8, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
@@ -82,7 +82,7 @@ class SubjectSeeder extends Seeder
             ['code' => '4200911', 'name' => 'GERENCIA ESTRATÉGICA DEL TALENTO HUMANO', 'semester' => 8, 'credits' => 2, 'classroom_hours' => 2, 'student_hours' => 4, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
             ['code' => '4100560', 'name' => 'METODOLOGÍA DE LA INVESTIGACIÓN', 'semester' => 8, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
             ['code' => '4200918', 'name' => 'TENDENCIAS EN ADMINISTRACIÓN DE SISTEMAS INFORMÁTICOS', 'semester' => 8, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
-            ['code' => '#LIBRE-07', 'name' => 'LIBRE ELECCIÓN', 'semester' => 8, 'credits' => 4, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'libre_eleccion', 'is_required' => false, 'is_leveling' => false],
+            ['code' => '#LIBRE-07', 'name' => 'LIBRE ELECCIÓN', 'semester' => 8, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'libre_eleccion', 'is_required' => false, 'is_leveling' => false],
 
             // 9th semester
             ['code' => '4200921', 'name' => 'ARQUITECTURA EMPRESARIAL', 'semester' => 9, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
@@ -95,7 +95,7 @@ class SubjectSeeder extends Seeder
             // 10th semester
             ['code' => '4100573', 'name' => 'TRABAJO DE GRADO', 'semester' => 10, 'credits' => 6, 'classroom_hours' => 3, 'student_hours' => 15, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
             ['code' => '4100559', 'name' => 'PRÁCTICA', 'semester' => 10, 'credits' => 7, 'classroom_hours' => 2, 'student_hours' => 20, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
-            ['code' => '#LIBRE-10', 'name' => 'LIBRE ELECCIÓN', 'semester' => 10, 'credits' => 4, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'libre_eleccion', 'is_required' => false, 'is_leveling' => false],
+            ['code' => '#LIBRE-10', 'name' => 'LIBRE ELECCIÓN', 'semester' => 10, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'libre_eleccion', 'is_required' => false, 'is_leveling' => false],
             ['code' => '#LIBRE-11', 'name' => 'LIBRE ELECCIÓN', 'semester' => 10, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'libre_eleccion', 'is_required' => false, 'is_leveling' => false],
 
         ];
