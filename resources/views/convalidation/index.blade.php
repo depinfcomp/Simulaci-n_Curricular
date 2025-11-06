@@ -13,6 +13,10 @@
                     <p class="text-muted mb-0">Gestiona convalidaciones de mallas curriculares externas</p>
                 </div>
                 <div>
+                    <a href="{{ route('import.index') }}" class="btn btn-success me-2">
+                        <i class="fas fa-file-import me-2"></i>
+                        Importar Malla desde Excel
+                    </a>
                     <a href="{{ route('convalidation.create') }}" class="btn btn-primary">
                         <i class="fas fa-upload me-2"></i>
                         Realizar Convalidación
