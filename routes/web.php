@@ -33,6 +33,9 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         // New route for impact analysis
         Route::post('/{externalCurriculum}/analyze-impact', [ConvalidationController::class, 'analyzeConvalidationImpact'])->name('convalidation.analyze-impact');
         
+        // Route to get total credits from external curriculum
+        Route::get('/{externalCurriculum}/total-credits', [ConvalidationController::class, 'getTotalCredits'])->name('convalidation.total-credits');
+        
         // New route for convalidations summary
         Route::get('/{externalCurriculum}/convalidations-summary', [ConvalidationController::class, 'getConvalidationsSummary'])->name('convalidation.summary');
         

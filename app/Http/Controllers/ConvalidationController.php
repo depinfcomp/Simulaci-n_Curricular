@@ -307,14 +307,18 @@ class ConvalidationController extends Controller
                 'request_data' => $request->all()
             ]);
 
-            // Get configuration parameters
-            $maxFreeElectiveCredits = $request->input('max_free_elective_credits', 12);
-            $priorityCriteria = $request->input('priority_criteria', 'credits');
+            // Get configuration parameters - Todos los límites de créditos
+            $creditLimits = [
+                'max_free_elective_credits' => $request->input('max_free_elective_credits', 36),
+                'max_optional_professional_credits' => $request->input('max_optional_professional_credits', 9),
+                'max_optional_fundamental_credits' => $request->input('max_optional_fundamental_credits', 6),
+                'max_leveling_credits' => $request->input('max_leveling_credits', 12),
+                'max_required_fundamental_credits' => $request->input('max_required_fundamental_credits', 60),
+                'max_required_professional_credits' => $request->input('max_required_professional_credits', 80),
+                'max_thesis_credits' => $request->input('max_thesis_credits', 6),
+            ];
 
-            \Log::info('Parámetros obtenidos', [
-                'max_credits' => $maxFreeElectiveCredits,
-                'criteria' => $priorityCriteria
-            ]);
+            \Log::info('Límites de créditos configurados', $creditLimits);
 
             // Get all students from the original curriculum
             $students = Student::with([
@@ -339,13 +343,6 @@ class ConvalidationController extends Controller
             $freeElectiveConvalidations = $convalidations->where('convalidation_type', 'free_elective');
             $notConvalidatedConvalidations = $convalidations->where('convalidation_type', 'not_convalidated');
 
-            // Apply credit limit and priority to free electives
-            $selectedFreeElectives = $this->selectFreeElectives(
-                $freeElectiveConvalidations, 
-                $maxFreeElectiveCredits, 
-                $priorityCriteria
-            );
-
             // Get all subjects from original curriculum
             $originalSubjects = Subject::with(['prerequisites', 'requiredFor'])->get()->keyBy('code');
             $totalOriginalSubjects = $originalSubjects->count();
@@ -358,14 +355,9 @@ class ConvalidationController extends Controller
                 'students_with_reduced_progress' => 0,
                 'affected_percentage' => 0,
                 'average_progress_change' => 0,
-                'total_convalidated_subjects' => $directConvalidations->count() + $selectedFreeElectives->count(),
+                'total_convalidated_subjects' => $directConvalidations->count(),
                 'direct_convalidations_count' => $directConvalidations->count(),
-                'free_electives_used' => $selectedFreeElectives->count(),
-                'free_electives_available' => $freeElectiveConvalidations->count(),
-                'free_electives_credits_used' => $selectedFreeElectives->sum('externalSubject.credits'),
-                'free_electives_credits_available' => $freeElectiveConvalidations->sum('externalSubject.credits'),
-                'max_free_elective_credits' => $maxFreeElectiveCredits,
-                'excess_free_electives' => $freeElectiveConvalidations->count() - $selectedFreeElectives->count(),
+                'free_electives_count' => $freeElectiveConvalidations->count(),
                 'additional_subjects_required' => $notConvalidatedConvalidations->count(),
                 'total_credits_lost' => $notConvalidatedConvalidations->sum(function($conv) { 
                     return $conv->externalSubject->credits ?? 0; 
@@ -377,9 +369,15 @@ class ConvalidationController extends Controller
                 ],
                 'student_details' => [],
                 'subject_impact' => [],
-                'configuration' => [
-                    'max_free_elective_credits' => $maxFreeElectiveCredits,
-                    'priority_criteria' => $priorityCriteria
+                'configuration' => $creditLimits,
+                'credits_by_component' => [
+                    'fundamental_required' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
+                    'fundamental_optional' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
+                    'professional_required' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
+                    'professional_optional' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
+                    'leveling' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
+                    'thesis' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
+                    'free_elective' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
                 ]
             ];
 
@@ -388,12 +386,15 @@ class ConvalidationController extends Controller
 
             foreach ($students as $student) {
                 try {
-                    $impact = $this->calculateStudentConvalidationImpactCorrect(
+                    $impact = $this->calculateStudentConvalidationImpactWithComponentLimits(
                         $student, 
                         $directConvalidations, 
-                        $selectedFreeElectives, 
+                        $freeElectiveConvalidations,
                         $notConvalidatedConvalidations,
-                        $externalCurriculum
+                        $externalCurriculum,
+                        $creditLimits,
+                        $originalSubjects,
+                        $totalOriginalSubjects
                     );
 
                     // Clasificar a todos los estudiantes, no solo los afectados
@@ -456,6 +457,45 @@ class ConvalidationController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al analizar el impacto: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get total credits from external curriculum
+     */
+    public function getTotalCredits(ExternalCurriculum $externalCurriculum)
+    {
+        try {
+            \Log::info('getTotalCredits called for curriculum ID: ' . $externalCurriculum->id);
+            $startTime = microtime(true);
+            
+            $totalCredits = $externalCurriculum->externalSubjects()
+                ->sum('credits');
+            
+            $totalSubjects = $externalCurriculum->externalSubjects()->count();
+            
+            $endTime = microtime(true);
+            $duration = round(($endTime - $startTime) * 1000, 2);
+            
+            \Log::info('getTotalCredits completed', [
+                'duration_ms' => $duration,
+                'total_credits' => $totalCredits,
+                'total_subjects' => $totalSubjects
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'total_credits' => $totalCredits ?? 0,
+                'total_subjects' => $totalSubjects,
+                'duration_ms' => $duration
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('getTotalCredits error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al calcular créditos: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -712,6 +752,394 @@ class ConvalidationController extends Controller
                 'progress_explanation' => 'Error en el cálculo del progreso: ' . $e->getMessage()
             ];
         }
+    }
+
+    /**
+     * Calculate student convalidation impact with component-based credit limits.
+     * Credits that exceed a component's limit are converted to free electives.
+     * Credits exceeding the free elective limit are marked as excess and don't count toward progress.
+     */
+    private function calculateStudentConvalidationImpactWithComponentLimits(
+        Student $student,
+        $directConvalidations,
+        $freeElectiveConvalidations,
+        $notConvalidatedConvalidations,
+        $externalCurriculum,
+        array $creditLimits,
+        $originalSubjects,
+        $totalOriginalSubjects
+    ) {
+        try {
+            // Get student's passed subjects
+            $passedSubjects = $student->subjects->where('pivot.status', 'passed')->keyBy('code');
+            
+            // Calculate original progress
+            $originalProgress = ($passedSubjects->count() / max($totalOriginalSubjects, 1)) * 100;
+            
+            // Get new curriculum size
+            $externalSubjects = $externalCurriculum->externalSubjects ?? collect();
+            $newTotalSubjects = max($externalSubjects->count(), 1);
+            
+            // Initialize credit counters by component
+            $componentCredits = [
+                'fundamental_required' => 0,
+                'fundamental_optional' => 0,
+                'professional_required' => 0,
+                'professional_optional' => 0,
+                'leveling' => 0,
+                'thesis' => 0,
+                'free_elective' => 0,
+            ];
+            
+            $overflowCredits = []; // Credits that exceed component limits
+            $convalidatedCount = 0;
+            $convalidationDetails = [];
+            
+            // Process direct convalidations
+            foreach ($directConvalidations as $convalidation) {
+                if (!$convalidation->externalSubject || !$convalidation->internalSubject) {
+                    continue;
+                }
+                
+                $externalSubjectCode = $convalidation->externalSubject->code;
+                
+                // Check if student passed this external subject
+                if (!$passedSubjects->has($externalSubjectCode)) {
+                    continue;
+                }
+                
+                $internalSubject = $convalidation->internalSubject;
+                $credits = $internalSubject->credits ?? 0;
+                $type = $internalSubject->type ?? 'fundamental';
+                $isRequired = $internalSubject->is_required ?? true;
+                $isLeveling = $internalSubject->is_leveling ?? false;
+                
+                // Determine component
+                $component = $this->getComponentKey($type, $isRequired, $isLeveling, $internalSubject->code);
+                $limit = $this->getComponentLimit($component, $creditLimits);
+                
+                // Check if adding these credits exceeds the component limit
+                if ($limit !== null && $componentCredits[$component] + $credits > $limit) {
+                    // Calculate overflow
+                    $overflow = ($componentCredits[$component] + $credits) - $limit;
+                    $accepted = $credits - $overflow;
+                    
+                    if ($accepted > 0) {
+                        $componentCredits[$component] += $accepted;
+                        $convalidatedCount++;
+                        $convalidationDetails[] = [
+                            'type' => 'direct_partial',
+                            'subject' => $internalSubject->name,
+                            'component' => $component,
+                            'credits_accepted' => $accepted,
+                            'credits_overflow' => $overflow,
+                        ];
+                    }
+                    
+                    // Add overflow to pending overflow list
+                    $overflowCredits[] = [
+                        'credits' => $overflow,
+                        'subject' => $internalSubject->name,
+                        'original_component' => $component,
+                    ];
+                } else {
+                    // Fits within limit
+                    $componentCredits[$component] += $credits;
+                    $convalidatedCount++;
+                    $convalidationDetails[] = [
+                        'type' => 'direct',
+                        'subject' => $internalSubject->name,
+                        'component' => $component,
+                        'credits' => $credits,
+                    ];
+                }
+            }
+            
+            // Process overflow credits → convert to free electives
+            $freeElectiveLimit = $creditLimits['max_free_elective_credits'] ?? 36;
+            $excessCredits = [];
+            
+            foreach ($overflowCredits as $overflow) {
+                if ($componentCredits['free_elective'] + $overflow['credits'] <= $freeElectiveLimit) {
+                    // Fits in free elective
+                    $componentCredits['free_elective'] += $overflow['credits'];
+                    $convalidationDetails[] = [
+                        'type' => 'overflow_to_free_elective',
+                        'subject' => $overflow['subject'],
+                        'original_component' => $overflow['original_component'],
+                        'credits' => $overflow['credits'],
+                    ];
+                } else {
+                    // Doesn't fit in free elective → excess (not counted)
+                    $excess = $overflow['credits'];
+                    if ($componentCredits['free_elective'] < $freeElectiveLimit) {
+                        $accepted = $freeElectiveLimit - $componentCredits['free_elective'];
+                        $componentCredits['free_elective'] += $accepted;
+                        $excess = $overflow['credits'] - $accepted;
+                        
+                        $convalidationDetails[] = [
+                            'type' => 'overflow_to_free_elective_partial',
+                            'subject' => $overflow['subject'],
+                            'credits_accepted' => $accepted,
+                            'credits_excess' => $excess,
+                        ];
+                    }
+                    
+                    if ($excess > 0) {
+                        $excessCredits[] = [
+                            'credits' => $excess,
+                            'subject' => $overflow['subject'],
+                        ];
+                        
+                        $convalidationDetails[] = [
+                            'type' => 'excess',
+                            'subject' => $overflow['subject'],
+                            'credits' => $excess,
+                            'note' => 'Excedente no contado',
+                        ];
+                    }
+                }
+            }
+            
+            // Process free elective convalidations
+            foreach ($freeElectiveConvalidations as $convalidation) {
+                if (!$convalidation->externalSubject) {
+                    continue;
+                }
+                
+                $externalSubjectCode = $convalidation->externalSubject->code;
+                
+                if (!$passedSubjects->has($externalSubjectCode)) {
+                    continue;
+                }
+                
+                $credits = $convalidation->externalSubject->credits ?? 3;
+                
+                // Check if fits in free elective limit
+                if ($componentCredits['free_elective'] + $credits <= $freeElectiveLimit) {
+                    $componentCredits['free_elective'] += $credits;
+                    $convalidatedCount++;
+                    $convalidationDetails[] = [
+                        'type' => 'free_elective',
+                        'subject' => $convalidation->externalSubject->name,
+                        'credits' => $credits,
+                    ];
+                } else {
+                    // Partial or excess
+                    $remaining = $freeElectiveLimit - $componentCredits['free_elective'];
+                    if ($remaining > 0) {
+                        $componentCredits['free_elective'] += $remaining;
+                        $convalidatedCount++;
+                        
+                        $excessCredits[] = [
+                            'credits' => $credits - $remaining,
+                            'subject' => $convalidation->externalSubject->name,
+                        ];
+                        
+                        $convalidationDetails[] = [
+                            'type' => 'free_elective_partial',
+                            'subject' => $convalidation->externalSubject->name,
+                            'credits_accepted' => $remaining,
+                            'credits_excess' => $credits - $remaining,
+                        ];
+                    } else {
+                        $excessCredits[] = [
+                            'credits' => $credits,
+                            'subject' => $convalidation->externalSubject->name,
+                        ];
+                        
+                        $convalidationDetails[] = [
+                            'type' => 'excess',
+                            'subject' => $convalidation->externalSubject->name,
+                            'credits' => $credits,
+                        ];
+                    }
+                }
+            }
+            
+            // Calculate total valid credits
+            $totalValidCredits = array_sum($componentCredits);
+            $totalExcessCredits = array_sum(array_column($excessCredits, 'credits'));
+            
+            // Calculate new progress (based on valid credits)
+            $newProgress = ($convalidatedCount / $newTotalSubjects) * 100;
+            $progressChange = $newProgress - $originalProgress;
+            
+            // Count new subjects required
+            $newSubjectsCount = 0;
+            foreach ($notConvalidatedConvalidations as $convalidation) {
+                if ($convalidation->externalSubject) {
+                    $newSubjectsCount++;
+                }
+            }
+            
+            return [
+                'has_impact' => abs($progressChange) > 0.1,
+                'original_progress' => round($originalProgress, 1),
+                'new_progress' => round($newProgress, 1),
+                'progress_change' => round($progressChange, 1),
+                'original_subjects_passed' => $passedSubjects->count(),
+                'original_total_subjects' => $totalOriginalSubjects,
+                'new_total_subjects' => $newTotalSubjects,
+                'convalidated_subjects_count' => $convalidatedCount,
+                'new_subjects_count' => $newSubjectsCount,
+                'component_credits' => $componentCredits,
+                'total_valid_credits' => $totalValidCredits,
+                'total_excess_credits' => $totalExcessCredits,
+                'excess_details' => $excessCredits,
+                'convalidation_details' => $convalidationDetails,
+                'progress_explanation' => $this->generateProgressExplanationWithComponents(
+                    $originalProgress,
+                    $newProgress,
+                    $progressChange,
+                    $componentCredits,
+                    $totalValidCredits,
+                    $totalExcessCredits
+                ),
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Error in calculateStudentConvalidationImpactWithComponentLimits: ' . $e->getMessage());
+            \Log::error('Student ID: ' . $student->id);
+            
+            return [
+                'has_impact' => false,
+                'original_progress' => 0,
+                'new_progress' => 0,
+                'progress_change' => 0,
+                'original_subjects_passed' => 0,
+                'original_total_subjects' => 1,
+                'new_total_subjects' => 1,
+                'convalidated_subjects_count' => 0,
+                'new_subjects_count' => 0,
+                'component_credits' => [],
+                'total_valid_credits' => 0,
+                'total_excess_credits' => 0,
+                'excess_details' => [],
+                'convalidation_details' => [],
+                'progress_explanation' => 'Error: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Get component key for a subject
+     */
+    private function getComponentKey(string $type, bool $isRequired, bool $isLeveling, string $code): string
+    {
+        // Nivelación (lengua extranjera)
+        if ($isLeveling || $type === 'lengua_extranjera') {
+            return 'leveling';
+        }
+        
+        // Trabajo de grado (solo código 4100573)
+        if ($code === '4100573') {
+            return 'thesis';
+        }
+        
+        // Fundamental
+        if ($type === 'fundamental' && $isRequired) {
+            return 'fundamental_required';
+        }
+        if ($type === 'fundamental' && !$isRequired) {
+            return 'fundamental_optional';
+        }
+        if ($type === 'optativa_fundamentacion') {
+            return 'fundamental_optional';
+        }
+        
+        // Disciplinar (profesional)
+        if ($type === 'profesional' && $isRequired) {
+            return 'professional_required';
+        }
+        if ($type === 'profesional' && !$isRequired) {
+            return 'professional_optional';
+        }
+        if ($type === 'optativa_profesional') {
+            return 'professional_optional';
+        }
+        
+        // Libre elección
+        if ($type === 'libre_eleccion') {
+            return 'free_elective';
+        }
+        
+        // Default: treat as required fundamental
+        return 'fundamental_required';
+    }
+
+    /**
+     * Get credit limit for a component
+     */
+    private function getComponentLimit(string $component, array $creditLimits): ?int
+    {
+        $map = [
+            'fundamental_required' => 'max_required_fundamental_credits',
+            'fundamental_optional' => 'max_optional_fundamental_credits',
+            'professional_required' => 'max_required_professional_credits',
+            'professional_optional' => 'max_optional_professional_credits',
+            'leveling' => 'max_leveling_credits',
+            'thesis' => 'max_thesis_credits',
+            'free_elective' => 'max_free_elective_credits',
+        ];
+        
+        $key = $map[$component] ?? null;
+        if (!$key) {
+            return null;
+        }
+        
+        $limit = $creditLimits[$key] ?? null;
+        
+        // null means no limit
+        return $limit !== null && $limit !== '' ? (int)$limit : null;
+    }
+
+    /**
+     * Generate progress explanation with component breakdown
+     */
+    private function generateProgressExplanationWithComponents(
+        float $originalProgress,
+        float $newProgress,
+        float $progressChange,
+        array $componentCredits,
+        int $totalValidCredits,
+        int $totalExcessCredits
+    ): string {
+        $explanation = sprintf(
+            "Progreso original: %.1f%% → Nuevo progreso: %.1f%% (cambio: %+.1f%%). ",
+            $originalProgress,
+            $newProgress,
+            $progressChange
+        );
+        
+        $explanation .= sprintf("Total de créditos válidos: %d. ", $totalValidCredits);
+        
+        if ($totalExcessCredits > 0) {
+            $explanation .= sprintf("Créditos excedentes no contados: %d. ", $totalExcessCredits);
+        }
+        
+        // Component breakdown
+        $componentNames = [
+            'fundamental_required' => 'Fund. Obligatorio',
+            'fundamental_optional' => 'Fund. Optativo',
+            'professional_required' => 'Disc. Obligatorio',
+            'professional_optional' => 'Disc. Optativo',
+            'leveling' => 'Nivelación',
+            'thesis' => 'Trabajo de Grado',
+            'free_elective' => 'Libre Elección',
+        ];
+        
+        $breakdown = [];
+        foreach ($componentCredits as $component => $credits) {
+            if ($credits > 0) {
+                $breakdown[] = sprintf("%s: %d", $componentNames[$component] ?? $component, $credits);
+            }
+        }
+        
+        if (!empty($breakdown)) {
+            $explanation .= "Desglose: " . implode(", ", $breakdown) . ".";
+        }
+        
+        return $explanation;
     }
     
     /**
