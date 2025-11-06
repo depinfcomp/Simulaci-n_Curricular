@@ -73,7 +73,7 @@ class CurriculumImport extends Model
     {
         $validTransitions = [
             'uploaded' => ['analyzing', 'failed'],
-            'analyzing' => ['mapping', 'confirmed', 'failed'],
+            'analyzing' => ['mapping', 'validating', 'confirmed', 'failed'],
             'mapping' => ['validating', 'failed'],
             'validating' => ['filling', 'confirmed', 'failed'],
             'filling' => ['confirmed', 'failed'],

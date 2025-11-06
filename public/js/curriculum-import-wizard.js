@@ -50,9 +50,18 @@ function initializeWizard() {
         }
     });
 
-    // Click on dropzone
+    // Select file button
+    const btnSelectFile = document.getElementById('btn-select-file');
+    if (btnSelectFile) {
+        btnSelectFile.addEventListener('click', () => {
+            fileInput.click();
+        });
+    }
+
+    // Click on dropzone (but not on the button itself)
     dropzone.addEventListener('click', (e) => {
-        if (e.target === dropzone || e.target.closest('#dropzone')) {
+        // Only trigger if clicking directly on dropzone, not on child elements like button
+        if (e.target === dropzone) {
             fileInput.click();
         }
     });
@@ -276,35 +285,67 @@ async function analyzeFile() {
  * Display analysis results
  */
 function displayAnalysisResults(data) {
-    const analysis = data.analysis;
+    console.log('[DISPLAY] Full data received:', data);
     
+    const analysis = data.analysis;
+    console.log('[DISPLAY] Analysis object:', analysis);
+    console.log('[DISPLAY] Headers:', analysis.headers);
+    console.log('[DISPLAY] Preview data:', analysis.preview_data);
+    console.log('[DISPLAY] Available fields:', data.available_fields);
+
     // Update summary
     document.getElementById('header-row-number').textContent = analysis.header_row;
-    document.getElementById('total-data-rows').textContent = analysis.total_rows - analysis.data_start_row + 1;
-    
-    const requiredCount = Object.values(analysis.required_fields_status).filter(v => v === true).length;
+    document.getElementById('total-data-rows').textContent = Math.max(0, (analysis.total_rows || 0));
+
+    const requiredCount = Object.values(analysis.required_fields_status || {}).filter(v => v === true).length;
     document.getElementById('required-fields-count').textContent = requiredCount;
 
     // Build column mapping table
     const tableBody = document.getElementById('column-mapping-table');
     tableBody.innerHTML = '';
 
-    const columnMapping = analysis.column_mapping;
-    const detectedColumns = analysis.detected_columns;
-    const previewData = analysis.preview_data;
-    const availableFields = data.available_fields;
+    const columnMapping = analysis.column_mapping || {};
+    const detectedColumns = analysis.detected_columns || {};
+    const previewData = analysis.preview_data || [];
+    const headers = analysis.headers || [];
+    const availableFields = data.available_fields || {};
 
-    // Get Excel columns
-    const excelColumns = Object.keys(columnMapping);
+    console.log('[DISPLAY] Column mapping:', columnMapping);
+    console.log('[DISPLAY] Detected columns:', detectedColumns);
 
-    excelColumns.forEach((excelCol, index) => {
+    // Helper: column index (1-based) to letter (A, B, C...)
+    function indexToLetter(index) {
+        let dividend = index;
+        let columnName = '';
+        while (dividend > 0) {
+            let modulo = (dividend - 1) % 26;
+            columnName = String.fromCharCode(65 + modulo) + columnName;
+            dividend = Math.floor((dividend - modulo) / 26);
+        }
+        return columnName;
+    }
+
+    // Build one row per header column
+    headers.forEach((header, columnIndex) => {
+        const excelCol = indexToLetter(columnIndex + 1); // Convert 0-based index to 1-based letter
         const mappedField = columnMapping[excelCol];
-        const confidence = detectedColumns[excelCol]?.confidence || 'low';
-        const header = previewData[0]?.[excelCol] || '';
-        const preview = previewData.slice(1, 4).map(row => row[excelCol]).filter(v => v).join(', ');
+
+        console.log(`[DISPLAY] Column ${excelCol} (index ${columnIndex}): header="${header}", mapped="${mappedField}"`);
+
+        // Build preview string (first 3 non-empty values from this column)
+        const previewVals = [];
+        for (let i = 0; i < Math.min(3, previewData.length); i++) {
+            const value = previewData[i][columnIndex];
+            if (value !== undefined && value !== null && String(value).trim() !== '') {
+                previewVals.push(String(value));
+            }
+        }
+        const preview = previewVals.join(', ');
+
+        console.log(`[DISPLAY] Preview for ${excelCol}:`, previewVals);
 
         const row = document.createElement('tr');
-        
+
         // Excel column
         const colCell = document.createElement('td');
         colCell.innerHTML = `<strong>${excelCol}</strong>`;
@@ -312,7 +353,7 @@ function displayAnalysisResults(data) {
 
         // Header
         const headerCell = document.createElement('td');
-        headerCell.textContent = header;
+        headerCell.textContent = header || '(sin encabezado)';
         row.appendChild(headerCell);
 
         // Mapping dropdown
@@ -320,18 +361,19 @@ function displayAnalysisResults(data) {
         const select = document.createElement('select');
         select.className = 'form-select form-select-sm';
         select.dataset.excelColumn = excelCol;
-        
+
         // Add empty option
         const emptyOption = document.createElement('option');
         emptyOption.value = '';
         emptyOption.textContent = '-- No mapear --';
         select.appendChild(emptyOption);
 
-        // Add field options
-        Object.entries(availableFields).forEach(([fieldKey, fieldInfo]) => {
+        // Add field options (availableFields is an object with string values)
+        Object.entries(availableFields).forEach(([fieldKey, fieldLabel]) => {
             const option = document.createElement('option');
             option.value = fieldKey;
-            option.textContent = `${fieldInfo.label}${fieldInfo.required ? ' *' : ''}`;
+            // fieldLabel is a string like "Código de materia (requerido)"
+            option.textContent = fieldLabel;
             if (mappedField === fieldKey) {
                 option.selected = true;
             }
@@ -341,14 +383,6 @@ function displayAnalysisResults(data) {
         select.addEventListener('change', updateColumnMapping);
         mappingCell.appendChild(select);
         row.appendChild(mappingCell);
-
-        // Confidence badge
-        const confidenceCell = document.createElement('td');
-        const badge = document.createElement('span');
-        badge.className = `badge confidence-${confidence}`;
-        badge.textContent = confidence === 'high' ? 'Alta' : confidence === 'medium' ? 'Media' : 'Baja';
-        confidenceCell.appendChild(badge);
-        row.appendChild(confidenceCell);
 
         // Preview
         const previewCell = document.createElement('td');
@@ -364,10 +398,11 @@ function displayAnalysisResults(data) {
         document.getElementById('missing-fields-warning').style.display = 'block';
         const list = document.getElementById('missing-fields-list');
         list.innerHTML = '';
-        
+
         missingFields.forEach(field => {
             const li = document.createElement('li');
-            li.textContent = availableFields[field]?.label || field;
+            // availableFields[field] is a string
+            li.textContent = availableFields[field] || field;
             list.appendChild(li);
         });
     } else {
@@ -375,6 +410,7 @@ function displayAnalysisResults(data) {
     }
 
     document.getElementById('analysis-result').classList.remove('d-none');
+    console.log('[DISPLAY] Analysis results displayed successfully');
 }
 
 /**

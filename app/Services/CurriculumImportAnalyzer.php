@@ -14,12 +14,13 @@ class CurriculumImportAnalyzer
     private const COLUMN_SYNONYMS = [
         'code' => ['código', 'codigo', 'code', 'cód', 'cod', 'asignatura', 'materia', 'subject code', 'subject_code'],
         'name' => ['nombre', 'name', 'asignatura', 'materia', 'subject', 'subject name', 'denominación', 'denominacion'],
-        'semester' => ['semestre', 'semester', 'sem', 'periodo', 'period', 'nivel', 'level'],
+        'semester' => ['semestre', 'semester', 'sem', 'periodo', 'period'],
         'credits' => ['créditos', 'creditos', 'credits', 'cred', 'cr', 'crédito', 'credito', 'ects'],
         'classroom_hours' => ['horas presenciales', 'horas clase', 'h. presenciales', 'classroom hours', 'horas aula', 'h presenciales'],
         'student_hours' => ['horas independientes', 'horas estudiante', 'h. independientes', 'student hours', 'horas trabajo', 'h independientes'],
         'type' => ['tipo', 'type', 'categoría', 'categoria', 'category', 'clasificación', 'clasificacion'],
-        'is_required' => ['obligatoria', 'requerida', 'required', 'oblig', 'req', 'obligatorio']
+        'is_required' => ['obligatoria', 'requerida', 'required', 'oblig', 'req', 'obligatorio'],
+        'is_leveling' => ['nivelatoria', 'nivelacion', 'nivelación', 'leveling', 'remedial', 'preparatoria']
     ];
 
     /**
@@ -56,12 +57,13 @@ class CurriculumImportAnalyzer
         $headers = $allRows[$headerRow] ?? [];
         $columnMapping = $this->detectColumnMapping($headers);
         
-        // Detectar fila de inicio de datos
-        $dataStartRow = $headerRow + 1;
+        // Convertir indices de array a números de fila Excel (1-based)
+        $headerRowExcel = $headerRow + 1; // Array index 0 = Excel row 1
+        $dataStartRowExcel = $headerRowExcel + 1; // Primera fila después de headers
         
         // Obtener datos de preview (primeras 10 filas de datos)
         $previewData = [];
-        for ($i = $dataStartRow; $i < min($dataStartRow + 10, count($allRows)); $i++) {
+        for ($i = $headerRow + 1; $i < min($headerRow + 11, count($allRows)); $i++) {
             if (!empty(array_filter($allRows[$i]))) { // Ignorar filas vacías
                 $previewData[] = $allRows[$i];
             }
@@ -74,9 +76,9 @@ class CurriculumImportAnalyzer
         }
 
         return [
-            'header_row' => $headerRow,
-            'data_start_row' => $dataStartRow,
-            'total_rows' => $highestRow - $dataStartRow,
+            'header_row' => $headerRowExcel,
+            'data_start_row' => $dataStartRowExcel,
+            'total_rows' => $highestRow - $dataStartRowExcel + 1,
             'total_columns' => $highestColumnIndex,
             'headers' => $headers,
             'column_mapping' => $columnMapping,
@@ -196,37 +198,40 @@ class CurriculumImportAnalyzer
     /**
      * Validar datos de una fila
      */
-    public function validateRow(array $row, array $columnMapping): array
+    /**
+     * Validar una fila de datos
+     * 
+     * @param array $rowData Datos de la fila ya mapeados por nombre de campo ['code' => 'valor', 'name' => 'valor', ...]
+     * @param array $columnMapping Mapeo de columnas Excel a campos (solo para referencia)
+     * @return array Resultado de validación
+     */
+    public function validateRow(array $rowData, array $columnMapping = []): array
     {
         $errors = [];
-        $data = [];
-        
-        // Extract data based on mapping
-        foreach ($columnMapping as $columnLetter => $field) {
-            $columnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($columnLetter) - 1;
-            $value = $row[$columnIndex] ?? null;
-            $data[$field] = $value;
-        }
+        $missingFields = [];
+        $data = $rowData; // Los datos ya vienen mapeados
         
         // Validate required fields
         foreach (self::REQUIRED_FIELDS as $field) {
-            if (empty($data[$field])) {
+            if (empty($data[$field]) && $data[$field] !== '0' && $data[$field] !== 0) {
                 $errors[$field] = "Campo requerido vacío";
+                $missingFields[] = $field;
             }
         }
         
         // Validate specific field types
-        if (!empty($data['credits']) && !is_numeric($data['credits'])) {
+        if (isset($data['credits']) && $data['credits'] !== '' && !is_numeric($data['credits'])) {
             $errors['credits'] = "Debe ser un número";
         }
         
-        if (!empty($data['semester'])) {
+        if (isset($data['semester']) && $data['semester'] !== '') {
             $semester = is_numeric($data['semester']) ? (int)$data['semester'] : null;
             if ($semester === null || $semester < 1 || $semester > 10) {
                 $errors['semester'] = "Debe ser entre 1 y 10";
             }
         }
         
+        // Normalize code
         if (!empty($data['code'])) {
             $data['code'] = strtoupper(trim($data['code']));
         }
@@ -234,6 +239,7 @@ class CurriculumImportAnalyzer
         return [
             'data' => $data,
             'errors' => $errors,
+            'missing_fields' => $missingFields,
             'valid' => empty($errors)
         ];
     }
@@ -252,6 +258,7 @@ class CurriculumImportAnalyzer
             'student_hours' => 'Horas independientes (opcional)',
             'type' => 'Tipo de materia (opcional)',
             'is_required' => 'Es obligatoria (opcional)',
+            'is_leveling' => 'Es nivelatoria (opcional)',
         ];
     }
 }

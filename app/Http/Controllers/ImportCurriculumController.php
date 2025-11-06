@@ -131,6 +131,14 @@ class ImportCurriculumController extends Controller
      */
     public function updateMapping(Request $request, CurriculumImport $import)
     {
+        // Permitir actualizar mapeo desde 'mapping' o 'validating'
+        if (!in_array($import->status, ['mapping', 'validating'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El estado actual no permite actualizar el mapeo'
+            ], 400);
+        }
+
         $request->validate([
             'column_mapping' => 'required|array',
         ]);
@@ -162,7 +170,10 @@ class ImportCurriculumController extends Controller
                 ]
             ]);
 
-            $import->updateStatus('validating');
+            // Solo actualizar el estado si no está ya en validating
+            if ($import->status !== 'validating') {
+                $import->updateStatus('validating');
+            }
 
             return response()->json([
                 'success' => true,
@@ -185,7 +196,7 @@ class ImportCurriculumController extends Controller
         if ($import->status !== 'validating') {
             return response()->json([
                 'success' => false,
-                'message' => 'El estado actual no permite validación'
+                'message' => 'El estado actual no permite validación. Estado actual: ' . $import->status
             ], 400);
         }
 
@@ -193,12 +204,28 @@ class ImportCurriculumController extends Controller
             // Obtener ruta completa del archivo usando Storage
             $filePath = Storage::disk('local')->path($import->stored_path);
 
+            if (!file_exists($filePath)) {
+                throw new \Exception("Archivo no encontrado en: {$filePath}");
+            }
+
             // Cargar Excel
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($filePath);
             $worksheet = $spreadsheet->getActiveSheet();
             $highestRow = $worksheet->getHighestRow();
 
             $columnMapping = $import->column_mapping;
+            
+            if (empty($columnMapping)) {
+                throw new \Exception("No hay mapeo de columnas definido");
+            }
+
+            \Log::info('Iniciando validación', [
+                'import_id' => $import->id,
+                'column_mapping' => $columnMapping,
+                'data_start_row' => $import->data_start_row,
+                'highest_row' => $highestRow,
+            ]);
+
             $validationErrors = [];
             $missingDataRows = [];
             $validRowsCount = 0;
@@ -206,26 +233,40 @@ class ImportCurriculumController extends Controller
             // Validar cada fila de datos
             for ($row = $import->data_start_row; $row <= $highestRow; $row++) {
                 $rowData = [];
-                foreach ($columnMapping as $excelCol => $fieldName) {
-                    $cellValue = $worksheet->getCell($excelCol . $row)->getValue();
-                    $rowData[$fieldName] = $cellValue;
-                }
+                
+                try {
+                    foreach ($columnMapping as $excelCol => $fieldName) {
+                        $cellValue = $worksheet->getCell($excelCol . $row)->getValue();
+                        $rowData[$fieldName] = $cellValue;
+                    }
 
-                // Validar fila
-                $validation = $this->analyzer->validateRow($rowData, $columnMapping);
+                    // Validar fila
+                    $validation = $this->analyzer->validateRow($rowData, $columnMapping);
 
-                if (!$validation['valid']) {
-                    $missingDataRows[] = [
-                        'row_number' => $row,
-                        'data' => $rowData,
-                        'errors' => $validation['errors'],
-                        'missing_fields' => $validation['missing_fields'],
-                    ];
-                    $validationErrors = array_merge($validationErrors, $validation['errors']);
-                } else {
-                    $validRowsCount++;
+                    if (!$validation['valid']) {
+                        $missingDataRows[] = [
+                            'row_number' => $row,
+                            'data' => $rowData,
+                            'errors' => $validation['errors'],
+                            'missing_fields' => $validation['missing_fields'],
+                        ];
+                        $validationErrors = array_merge($validationErrors, $validation['errors']);
+                    } else {
+                        $validRowsCount++;
+                    }
+                } catch (\Exception $rowException) {
+                    \Log::error('Error validando fila ' . $row, [
+                        'error' => $rowException->getMessage(),
+                        'row_data' => $rowData ?? [],
+                    ]);
+                    throw new \Exception("Error en fila {$row}: " . $rowException->getMessage());
                 }
             }
+
+            \Log::info('Validación completada', [
+                'valid_rows' => $validRowsCount,
+                'invalid_rows' => count($missingDataRows),
+            ]);
 
             // Guardar resultados de validación
             $import->update([
@@ -255,12 +296,23 @@ class ImportCurriculumController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
+            \Log::error('Error en validación de importación', [
+                'import_id' => $import->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             $import->updateStatus('failed');
             $import->update(['error_message' => $e->getMessage()]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error al validar datos: ' . $e->getMessage()
+                'message' => 'Error al validar datos: ' . $e->getMessage(),
+                'error_details' => [
+                    'file' => basename($e->getFile()),
+                    'line' => $e->getLine(),
+                    'import_id' => $import->id,
+                ]
             ], 500);
         }
     }
@@ -377,6 +429,12 @@ class ImportCurriculumController extends Controller
             $importedSubjects = [];
 
             // Importar materias
+            $placeholderCounters = [
+                'libre_eleccion' => 0,
+                'optativa_fundamentacion' => 0,
+                'optativa_profesional' => 0,
+            ];
+
             for ($row = $import->data_start_row; $row <= $highestRow; $row++) {
                 $rowData = [];
                 foreach ($columnMapping as $excelCol => $fieldName) {
@@ -384,22 +442,93 @@ class ImportCurriculumController extends Controller
                     $rowData[$fieldName] = $cellValue;
                 }
 
-                // Validar que tenga datos mínimos
-                if (empty($rowData['code']) || empty($rowData['name'])) {
+                // Limpiar y normalizar código
+                $code = isset($rowData['code']) ? strtoupper(trim($rowData['code'])) : '';
+                $name = isset($rowData['name']) ? trim($rowData['name']) : '';
+                $type = $rowData['type'] ?? null;
+
+                // Saltar filas vacías
+                if (empty($code) || empty($name)) {
                     continue;
+                }
+
+                // Detectar si es una fila de header (contiene palabras como "código", "nombre", etc.)
+                $headerKeywords = ['CÓDIGO', 'CODIGO', 'CODE', 'NOMBRE', 'NAME', 'SEMESTRE', 'SEMESTER', 'CRÉDITOS', 'CREDITOS', 'CREDITS'];
+                if (in_array($code, $headerKeywords) || in_array($name, $headerKeywords)) {
+                    \Log::info("Saltando fila de header: row={$row}, code={$code}, name={$name}");
+                    continue;
+                }
+
+                // Generar código único automáticamente según el TIPO de materia
+                // Si el código viene vacío, es un placeholder (#, #CÓDIGO, etc.), o ya existe
+                $isPlaceholder = (
+                    empty($code) || 
+                    $code === '#' || 
+                    preg_match('/^#(CÓDIGO|CODIGO|CODE|ASIGNATURA|OPTATIVA|LIBRE)$/i', $code)
+                );
+                
+                $isDuplicate = (!empty($code) && ExternalSubject::where('external_curriculum_id', $curriculum->id)
+                    ->where('code', $code)
+                    ->exists());
+                
+                $needsPlaceholder = $isPlaceholder || $isDuplicate;
+
+                if ($needsPlaceholder && !empty($type)) {
+                    $originalCode = $code;
+                    
+                    // Generar código único basado en el tipo
+                    if ($type === 'libre_eleccion') {
+                        do {
+                            $code = '#LIBRE-' . str_pad($placeholderCounters['libre_eleccion'], 2, '0', STR_PAD_LEFT);
+                            $placeholderCounters['libre_eleccion']++;
+                        } while (ExternalSubject::where('external_curriculum_id', $curriculum->id)
+                            ->where('code', $code)
+                            ->exists());
+                            
+                    } elseif ($type === 'optativa_fundamentacion') {
+                        do {
+                            $code = '#OPTFUN-' . str_pad($placeholderCounters['optativa_fundamentacion'], 2, '0', STR_PAD_LEFT);
+                            $placeholderCounters['optativa_fundamentacion']++;
+                        } while (ExternalSubject::where('external_curriculum_id', $curriculum->id)
+                            ->where('code', $code)
+                            ->exists());
+                            
+                    } elseif ($type === 'optativa_profesional' || $type === 'optativa_disciplinar') {
+                        do {
+                            $code = '#OPTDIS-' . str_pad($placeholderCounters['optativa_profesional'], 2, '0', STR_PAD_LEFT);
+                            $placeholderCounters['optativa_profesional']++;
+                        } while (ExternalSubject::where('external_curriculum_id', $curriculum->id)
+                            ->where('code', $code)
+                            ->exists());
+                            
+                    } else {
+                        // Si tiene placeholder pero no tiene tipo definido, generar genérico
+                        $code = '#SUBJECT-' . $curriculum->id . '-' . $row;
+                    }
+                    
+                    \Log::info("Placeholder generado automáticamente", [
+                        'row' => $row,
+                        'original' => $originalCode,
+                        'generated' => $code,
+                        'type' => $type,
+                        'name' => $name,
+                    ]);
                 }
 
                 // Crear ExternalSubject
                 $subject = ExternalSubject::create([
                     'external_curriculum_id' => $curriculum->id,
-                    'code' => strtoupper(trim($rowData['code'])),
-                    'name' => trim($rowData['name']),
+                    'code' => $code,
+                    'name' => $name,
                     'semester' => $rowData['semester'] ?? null,
                     'credits' => $rowData['credits'] ?? null,
-                    'classroom_hours' => $rowData['classroom_hours'] ?? null,
-                    'student_hours' => $rowData['student_hours'] ?? null,
-                    'type' => $rowData['type'] ?? null,
-                    'is_required' => $rowData['is_required'] ?? true,
+                    'additional_data' => [
+                        'classroom_hours' => $rowData['classroom_hours'] ?? null,
+                        'student_hours' => $rowData['student_hours'] ?? null,
+                        'type' => $type,
+                        'is_required' => $rowData['is_required'] ?? true,
+                        'is_leveling' => $rowData['is_leveling'] ?? false,
+                    ],
                 ]);
 
                 $subjectsImported++;

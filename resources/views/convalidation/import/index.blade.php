@@ -81,7 +81,7 @@
                                     <h5>Arrastra tu archivo Excel aquí</h5>
                                     <p class="text-muted mb-3">o haz clic para seleccionar</p>
                                     <input type="file" id="file-input" accept=".xlsx,.xls,.csv" class="d-none">
-                                    <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('file-input').click()">
+                                    <button type="button" class="btn btn-outline-primary" id="btn-select-file">
                                         Seleccionar Archivo
                                     </button>
                                     <div class="mt-3">
@@ -178,7 +178,6 @@
                                             <th>Columna Excel</th>
                                             <th>Encabezado</th>
                                             <th>Mapear a Campo</th>
-                                            <th>Confianza</th>
                                             <th>Vista Previa</th>
                                         </tr>
                                     </thead>
