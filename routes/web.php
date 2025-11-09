@@ -6,6 +6,7 @@ use App\Http\Controllers\SubjectOrderController;
 use App\Http\Controllers\ConvalidationController;
 use App\Http\Controllers\ImportCurriculumController;
 use App\Http\Controllers\AcademicHistoryController;
+use App\Http\Controllers\ElectiveSubjectController;
 
 // Redirect root to login
 Route::get('/', function () {
@@ -85,6 +86,16 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         Route::get('/{import}', [AcademicHistoryController::class, 'show'])->name('show');
         Route::delete('/{import}', [AcademicHistoryController::class, 'destroy'])->name('destroy');
         Route::get('/{import}/export', [AcademicHistoryController::class, 'export'])->name('export');
+    });
+
+    // Elective Subjects routes
+    Route::prefix('elective-subjects')->name('elective-subjects.')->group(function () {
+        Route::get('/', [ElectiveSubjectController::class, 'index'])->name('index');
+        Route::post('/', [ElectiveSubjectController::class, 'store'])->name('store');
+        Route::get('/{electiveSubject}', [ElectiveSubjectController::class, 'show'])->name('show');
+        Route::put('/{electiveSubject}', [ElectiveSubjectController::class, 'update'])->name('update');
+        Route::delete('/{electiveSubject}', [ElectiveSubjectController::class, 'destroy'])->name('destroy');
+        Route::post('/{electiveSubject}/toggle-status', [ElectiveSubjectController::class, 'toggleStatus'])->name('toggle-status');
     });
 });
 

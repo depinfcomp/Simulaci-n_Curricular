@@ -51,6 +51,12 @@
                                 Historias Académicas
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ route('elective-subjects.index') }}">
+                                <i class="fas fa-graduation-cap me-1"></i>
+                                Materias Optativas
+                            </a>
+                        </li>
                     </ul>
                     
                     <!-- User Menu -->
