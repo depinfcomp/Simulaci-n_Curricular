@@ -29,7 +29,11 @@
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #df8c9d 0%, #e9b5bf 50%, #f5dbdf 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
-                    <span style="font-weight: 500;">Lengua Extranjera</span>
+                    <span style="font-weight: 500;">Nivelación</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #66bb6a 0%, #81c784 50%, #c8e6c9 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
+                    <span style="font-weight: 500;">Trabajo de Grado</span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #42a5f5 0%, #64b5f6 50%, #bbdefb 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
@@ -83,7 +87,7 @@
                 </div>
                 <div class="col-md-2">
                     <div class="stat-card">
-                        <div class="stat-number" id="career-credits">{{ \App\Models\Subject::where('is_leveling', false)->sum('credits') }}</div>
+                        <div class="stat-number" id="career-credits">{{ \App\Models\Subject::where('type', '!=', 'nivelacion')->sum('credits') }}</div>
                         <div class="stat-label">Créditos Carrera</div>
                     </div>
                 </div>
@@ -121,6 +125,10 @@
                     <button class="btn btn-success" onclick="addNewSubject()">
                         <i class="fas fa-plus me-1"></i>
                         Agregar Materia
+                    </button>
+                    <button class="btn btn-primary ms-2" onclick="showComponentCredits()">
+                        <i class="fas fa-chart-bar me-1"></i>
+                        Créditos por Componente
                     </button>
                 </div>
                 <div class="col-md-6 text-end">
@@ -195,9 +203,9 @@
 @endsection
 
 @push('scripts')
-    <script src="{{ asset('js/simulation-fallback.js') }}"></script>
-    <script src="{{ asset('js/simulation.js') }}"></script>
-    <script src="{{ asset('js/debug.js') }}"></script>
+    <script src="{{ asset('js/simulation-fallback.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/simulation.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/debug.js') }}?v={{ time() }}"></script>
     <script>
         // Debug: Check subject types and colors
         document.addEventListener('DOMContentLoaded', function() {
@@ -213,7 +221,8 @@
                                     card.classList.contains('profesional') || 
                                     card.classList.contains('optativa_profesional') ||
                                     card.classList.contains('optativa_fundamentacion') ||
-                                    card.classList.contains('lengua_extranjera') ||
+                                    card.classList.contains('nivelacion') ||
+                                    card.classList.contains('trabajo_grado') ||
                                     card.classList.contains('libre_eleccion');
                 
                 typeCount[type] = (typeCount[type] || 0) + 1;
@@ -235,4 +244,168 @@
             console.log('=== END COLOR DEBUG ===');
         });
     </script>
+
+    <!-- Modal: Créditos por Componente -->
+    <div class="modal fade" id="componentCreditsModal" tabindex="-1" aria-labelledby="componentCreditsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="componentCreditsModalLabel">
+                        <i class="fas fa-chart-bar me-2"></i>Créditos por Componente Curricular
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="component-credits-table">
+                        <div class="credit-row">
+                            <span class="component-name">DISCIPLINAR OPTATIVA</span>
+                            <span class="component-credits" id="credit-optativa-profesional">0</span>
+                        </div>
+                        <div class="credit-row">
+                            <span class="component-name">FUND. OBLIGATORIA</span>
+                            <span class="component-credits" id="credit-fundamental">0</span>
+                        </div>
+                        <div class="credit-row">
+                            <span class="component-name">FUND. OPTATIVA</span>
+                            <span class="component-credits" id="credit-optativa-fundamentacion">0</span>
+                        </div>
+                        <div class="credit-row">
+                            <span class="component-name">DISCIPLINAR OBLIGATORIA</span>
+                            <span class="component-credits" id="credit-profesional">0</span>
+                        </div>
+                        <div class="credit-row">
+                            <span class="component-name">LIBRE ELECCIÓN</span>
+                            <span class="component-credits" id="credit-libre-eleccion">0</span>
+                        </div>
+                        <div class="credit-row">
+                            <span class="component-name">TRABAJO DE GRADO</span>
+                            <span class="component-credits" id="credit-trabajo-grado">0</span>
+                        </div>
+                        <div class="credit-row total-row">
+                            <span class="component-name"><strong>TOTAL</strong></span>
+                            <span class="component-credits"><strong id="credit-total">0</strong></span>
+                        </div>
+                        <div class="credit-row separator-row">
+                            <span class="component-name">NIVELACIÓN</span>
+                            <span class="component-credits" id="credit-nivelacion">0</span>
+                        </div>
+                        <div class="credit-row grand-total-row">
+                            <span class="component-name"><strong>TOTAL ESTUDIANTE</strong></span>
+                            <span class="component-credits"><strong id="credit-grand-total">0</strong></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .component-credits-table {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .credit-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        
+        .credit-row:hover {
+            background: #e9ecef;
+        }
+        
+        .component-name {
+            font-size: 14px;
+            color: #495057;
+        }
+        
+        .component-credits {
+            font-size: 16px;
+            font-weight: 600;
+            color: #0d6efd;
+            min-width: 50px;
+            text-align: right;
+        }
+        
+        .total-row {
+            background: #e7f1ff;
+            border: 2px solid #0d6efd;
+            margin-top: 8px;
+        }
+        
+        .total-row .component-name,
+        .total-row .component-credits {
+            color: #0d6efd;
+            font-size: 16px;
+        }
+        
+        .separator-row {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            margin-top: 8px;
+        }
+        
+        .separator-row .component-name,
+        .separator-row .component-credits {
+            color: #664d03;
+        }
+        
+        .grand-total-row {
+            background: #d1e7dd;
+            border: 2px solid #198754;
+            margin-top: 4px;
+        }
+        
+        .grand-total-row .component-name,
+        .grand-total-row .component-credits {
+            color: #198754;
+            font-size: 17px;
+        }
+
+        /* Prerequisite Selector Styles */
+        .prerequisite-card {
+            background: #ffffff;
+            border: 2px solid #dee2e6 !important;
+        }
+        
+        .prerequisite-card:hover {
+            background: #f8f9fa;
+            border-color: #0d6efd !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .prerequisite-card.selected {
+            background: linear-gradient(135deg, #e7f3ff 0%, #cfe7ff 100%) !important;
+            border-color: #0d6efd !important;
+            box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+        }
+        
+        .prerequisite-card.selected:hover {
+            background: linear-gradient(135deg, #d0e9ff 0%, #b8dcff 100%) !important;
+        }
+        
+        .prerequisite-card .fa-check-circle {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        
+        .prerequisite-card.selected .fa-check-circle {
+            animation: checkPulse 0.5s ease;
+        }
+        
+        @keyframes checkPulse {
+            0% { transform: scale(0.8); opacity: 0; }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
 @endpush

@@ -812,7 +812,7 @@ class ConvalidationController extends Controller
                 $credits = $internalSubject->credits ?? 0;
                 $type = $internalSubject->type ?? 'fundamental';
                 $isRequired = $internalSubject->is_required ?? true;
-                $isLeveling = $internalSubject->is_leveling ?? false;
+                $isLeveling = ($type === 'nivelacion') || ($internalSubject->is_leveling ?? false);
                 
                 // Determine component
                 $component = $this->getComponentKey($type, $isRequired, $isLeveling, $internalSubject->code);
@@ -1026,13 +1026,13 @@ class ConvalidationController extends Controller
      */
     private function getComponentKey(string $type, bool $isRequired, bool $isLeveling, string $code): string
     {
-        // Nivelación (lengua extranjera)
-        if ($isLeveling || $type === 'lengua_extranjera') {
+        // Nivelación
+        if ($isLeveling || $type === 'nivelacion') {
             return 'leveling';
         }
         
-        // Trabajo de grado (solo código 4100573)
-        if ($code === '4100573') {
+        // Trabajo de grado
+        if ($code === '4100573' || $type === 'trabajo_grado') {
             return 'thesis';
         }
         

@@ -19,6 +19,69 @@ window.exportModifiedCurriculum = function() {
     }
 };
 
+window.showComponentCredits = function() {
+    console.log('showComponentCredits called');
+    
+    // Calculate credits by component from current curriculum
+    const subjects = document.querySelectorAll('.subject-card');
+    
+    const credits = {
+        'optativa_profesional': 0,
+        'fundamental': 0,
+        'optativa_fundamentacion': 0,
+        'profesional': 0,
+        'libre_eleccion': 0,
+        'trabajo_grado': 0,
+        'nivelacion': 0
+    };
+    
+    subjects.forEach(card => {
+        const type = card.dataset.type;
+        const creditsElement = card.querySelector('.info-box:nth-child(1)');
+        if (creditsElement && type) {
+            const creditValue = parseInt(creditsElement.textContent) || 0;
+            
+            // Map types to components
+            if (type === 'optativa_profesional') {
+                credits.optativa_profesional += creditValue;
+            } else if (type === 'fundamental') {
+                credits.fundamental += creditValue;
+            } else if (type === 'optativa_fundamentacion') {
+                credits.optativa_fundamentacion += creditValue;
+            } else if (type === 'profesional') {
+                credits.profesional += creditValue;
+            } else if (type === 'libre_eleccion') {
+                credits.libre_eleccion += creditValue;
+            } else if (type === 'trabajo_grado') {
+                credits.trabajo_grado += creditValue;
+            } else if (type === 'nivelacion') {
+                credits.nivelacion += creditValue;
+            }
+        }
+    });
+    
+    // Calculate totals
+    const total = credits.optativa_profesional + credits.fundamental + 
+                 credits.optativa_fundamentacion + credits.profesional + 
+                 credits.libre_eleccion + credits.trabajo_grado;
+    const grandTotal = total + credits.nivelacion;
+    
+    // Update modal content
+    document.getElementById('credit-optativa-profesional').textContent = credits.optativa_profesional;
+    document.getElementById('credit-fundamental').textContent = credits.fundamental;
+    document.getElementById('credit-optativa-fundamentacion').textContent = credits.optativa_fundamentacion;
+    document.getElementById('credit-profesional').textContent = credits.profesional;
+    document.getElementById('credit-libre-eleccion').textContent = credits.libre_eleccion;
+    document.getElementById('credit-trabajo-grado').textContent = credits.trabajo_grado;
+    document.getElementById('credit-total').textContent = total;
+    document.getElementById('credit-nivelacion').textContent = credits.nivelacion;
+    document.getElementById('credit-grand-total').textContent = grandTotal;
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('componentCreditsModal'));
+    modal.show();
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     const subjectCards = document.querySelectorAll('.subject-card');
     let selectedCard = null;
@@ -41,8 +104,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const credits = parseInt(creditsElement.textContent) || 0;
                 totalCredits += credits;
                 
-                // Check if it's a leveling subject (lengua_extranjera type)
-                const isLeveling = card.classList.contains('lengua_extranjera');
+                // Check if it's a leveling subject (nivelacion type)
+                const isLeveling = card.classList.contains('nivelacion');
                 if (!isLeveling) {
                     careerCredits += credits;
                 }
@@ -886,16 +949,20 @@ document.addEventListener('DOMContentLoaded', function() {
                             
                             <div class="row mt-3" id="prerequisiteEditor" style="display: none;">
                                 <div class="col-12">
-                                    <label class="form-label">
+                                    <label class="form-label fw-bold">
                                         <i class="fas fa-list me-1"></i>
-                                        Nuevos prerrequisitos:
+                                        Prerrequisitos:
                                     </label>
-                                    <textarea class="form-control" id="new-prerequisites" rows="3" 
-                                        placeholder="Ingrese códigos de materias separados por comas">${currentPrereqs.join(', ')}</textarea>
-                                    <small class="form-text text-muted">
-                                        <i class="fas fa-lightbulb me-1"></i>
-                                        Ejemplo: 4100400, 4100401, 4100402
-                                    </small>
+                                    <div id="movePrerequisitesContainer" class="border rounded p-3 mb-3" style="background: #f8f9fa; min-height: 60px;">
+                                        <div id="moveSelectedPrerequisites" class="d-flex flex-wrap gap-2">
+                                            <!-- Chips will appear here -->
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-primary btn-sm" onclick="openMovePrerequisiteSelector('${subjectId}')">
+                                        <i class="fas fa-plus me-1"></i>
+                                        Modificar Prerrequisitos
+                                    </button>
+                                    <input type="hidden" id="move-prereqs-hidden" value="${currentPrereqs.join(',')}">
                                 </div>
                             </div>
                             
@@ -949,6 +1016,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const editor = document.getElementById('prerequisiteEditor');
             if (this.checked) {
                 editor.style.display = 'block';
+                // Populate initial chips
+                populateMovePrerequisiteChips(currentPrereqs);
             } else {
                 editor.style.display = 'none';
             }
@@ -981,7 +1050,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Handle prerequisite changes if enabled
         if (editPrereqs) {
-            const newPrereqs = document.getElementById('new-prerequisites').value
+            const newPrereqs = document.getElementById('move-prereqs-hidden').value
                 .split(',')
                 .map(p => p.trim())
                 .filter(p => p);
@@ -1046,28 +1115,34 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <h6>Materia: ${subjectName} (${subjectId})</h6>
+                            <h6 class="mb-3">Materia: <strong>${subjectName}</strong> <span class="badge bg-secondary">${subjectId}</span></h6>
+                            
                             <div class="mt-3">
-                                <label class="form-label">Prerrequisitos actuales:</label>
-                                <div id="current-prereqs">
-                                    ${currentPrereqs.length > 0 ? currentPrereqs.map(prereq => `
-                                        <span class="badge bg-secondary me-1">${prereq}</span>
-                                    `).join('') : '<span class="text-muted">Sin prerrequisitos</span>'}
+                                <label class="form-label fw-bold">Prerrequisitos actuales:</label>
+                                <div id="current-prereqs-display" class="border rounded p-3 mb-3" style="background: #f8f9fa; min-height: 60px;">
+                                    <div id="editPrerequisitesChips" class="d-flex flex-wrap gap-2">
+                                        <!-- Chips will be populated here -->
+                                    </div>
                                 </div>
+                                <button type="button" class="btn btn-primary btn-sm" onclick="openPrerequisiteSelectorForEdit('${subjectId}')">
+                                    <i class="fas fa-plus me-1"></i>
+                                    Modificar Prerrequisitos
+                                </button>
+                                <input type="hidden" id="edit-prereqs-hidden" value="${currentPrereqs.join(',')}">
                             </div>
+                            
                             <div class="mt-3">
-                                <label class="form-label">Modificar prerrequisitos:</label>
-                                <textarea class="form-control" id="new-prereqs" rows="3" 
-                                    placeholder="Ingrese códigos de materias separados por comas">${currentPrereqs.join(', ')}</textarea>
-                                <small class="form-text text-muted">
-                                    Ejemplo: 4100400, 4100401, 4100402
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Haga clic en "Modificar Prerrequisitos" para cambiar las materias prerrequisito
                                 </small>
                             </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                             <button type="button" class="btn btn-primary" onclick="updatePrerequisites('${subjectId}')">
-                                Actualizar
+                                <i class="fas fa-save me-1"></i>
+                                Guardar Cambios
                             </button>
                         </div>
                     </div>
@@ -1101,12 +1176,315 @@ document.addEventListener('DOMContentLoaded', function() {
             cleanupModal(modalElement);
         });
         
+        // Populate initial chips
+        populateEditPrerequisiteChips(currentPrereqs);
+        
         modal.show();
     }
     
+    // Populate chips in edit mode
+    function populateEditPrerequisiteChips(prereqCodes) {
+        const container = document.getElementById('editPrerequisitesChips');
+        if (!container) return;
+        
+        container.innerHTML = prereqCodes.length === 0 
+            ? '<span class="text-muted">Sin prerrequisitos</span>'
+            : prereqCodes.map(code => {
+                const card = document.querySelector(`[data-subject-id="${code.trim()}"]`);
+                const name = card ? card.querySelector('.subject-name').textContent : code;
+                return `
+                    <span class="badge bg-primary d-inline-flex align-items-center gap-1 p-2">
+                        <strong>${code}</strong>: ${name}
+                        <button type="button" class="btn-close btn-close-white" style="font-size: 0.7rem;" 
+                                onclick="removeEditPrerequisiteChip('${code}')" aria-label="Remove"></button>
+                    </span>
+                `;
+            }).join('');
+    }
+    
+    // Remove chip in edit mode
+    window.removeEditPrerequisiteChip = function(code) {
+        const hiddenInput = document.getElementById('edit-prereqs-hidden');
+        const current = hiddenInput.value.split(',').filter(p => p.trim() && p.trim() !== code);
+        hiddenInput.value = current.join(',');
+        populateEditPrerequisiteChips(current);
+    };
+    
+    // Open prerequisite selector for editing
+    window.openPrerequisiteSelectorForEdit = function(subjectId) {
+        const existingSubjects = Array.from(document.querySelectorAll('.subject-card')).map(card => ({
+            code: card.dataset.subjectId,
+            name: card.querySelector('.subject-name').textContent,
+            semester: card.closest('.semester-column').dataset.semester
+        }));
+
+        // Get currently selected prerequisites from hidden field
+        const currentPrereqs = document.getElementById('edit-prereqs-hidden').value
+            .split(',').map(p => p.trim()).filter(p => p);
+
+        const helperHtml = `
+            <div class="modal fade" id="editPrerequisiteSelectorModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title">
+                                <i class="fas fa-search me-2"></i>
+                                Seleccionar Prerrequisitos
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <input type="text" class="form-control" id="editPrerequisiteSearch" 
+                                       placeholder="🔍 Buscar por código o nombre de materia..." 
+                                       onkeyup="filterEditPrerequisiteOptions()">
+                            </div>
+                            <div style="max-height: 400px; overflow-y: auto;" id="editPrerequisiteList">
+                                ${existingSubjects.filter(s => s.code !== subjectId).map(subject => `
+                                    <div class="prerequisite-option mb-2" data-code="${subject.code}" data-name="${subject.name}">
+                                        <div class="prerequisite-card p-3 border rounded ${currentPrereqs.includes(subject.code) ? 'selected' : ''}" 
+                                             style="cursor: pointer; transition: all 0.3s ease;"
+                                             data-code="${subject.code}"
+                                             data-name="${subject.name}"
+                                             onclick="toggleEditPrerequisiteSelection(this)">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <strong class="text-primary d-block">${subject.code}</strong>
+                                                    <div class="text-dark">${subject.name}</div>
+                                                </div>
+                                                <div class="d-flex flex-column align-items-end">
+                                                    <span class="badge bg-secondary mb-2">Sem. ${subject.semester}</span>
+                                                    <i class="fas fa-check-circle text-success" style="font-size: 1.5rem; opacity: ${currentPrereqs.includes(subject.code) ? '1' : '0'};"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="mt-3 text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Haga clic en una materia para seleccionarla/deseleccionarla como prerrequisito
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" onclick="applyEditSelectedPrerequisites()">
+                                <i class="fas fa-check me-1"></i>
+                                Confirmar Selección
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', helperHtml);
+        const modal = new bootstrap.Modal(document.getElementById('editPrerequisiteSelectorModal'));
+        
+        document.getElementById('editPrerequisiteSelectorModal').addEventListener('hidden.bs.modal', function() {
+            cleanupModal(this);
+        });
+        
+        modal.show();
+    };
+
+    // Toggle prerequisite selection in edit mode (visual cards)
+    window.toggleEditPrerequisiteSelection = function(cardElement) {
+        const icon = cardElement.querySelector('.fa-check-circle');
+        
+        if (cardElement.classList.contains('selected')) {
+            // Deselect
+            cardElement.classList.remove('selected');
+            icon.style.opacity = '0';
+        } else {
+            // Select
+            cardElement.classList.add('selected');
+            icon.style.opacity = '1';
+        }
+    };
+
+    // Filter prerequisite options in edit mode
+    window.filterEditPrerequisiteOptions = function() {
+        const searchTerm = document.getElementById('editPrerequisiteSearch').value.toLowerCase();
+        const options = document.querySelectorAll('#editPrerequisiteList .prerequisite-option');
+        
+        options.forEach(option => {
+            const code = option.dataset.code.toLowerCase();
+            const name = option.dataset.name.toLowerCase();
+            const matches = code.includes(searchTerm) || name.includes(searchTerm);
+            option.style.display = matches ? 'block' : 'none';
+        });
+    };
+
+    // Apply selected prerequisites in edit mode
+    window.applyEditSelectedPrerequisites = function() {
+        const selectedCards = Array.from(document.querySelectorAll('#editPrerequisiteList .prerequisite-card.selected'));
+        
+        // Store codes in hidden input
+        const codes = selectedCards.map(card => card.dataset.code);
+        document.getElementById('edit-prereqs-hidden').value = codes.join(',');
+        
+        // Update visual display with chips
+        populateEditPrerequisiteChips(codes);
+        
+        bootstrap.Modal.getInstance(document.getElementById('editPrerequisiteSelectorModal')).hide();
+    };
+
+    // ===== FUNCTIONS FOR MOVE MODAL PREREQUISITE SELECTOR =====
+    
+    // Populate chips in move modal
+    function populateMovePrerequisiteChips(prereqCodes) {
+        const container = document.getElementById('moveSelectedPrerequisites');
+        if (!container) return;
+        
+        container.innerHTML = prereqCodes.length === 0 
+            ? '<span class="text-muted">Sin prerrequisitos</span>'
+            : prereqCodes.map(code => {
+                const card = document.querySelector(`[data-subject-id="${code.trim()}"]`);
+                const name = card ? card.querySelector('.subject-name').textContent : code;
+                return `
+                    <span class="badge bg-primary d-inline-flex align-items-center gap-1 p-2">
+                        <strong>${code}</strong>: ${name}
+                        <button type="button" class="btn-close btn-close-white" style="font-size: 0.7rem;" 
+                                onclick="removeMovePrerequisiteChip('${code}')" aria-label="Remove"></button>
+                    </span>
+                `;
+            }).join('');
+    }
+    
+    // Remove chip in move modal
+    window.removeMovePrerequisiteChip = function(code) {
+        const hiddenInput = document.getElementById('move-prereqs-hidden');
+        const current = hiddenInput.value.split(',').filter(p => p.trim() && p.trim() !== code);
+        hiddenInput.value = current.join(',');
+        populateMovePrerequisiteChips(current);
+    };
+    
+    // Open prerequisite selector for move modal
+    window.openMovePrerequisiteSelector = function(subjectId) {
+        const existingSubjects = Array.from(document.querySelectorAll('.subject-card')).map(card => ({
+            code: card.dataset.subjectId,
+            name: card.querySelector('.subject-name').textContent,
+            semester: card.closest('.semester-column').dataset.semester
+        }));
+
+        // Get currently selected prerequisites from hidden field
+        const currentPrereqs = document.getElementById('move-prereqs-hidden').value
+            .split(',').map(p => p.trim()).filter(p => p);
+
+        const helperHtml = `
+            <div class="modal fade" id="movePrerequisiteSelectorModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title">
+                                <i class="fas fa-search me-2"></i>
+                                Seleccionar Prerrequisitos
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <input type="text" class="form-control" id="movePrerequisiteSearch" 
+                                       placeholder="🔍 Buscar por código o nombre de materia..." 
+                                       onkeyup="filterMovePrerequisiteOptions()">
+                            </div>
+                            <div style="max-height: 400px; overflow-y: auto;" id="movePrerequisiteList">
+                                ${existingSubjects.filter(s => s.code !== subjectId).map(subject => `
+                                    <div class="prerequisite-option mb-2" data-code="${subject.code}" data-name="${subject.name}">
+                                        <div class="prerequisite-card p-3 border rounded ${currentPrereqs.includes(subject.code) ? 'selected' : ''}" 
+                                             style="cursor: pointer; transition: all 0.3s ease;"
+                                             data-code="${subject.code}"
+                                             data-name="${subject.name}"
+                                             onclick="toggleMovePrerequisiteSelection(this)">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <strong class="text-primary d-block">${subject.code}</strong>
+                                                    <div class="text-dark">${subject.name}</div>
+                                                </div>
+                                                <div class="d-flex flex-column align-items-end">
+                                                    <span class="badge bg-secondary mb-2">Sem. ${subject.semester}</span>
+                                                    <i class="fas fa-check-circle text-success" style="font-size: 1.5rem; opacity: ${currentPrereqs.includes(subject.code) ? '1' : '0'};"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="mt-3 text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Haga clic en una materia para seleccionarla/deseleccionarla como prerrequisito
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" onclick="applyMoveSelectedPrerequisites()">
+                                <i class="fas fa-check me-1"></i>
+                                Confirmar Selección
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', helperHtml);
+        const modal = new bootstrap.Modal(document.getElementById('movePrerequisiteSelectorModal'));
+        
+        document.getElementById('movePrerequisiteSelectorModal').addEventListener('hidden.bs.modal', function() {
+            cleanupModal(this);
+        });
+        
+        modal.show();
+    };
+
+    // Toggle prerequisite selection in move modal
+    window.toggleMovePrerequisiteSelection = function(cardElement) {
+        const icon = cardElement.querySelector('.fa-check-circle');
+        
+        if (cardElement.classList.contains('selected')) {
+            // Deselect
+            cardElement.classList.remove('selected');
+            icon.style.opacity = '0';
+        } else {
+            // Select
+            cardElement.classList.add('selected');
+            icon.style.opacity = '1';
+        }
+    };
+
+    // Filter prerequisite options in move modal
+    window.filterMovePrerequisiteOptions = function() {
+        const searchTerm = document.getElementById('movePrerequisiteSearch').value.toLowerCase();
+        const options = document.querySelectorAll('#movePrerequisiteList .prerequisite-option');
+        
+        options.forEach(option => {
+            const code = option.dataset.code.toLowerCase();
+            const name = option.dataset.name.toLowerCase();
+            const matches = code.includes(searchTerm) || name.includes(searchTerm);
+            option.style.display = matches ? 'block' : 'none';
+        });
+    };
+
+    // Apply selected prerequisites in move modal
+    window.applyMoveSelectedPrerequisites = function() {
+        const selectedCards = Array.from(document.querySelectorAll('#movePrerequisiteList .prerequisite-card.selected'));
+        
+        // Store codes in hidden input
+        const codes = selectedCards.map(card => card.dataset.code);
+        document.getElementById('move-prereqs-hidden').value = codes.join(',');
+        
+        // Update visual display with chips
+        populateMovePrerequisiteChips(codes);
+        
+        bootstrap.Modal.getInstance(document.getElementById('movePrerequisiteSelectorModal')).hide();
+    };
+
+    // ===== END MOVE MODAL FUNCTIONS =====
+
     // Update prerequisites
     window.updatePrerequisites = function(subjectId) {
-        const newPrereqs = document.getElementById('new-prereqs').value
+        const newPrereqs = document.getElementById('edit-prereqs-hidden').value
             .split(',')
             .map(p => p.trim())
             .filter(p => p);
@@ -1206,25 +1584,67 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <input type="text" class="form-control" id="subjectName" required 
                                            placeholder="Ej: Matemáticas Discretas" maxlength="100">
                                 </div>
-                                <div class="mb-3">
-                                    <label for="subjectPrerequisites" class="form-label">Prerrequisitos (opcional)</label>
-                                    <div class="row">
-                                        <div class="col-md-8">
-                                            <input type="text" class="form-control" id="subjectPrerequisites" 
-                                                   placeholder="Ej: MAT100, FIS101, QUI200">
-                                            <div class="form-text">
-                                                <i class="fas fa-info-circle me-1"></i>
-                                                Digite los códigos de las materias separados por comas. 
-                                                Se validará que las materias existan en la malla.
-                                            </div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <button type="button" class="btn btn-outline-secondary w-100" onclick="showPrerequisiteHelper()">
-                                                <i class="fas fa-search me-1"></i>
-                                                Buscar Materias
-                                            </button>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="subjectCredits" class="form-label">Créditos *</label>
+                                            <input type="number" class="form-control" id="subjectCredits" required 
+                                                   min="1" max="10" value="3">
                                         </div>
                                     </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="subjectClassroomHours" class="form-label">Horas Presenciales *</label>
+                                            <input type="number" class="form-control" id="subjectClassroomHours" required 
+                                                   min="1" max="20" value="3">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="subjectStudentHours" class="form-label">Horas Estudiante *</label>
+                                            <input type="number" class="form-control" id="subjectStudentHours" required 
+                                                   min="1" max="20" value="6">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="subjectType" class="form-label">Tipo de Materia *</label>
+                                            <select class="form-select" id="subjectType" required>
+                                                <option value="">Seleccionar tipo</option>
+                                                <option value="fundamental">Fundamental</option>
+                                                <option value="profesional" selected>Profesional</option>
+                                                <option value="optativa_fundamentacion">Optativa Fundamentación</option>
+                                                <option value="optativa_profesional">Optativa Profesional</option>
+                                                <option value="libre_eleccion">Libre Elección</option>
+                                                <option value="nivelacion">Nivelación</option>
+                                                <option value="trabajo_grado">Trabajo de Grado</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="subjectRequired" class="form-label">Tipo de Oferta *</label>
+                                            <select class="form-select" id="subjectRequired" required>
+                                                <option value="true" selected>Obligatoria</option>
+                                                <option value="false">Optativa</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="subjectPrerequisites" class="form-label">Prerrequisitos (opcional)</label>
+                                    <div id="prerequisitesContainer" class="border rounded p-2 mb-2" style="min-height: 60px; background: #f8f9fa;">
+                                        <div id="selectedPrerequisites" class="d-flex flex-wrap gap-2">
+                                            <!-- Selected prerequisites will appear here as chips -->
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-outline-primary w-100" onclick="showPrerequisiteSelector()">
+                                        <i class="fas fa-plus me-1"></i>
+                                        Agregar Prerrequisitos
+                                    </button>
+                                    <input type="hidden" id="subjectPrerequisites" value="">
                                 </div>
                                 <div class="mb-3">
                                     <label for="subjectDescription" class="form-label">Descripción (opcional)</label>
@@ -1257,45 +1677,70 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Show prerequisite helper modal
-    function showPrerequisiteHelper() {
+    // Global variable to store prerequisites
+    window.selectedPrerequisitesData = [];
+
+    // Show prerequisite selector modal
+    window.showPrerequisiteSelector = function() {
         const existingSubjects = Array.from(document.querySelectorAll('.subject-card')).map(card => ({
             code: card.dataset.subjectId,
             name: card.querySelector('.subject-name').textContent,
             semester: card.closest('.semester-column').dataset.semester
         }));
 
+        // Get currently selected prerequisites
+        const currentPrereqs = document.getElementById('subjectPrerequisites').value
+            .split(',').map(p => p.trim()).filter(p => p);
+
         const helperHtml = `
-            <div class="modal fade" id="prerequisiteHelperModal" tabindex="-1">
+            <div class="modal fade" id="prerequisiteSelectorModal" tabindex="-1">
                 <div class="modal-dialog modal-lg">
                     <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Seleccionar Prerrequisitos</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title">
+                                <i class="fas fa-search me-2"></i>
+                                Seleccionar Prerrequisitos
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
                             <div class="mb-3">
                                 <input type="text" class="form-control" id="prerequisiteSearch" 
-                                       placeholder="Buscar materias..." onkeyup="filterPrerequisites()">
+                                       placeholder="🔍 Buscar por código o nombre de materia..." 
+                                       onkeyup="filterPrerequisiteOptions()">
                             </div>
-                            <div class="row" id="prerequisiteList">
+                            <div style="max-height: 400px; overflow-y: auto;" id="prerequisiteList">
                                 ${existingSubjects.map(subject => `
-                                    <div class="col-md-6 mb-2 prerequisite-item">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" 
-                                                   value="${subject.code}" id="prereq_${subject.code}">
-                                            <label class="form-check-label" for="prereq_${subject.code}">
-                                                <strong>${subject.code}</strong> - ${subject.name}
-                                                <small class="text-muted">(Sem. ${subject.semester})</small>
-                                            </label>
+                                    <div class="prerequisite-option mb-2" data-code="${subject.code}" data-name="${subject.name}">
+                                        <div class="prerequisite-card p-3 border rounded ${currentPrereqs.includes(subject.code) ? 'selected' : ''}" 
+                                             style="cursor: pointer; transition: all 0.3s ease;"
+                                             data-code="${subject.code}"
+                                             data-name="${subject.name}"
+                                             onclick="togglePrerequisiteSelection(this)">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <strong class="text-primary d-block">${subject.code}</strong>
+                                                    <div class="text-dark">${subject.name}</div>
+                                                </div>
+                                                <div class="d-flex flex-column align-items-end">
+                                                    <span class="badge bg-secondary mb-2">Sem. ${subject.semester}</span>
+                                                    <i class="fas fa-check-circle text-success" style="font-size: 1.5rem; opacity: ${currentPrereqs.includes(subject.code) ? '1' : '0'};"></i>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 `).join('')}
                             </div>
+                            <div class="mt-3 text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Haga clic en una materia para seleccionarla/deseleccionarla como prerrequisito
+                            </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="button" class="btn btn-primary" onclick="applySelectedPrerequisites()">
-                                Aplicar Selección
+                            <button type="button" class="btn btn-primary" onclick="applySelectedPrerequisitesNew()">
+                                <i class="fas fa-check me-1"></i>
+                                Confirmar Selección
                             </button>
                         </div>
                     </div>
@@ -1304,34 +1749,83 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
 
         document.body.insertAdjacentHTML('beforeend', helperHtml);
-        const modal = new bootstrap.Modal(document.getElementById('prerequisiteHelperModal'));
+        const modal = new bootstrap.Modal(document.getElementById('prerequisiteSelectorModal'));
         
-        document.getElementById('prerequisiteHelperModal').addEventListener('hidden.bs.modal', function() {
+        document.getElementById('prerequisiteSelectorModal').addEventListener('hidden.bs.modal', function() {
             cleanupModal(this);
         });
         
         modal.show();
-    }
+    };
 
-    // Filter prerequisites in helper modal
-    window.filterPrerequisites = function() {
-        const searchTerm = document.getElementById('prerequisiteSearch').value.toLowerCase();
-        const items = document.querySelectorAll('.prerequisite-item');
+    // Toggle prerequisite selection (visual cards)
+    window.togglePrerequisiteSelection = function(cardElement) {
+        const icon = cardElement.querySelector('.fa-check-circle');
         
-        items.forEach(item => {
-            const text = item.textContent.toLowerCase();
-            item.style.display = text.includes(searchTerm) ? 'block' : 'none';
+        if (cardElement.classList.contains('selected')) {
+            // Deselect
+            cardElement.classList.remove('selected');
+            icon.style.opacity = '0';
+        } else {
+            // Select
+            cardElement.classList.add('selected');
+            icon.style.opacity = '1';
+        }
+    };
+
+    // Filter prerequisite options
+    window.filterPrerequisiteOptions = function() {
+        const searchTerm = document.getElementById('prerequisiteSearch').value.toLowerCase();
+        const options = document.querySelectorAll('.prerequisite-option');
+        
+        options.forEach(option => {
+            const code = option.dataset.code.toLowerCase();
+            const name = option.dataset.name.toLowerCase();
+            const matches = code.includes(searchTerm) || name.includes(searchTerm);
+            option.style.display = matches ? 'block' : 'none';
         });
     };
 
-    // Apply selected prerequisites from helper modal
-    window.applySelectedPrerequisites = function() {
-        const selected = Array.from(document.querySelectorAll('#prerequisiteList input:checked'))
-                              .map(input => input.value);
+    // Apply selected prerequisites (new version)
+    window.applySelectedPrerequisitesNew = function() {
+        const selectedCards = Array.from(document.querySelectorAll('#prerequisiteList .prerequisite-card.selected'));
         
-        document.getElementById('subjectPrerequisites').value = selected.join(', ');
-        bootstrap.Modal.getInstance(document.getElementById('prerequisiteHelperModal')).hide();
+        // Store codes in hidden input
+        const codes = selectedCards.map(card => card.dataset.code);
+        document.getElementById('subjectPrerequisites').value = codes.join(',');
+        
+        // Update visual display with chips
+        const container = document.getElementById('selectedPrerequisites');
+        container.innerHTML = selectedCards.map(card => {
+            const code = card.dataset.code;
+            const name = card.dataset.name;
+            return `
+                <span class="badge bg-primary d-inline-flex align-items-center gap-1 p-2">
+                    <strong>${code}</strong>: ${name}
+                    <button type="button" class="btn-close btn-close-white" style="font-size: 0.7rem;" 
+                            onclick="removePrerequisiteChip('${code}')" aria-label="Remove"></button>
+                </span>
+            `;
+        }).join('');
+        
+        bootstrap.Modal.getInstance(document.getElementById('prerequisiteSelectorModal')).hide();
     };
+
+    // Remove prerequisite chip
+    window.removePrerequisiteChip = function(code) {
+        const current = document.getElementById('subjectPrerequisites').value
+            .split(',').filter(p => p.trim() && p.trim() !== code);
+        document.getElementById('subjectPrerequisites').value = current.join(',');
+        
+        // Update visual display
+        const chip = event.target.closest('.badge');
+        if (chip) chip.remove();
+    };
+
+    // Keep old function for compatibility
+    function showPrerequisiteHelper() {
+        showPrerequisiteSelector();
+    }
 
     // Create new subject
     window.createNewSubject = function() {
@@ -1340,9 +1834,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const semester = document.getElementById('subjectSemester').value;
         const prerequisites = document.getElementById('subjectPrerequisites').value.trim();
         const description = document.getElementById('subjectDescription').value.trim();
+        const credits = parseInt(document.getElementById('subjectCredits').value) || 3;
+        const classroomHours = parseInt(document.getElementById('subjectClassroomHours').value) || 3;
+        const studentHours = parseInt(document.getElementById('subjectStudentHours').value) || 6;
+        const type = document.getElementById('subjectType').value || 'profesional';
+        const isRequired = document.getElementById('subjectRequired').value === 'true';
 
         // Validation
-        if (!code || !name || !semester) {
+        if (!code || !name || !semester || !type) {
             alert('Por favor complete todos los campos obligatorios');
             return;
         }
@@ -1388,7 +1887,7 @@ document.addEventListener('DOMContentLoaded', function() {
         totalCredits += creditsNum;
         
         // Only add to career credits if it's NOT a leveling subject
-        const isLeveling = type === 'lengua_extranjera';
+        const isLeveling = type === 'nivelacion';
         if (!isLeveling) {
             careerCredits += creditsNum;
         }
@@ -1829,6 +2328,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('=== SIMULATION JS LOADED ===');
     console.log('addNewSubject available:', typeof window.addNewSubject);
     console.log('exportModifiedCurriculum available:', typeof window.exportModifiedCurriculum);
+    console.log('showComponentCredits available:', typeof window.showComponentCredits);
     console.log('=== END DEBUG ===');
 
     // Initialize simulation when page loads
