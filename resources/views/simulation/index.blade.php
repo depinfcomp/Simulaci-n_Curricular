@@ -457,7 +457,7 @@
         }
 
         .drag-placeholder::before {
-            content: "⬇ Soltar aquí ⬇";
+            content: "Soltar aquí";
             font-size: 14px;
             animation: pulse 1.5s ease infinite;
         }

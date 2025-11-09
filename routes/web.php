@@ -5,6 +5,7 @@ use App\Http\Controllers\SimulationController;
 use App\Http\Controllers\SubjectOrderController;
 use App\Http\Controllers\ConvalidationController;
 use App\Http\Controllers\ImportCurriculumController;
+use App\Http\Controllers\AcademicHistoryController;
 
 // Redirect root to login
 Route::get('/', function () {
@@ -72,6 +73,18 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         Route::get('/{import}/status', [ImportCurriculumController::class, 'status'])->name('status');
         Route::get('/templates', [ImportCurriculumController::class, 'templates'])->name('templates');
         Route::post('/{import}/apply-template', [ImportCurriculumController::class, 'applyTemplate'])->name('apply-template');
+    });
+
+    // Academic History Import routes
+    Route::prefix('academic-history')->name('academic-history.')->group(function () {
+        Route::get('/', [AcademicHistoryController::class, 'index'])->name('index');
+        Route::post('/upload', [AcademicHistoryController::class, 'upload'])->name('upload');
+        Route::get('/{import}/preview', [AcademicHistoryController::class, 'preview'])->name('preview');
+        Route::post('/{import}/mapping', [AcademicHistoryController::class, 'updateMapping'])->name('mapping');
+        Route::post('/{import}/process', [AcademicHistoryController::class, 'process'])->name('process');
+        Route::get('/{import}', [AcademicHistoryController::class, 'show'])->name('show');
+        Route::delete('/{import}', [AcademicHistoryController::class, 'destroy'])->name('destroy');
+        Route::get('/{import}/export', [AcademicHistoryController::class, 'export'])->name('export');
     });
 });
 

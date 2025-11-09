@@ -45,6 +45,12 @@
                                 Convalidaciones
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ route('academic-history.index') }}">
+                                <i class="fas fa-history me-1"></i>
+                                Historias Académicas
+                            </a>
+                        </li>
                     </ul>
                     
                     <!-- User Menu -->

@@ -1,11 +1,271 @@
 // Simulation View JavaScript
+
+/**
+ * Show a professional modal instead of alert()
+ * @param {string} message - The message to display
+ * @param {string} type - Type of modal: 'error', 'warning', 'info', 'success'
+ * @param {string} title - Optional custom title
+ */
+function showAlertModal(message, type = 'info', title = null) {
+    const typeConfig = {
+        error: {
+            icon: 'fas fa-exclamation-circle',
+            color: 'danger',
+            defaultTitle: 'Error'
+        },
+        warning: {
+            icon: 'fas fa-exclamation-triangle',
+            color: 'warning',
+            defaultTitle: 'Advertencia'
+        },
+        info: {
+            icon: 'fas fa-info-circle',
+            color: 'info',
+            defaultTitle: 'Información'
+        },
+        success: {
+            icon: 'fas fa-check-circle',
+            color: 'success',
+            defaultTitle: 'Éxito'
+        }
+    };
+
+    const config = typeConfig[type] || typeConfig.info;
+    const modalTitle = title || config.defaultTitle;
+    
+    const modalHtml = `
+        <div class="modal fade" id="alertModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-${config.color} text-white">
+                        <h5 class="modal-title">
+                            <i class="${config.icon} me-2"></i>
+                            ${modalTitle}
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-0">${message}</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-${config.color}" data-bs-dismiss="modal">
+                            Aceptar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing alert modal if any
+    const existingModal = document.getElementById('alertModal');
+    if (existingModal) {
+        const existingModalInstance = bootstrap.Modal.getInstance(existingModal);
+        if (existingModalInstance) {
+            existingModalInstance.dispose();
+        }
+        existingModal.remove();
+    }
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Show modal
+    const modalElement = document.getElementById('alertModal');
+    const modal = new bootstrap.Modal(modalElement);
+    
+    modalElement.addEventListener('hidden.bs.modal', function () {
+        modalElement.remove();
+    });
+    
+    modal.show();
+}
+
+/**
+ * Show a professional confirmation modal instead of confirm()
+ * @param {string} message - The message to display
+ * @param {function} onConfirm - Callback function to execute when user confirms
+ * @param {string} type - Type of modal: 'danger', 'warning', 'info', 'primary'
+ * @param {string} title - Optional custom title
+ * @param {string} confirmText - Text for confirm button (default: 'Aceptar')
+ * @param {string} cancelText - Text for cancel button (default: 'Cancelar')
+ */
+function showConfirmModal(message, onConfirm, type = 'warning', title = null, confirmText = 'Aceptar', cancelText = 'Cancelar') {
+    const typeConfig = {
+        danger: {
+            icon: 'fas fa-exclamation-triangle',
+            defaultTitle: 'Confirmar Acción'
+        },
+        warning: {
+            icon: 'fas fa-exclamation-circle',
+            defaultTitle: 'Confirmación'
+        },
+        info: {
+            icon: 'fas fa-question-circle',
+            defaultTitle: 'Confirmar'
+        },
+        primary: {
+            icon: 'fas fa-check-circle',
+            defaultTitle: 'Confirmación'
+        }
+    };
+
+    const config = typeConfig[type] || typeConfig.warning;
+    const modalTitle = title || config.defaultTitle;
+    
+    const modalHtml = `
+        <div class="modal fade" id="confirmModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-${type} text-white">
+                        <h5 class="modal-title">
+                            <i class="${config.icon} me-2"></i>
+                            ${modalTitle}
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-0" style="white-space: pre-line;">${message}</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            ${cancelText}
+                        </button>
+                        <button type="button" class="btn btn-${type}" id="confirmModalBtn">
+                            ${confirmText}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing confirm modal if any
+    const existingModal = document.getElementById('confirmModal');
+    if (existingModal) {
+        const existingModalInstance = bootstrap.Modal.getInstance(existingModal);
+        if (existingModalInstance) {
+            existingModalInstance.dispose();
+        }
+        existingModal.remove();
+    }
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Show modal
+    const modalElement = document.getElementById('confirmModal');
+    const modal = new bootstrap.Modal(modalElement);
+    
+    // Handle confirm button
+    document.getElementById('confirmModalBtn').addEventListener('click', function() {
+        modal.hide();
+        if (typeof onConfirm === 'function') {
+            onConfirm();
+        }
+    });
+    
+    modalElement.addEventListener('hidden.bs.modal', function () {
+        modalElement.remove();
+    });
+    
+    modal.show();
+}
+
+/**
+ * Show a professional prompt modal instead of prompt()
+ * @param {string} message - The message to display
+ * @param {function} onSubmit - Callback function with the input value
+ * @param {string} title - Modal title
+ * @param {string} placeholder - Input placeholder
+ * @param {string} defaultValue - Default input value
+ */
+function showPromptModal(message, onSubmit, title = 'Entrada Requerida', placeholder = '', defaultValue = '') {
+    const modalHtml = `
+        <div class="modal fade" id="promptModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-edit me-2"></i>
+                            ${title}
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-3" style="white-space: pre-line;">${message}</p>
+                        <div class="form-group">
+                            <textarea class="form-control" id="promptModalInput" rows="3" 
+                                      placeholder="${placeholder}">${defaultValue}</textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            Cancelar
+                        </button>
+                        <button type="button" class="btn btn-primary" id="promptModalSubmitBtn">
+                            Aceptar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing prompt modal if any
+    const existingModal = document.getElementById('promptModal');
+    if (existingModal) {
+        const existingModalInstance = bootstrap.Modal.getInstance(existingModal);
+        if (existingModalInstance) {
+            existingModalInstance.dispose();
+        }
+        existingModal.remove();
+    }
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Show modal
+    const modalElement = document.getElementById('promptModal');
+    const modal = new bootstrap.Modal(modalElement);
+    const inputElement = document.getElementById('promptModalInput');
+    
+    // Handle submit button
+    document.getElementById('promptModalSubmitBtn').addEventListener('click', function() {
+        const value = inputElement.value.trim();
+        modal.hide();
+        if (typeof onSubmit === 'function') {
+            onSubmit(value);
+        }
+    });
+    
+    // Handle Enter key
+    inputElement.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('promptModalSubmitBtn').click();
+        }
+    });
+    
+    modalElement.addEventListener('hidden.bs.modal', function () {
+        modalElement.remove();
+    });
+    
+    modal.show();
+    
+    // Focus input after modal is shown
+    modalElement.addEventListener('shown.bs.modal', function () {
+        inputElement.focus();
+    });
+}
+
 // Make sure key functions are available immediately
 window.addNewSubject = function() {
     console.log('addNewSubject called');
     if (typeof showAddSubjectModal === 'function') {
         showAddSubjectModal();
     } else {
-        alert('Función no disponible aún, por favor espere a que la página cargue completamente');
+        showAlertModal('Por favor espere a que la página cargue completamente', 'warning', 'Función no disponible');
     }
 };
 
@@ -15,7 +275,7 @@ window.exportModifiedCurriculum = function() {
         const modifiedCurriculum = getCurrentCurriculumState();
         showExportModal(modifiedCurriculum);
     } else {
-        alert('Función no disponible aún, por favor espere a que la página cargue completamente');
+        showAlertModal('Por favor espere a que la página cargue completamente', 'warning', 'Función no disponible');
     }
 };
 
@@ -631,16 +891,23 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             hideLoadingModal(loadingModal);
             console.error('Error:', error);
-            alert('Error al analizar el impacto');
+            showAlertModal('Ocurrió un error al analizar el impacto de los cambios. Por favor intente nuevamente.', 'error', 'Error al Analizar');
         });
     };
     
     // Reset simulation to original state
     window.resetSimulation = function() {
-        if (confirm('¿Está seguro de que desea resetear todos los cambios? Esto recargará la página.')) {
-            // Simple solution: reload the page to restore original state
-            window.location.reload();
-        }
+        showConfirmModal(
+            '¿Está seguro de que desea resetear todos los cambios? Esto recargará la página.',
+            function() {
+                // Simple solution: reload the page to restore original state
+                window.location.reload();
+            },
+            'warning',
+            'Resetear Simulación',
+            'Sí, resetear',
+            'Cancelar'
+        );
     };
     
     // Reset using original order from materias.txt
@@ -1253,13 +1520,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // Save simulation (placeholder for future implementation)
     window.saveSimulation = function() {
         if (simulationChanges.length === 0) {
-            alert('No hay cambios para guardar');
+            showAlertModal('No hay cambios pendientes para guardar.', 'info', 'Sin Cambios');
             return;
         }
         
-        if (confirm('¿Está seguro de que desea guardar estos cambios permanentemente?')) {
-            alert('Funcionalidad de guardado no implementada. Los cambios son temporales.');
-        }
+        showConfirmModal(
+            '¿Está seguro de que desea guardar estos cambios permanentemente?',
+            function() {
+                showAlertModal('Los cambios son temporales y se perderán al recargar la página.', 'info', 'Funcionalidad no implementada');
+            },
+            'primary',
+            'Guardar Cambios',
+            'Sí, guardar',
+            'Cancelar'
+        );
     };
     
     // Export changes report
@@ -1335,53 +1609,58 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Clear all changes
     window.clearAllChanges = function() {
-        if (!confirm('¿Está seguro de que desea deshacer TODOS los cambios? Esta acción no se puede revertir.')) {
-            return;
-        }
-        
-        // Revert all visual changes
-        simulationChanges.forEach(change => {
-            if (change.type === 'semester') {
-                const card = document.querySelector(`[data-subject-id="${change.subject_code}"]`);
-                if (card) {
-                    const originalColumn = document.querySelector(`[data-semester="${change.old_value}"]`);
-                    const subjectList = originalColumn?.querySelector('.subject-list');
-                    if (subjectList) {
-                        subjectList.appendChild(card);
-                        card.classList.remove('moved');
-                        const semesterBadge = card.querySelector('.semester-badge');
-                        if (semesterBadge) {
-                            semesterBadge.textContent = `Semestre ${change.old_value}`;
+        showConfirmModal(
+            '¿Está seguro de que desea deshacer TODOS los cambios? Esta acción no se puede revertir.',
+            function() {
+                // Revert all visual changes
+                simulationChanges.forEach(change => {
+                    if (change.type === 'semester') {
+                        const card = document.querySelector(`[data-subject-id="${change.subject_code}"]`);
+                        if (card) {
+                            const originalColumn = document.querySelector(`[data-semester="${change.old_value}"]`);
+                            const subjectList = originalColumn?.querySelector('.subject-list');
+                            if (subjectList) {
+                                subjectList.appendChild(card);
+                                card.classList.remove('moved');
+                                const semesterBadge = card.querySelector('.semester-badge');
+                                if (semesterBadge) {
+                                    semesterBadge.textContent = `Semestre ${change.old_value}`;
+                                }
+                            }
+                        }
+                    } else if (change.type === 'removed') {
+                        // Restore removed card if stored somewhere
+                        // Implementation depends on how you're handling removed cards
+                    } else if (change.type === 'prerequisites') {
+                        const card = document.querySelector(`[data-subject-id="${change.subject_code}"]`);
+                        if (card) {
+                            card.dataset.prerequisites = change.old_value;
                         }
                     }
+                });
+                
+                // Clear array
+                simulationChanges = [];
+                updateSimulationStatus();
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('changesModal'));
+                if (modal) {
+                    modal.hide();
                 }
-            } else if (change.type === 'removed') {
-                // Restore removed card if stored somewhere
-                // Implementation depends on how you're handling removed cards
-            } else if (change.type === 'prerequisites') {
-                const card = document.querySelector(`[data-subject-id="${change.subject_code}"]`);
-                if (card) {
-                    card.dataset.prerequisites = change.old_value;
-                }
-            }
-        });
-        
-        // Clear array
-        simulationChanges = [];
-        updateSimulationStatus();
-        
-        // Close modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('changesModal'));
-        if (modal) {
-            modal.hide();
-        }
-        
-        showSuccessMessage('Todos los cambios han sido revertidos');
-        
-        // Reload page to ensure clean state
-        setTimeout(() => {
-            window.location.reload();
-        }, 1500);
+                
+                showSuccessMessage('Todos los cambios han sido revertidos');
+                
+                // Reload page to ensure clean state
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            },
+            'danger',
+            'Deshacer Cambios',
+            'Sí, deshacer todo',
+            'Cancelar'
+        );
     };
     
     // Show modal when moving a subject to allow prerequisite editing
@@ -2665,13 +2944,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Validation
         if (!code || !name || !semester || !type) {
-            alert('Por favor complete todos los campos obligatorios');
+            showAlertModal('Por favor complete todos los campos obligatorios: Código, Nombre, Semestre y Tipo.', 'warning', 'Campos Incompletos');
             return;
         }
 
         // Check if code already exists
         if (document.querySelector(`[data-subject-id="${code}"]`)) {
-            alert('Ya existe una materia con ese código');
+            showAlertModal(`Ya existe una materia con el código "${code}". Por favor use un código diferente.`, 'warning', 'Código Duplicado');
             return;
         }
 
@@ -2686,12 +2965,38 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         if (invalidPrereqs.length > 0) {
-            const proceed = confirm(
+            showConfirmModal(
                 `Los siguientes prerrequisitos no existen en la malla actual: ${invalidPrereqs.join(', ')}\n\n` +
-                `¿Desea continuar agregando la materia de todas formas?`
+                `¿Desea continuar agregando la materia de todas formas?`,
+                function() {
+                    continueAddingSubject();
+                },
+                'warning',
+                'Prerrequisitos no Encontrados',
+                'Sí, continuar',
+                'Cancelar'
             );
-            if (!proceed) return;
+            return;
         }
+
+        continueAddingSubject();
+    };
+
+    function continueAddingSubject() {
+        const code = document.getElementById('subjectCode').value.toUpperCase();
+        const name = document.getElementById('subjectName').value;
+        const semester = parseInt(document.getElementById('subjectSemester').value);
+        const prerequisites = document.getElementById('subjectPrerequisites').value.toUpperCase();
+        const description = document.getElementById('subjectDescription').value;
+        const credits = parseInt(document.getElementById('subjectCredits').value) || 0;
+        const classroomHours = parseInt(document.getElementById('subjectClassroomHours').value) || 0;
+        const studentHours = parseInt(document.getElementById('subjectStudentHours').value) || 0;
+        const type = document.getElementById('subjectType').value || 'profesional';
+        const isRequired = document.getElementById('subjectRequired').value === 'true';
+        
+        const prerequisiteArray = prerequisites 
+            ? prerequisites.split(',').map(p => p.trim().toUpperCase()).filter(p => p) 
+            : [];
 
         // Create the new subject card
         const newSubjectCard = createSubjectCard(code, name, semester, prerequisiteArray.join(','), description, credits, classroomHours, studentHours, type, isRequired);
@@ -2699,7 +3004,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add to the appropriate semester column
         const semesterColumn = document.querySelector(`[data-semester="${semester}"] .subject-list`);
         if (!semesterColumn) {
-            alert(`Error: No se encontró el semestre ${semester}`);
+            showAlertModal(`No se encontró la columna del semestre ${semester}. Verifique que el semestre exista.`, 'error', 'Error de Semestre');
             return;
         }
         
@@ -3145,7 +3450,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(error => {
             console.error('Error saving to convalidation:', error);
-            alert(`Error al guardar la malla curricular: ${error.message}`);
+            showAlertModal(`No se pudo guardar la malla curricular: ${error.message}`, 'error', 'Error al Guardar');
         })
         .finally(() => {
             // Restore button state
@@ -3242,154 +3547,158 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (hasAddedSubjects || hasRemovedSubjects) {
             // Show info message and redirect to convalidation
-            const message = `
-                ⚠️ CONVALIDACIÓN REQUERIDA
-                
-                Has ${hasAddedSubjects ? 'agregado' : ''} ${hasAddedSubjects && hasRemovedSubjects ? 'y' : ''} ${hasRemovedSubjects ? 'eliminado' : ''} materias.
-                
-                Antes de guardar la versión, debes convalidar estas materias.
-                
-                Serás redirigido al apartado de convalidación.
-                Una vez completada la convalidación, podrás guardar la nueva versión de la malla.
-            `.trim();
+            const message = `⚠️ CONVALIDACIÓN REQUERIDA
+
+Has ${hasAddedSubjects ? 'agregado' : ''} ${hasAddedSubjects && hasRemovedSubjects ? 'y' : ''} ${hasRemovedSubjects ? 'eliminado' : ''} materias.
+
+Antes de guardar la versión, debes convalidar estas materias.
+
+Serás redirigido al apartado de convalidación.
+Una vez completada la convalidación, podrás guardar la nueva versión de la malla.`;
             
-            if (!confirm(message)) return;
-            
-            // Export to convalidation system
-            const exportName = `Malla_Modificada_${new Date().toISOString().split('T')[0]}`;
-            const curriculum = getCurrentCurriculumState();
-            
-            // Show loading
-            const originalButton = event?.target || document.querySelector('button[onclick="saveCurrentCurriculum()"]');
-            if (originalButton) {
-                originalButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Exportando...';
-                originalButton.disabled = true;
-            }
-            
-            // Prepare payload
-            const payload = {
-                name: exportName,
-                institution: 'Simulación Curricular - Cambios Pendientes',
-                curriculum: curriculum,
-                changes: simulationChanges,
-                _token: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-            };
-            
-            // Send to backend
-            fetch('/convalidation/save-modified-curriculum', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': payload._token,
-                    'Accept': 'application/json'
+            showConfirmModal(
+                message,
+                function() {
+                    // Export to convalidation system
+                    const exportName = `Malla_Modificada_${new Date().toISOString().split('T')[0]}`;
+                    const curriculum = getCurrentCurriculumState();
+                    
+                    // Show loading
+                    const loadingModal = showLoadingModal('Exportando malla para convalidación...');
+                    const originalButton = event?.target || document.querySelector('button[onclick="saveCurrentCurriculum()"]');
+                    if (originalButton) {
+                        originalButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Exportando...';
+                        originalButton.disabled = true;
+                    }
+                    
+                    // Prepare payload
+                    const payload = {
+                        name: exportName,
+                        institution: 'Simulación Curricular - Cambios Pendientes',
+                        curriculum: curriculum,
+                        changes: simulationChanges,
+                        _token: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                    };
+                    
+                    // Send to backend
+                    fetch('/convalidation/save-modified-curriculum', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': payload._token,
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showSuccessMessage('Malla exportada. Redirigiendo a convalidación...');
+                            
+                            // Store pending save flag in sessionStorage
+                            sessionStorage.setItem('pendingSave', JSON.stringify({
+                                description: 'Versión con convalidaciones completadas',
+                                exportedAt: new Date().toISOString()
+                            }));
+                            
+                            // Redirect to convalidation
+                            setTimeout(() => {
+                                window.location.href = data.redirect_url;
+                            }, 1500);
+                        } else {
+                            throw new Error(data.message || 'Error desconocido');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showAlertModal(`No se pudo exportar la malla: ${error.message}`, 'error', 'Error al Exportar');
+                        
+                        // Restore button
+                        if (originalButton) {
+                            originalButton.innerHTML = '<i class="fas fa-save me-1"></i>Guardar Malla';
+                            originalButton.disabled = false;
+                        }
+                    });
                 },
-                body: JSON.stringify(payload)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showSuccessMessage('Malla exportada. Redirigiendo a convalidación...');
-                    
-                    // Store pending save flag in sessionStorage
-                    sessionStorage.setItem('pendingSave', JSON.stringify({
-                        description: 'Versión con convalidaciones completadas',
-                        exportedAt: new Date().toISOString()
-                    }));
-                    
-                    // Redirect to convalidation
-                    setTimeout(() => {
-                        window.location.href = data.redirect_url;
-                    }, 1500);
-                } else {
-                    throw new Error(data.message || 'Error desconocido');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert(`Error al exportar: ${error.message}`);
-                
-                // Restore button
-                if (originalButton) {
-                    originalButton.innerHTML = '<i class="fas fa-save me-1"></i>Guardar Malla';
-                    originalButton.disabled = false;
-                }
-            });
+                'warning',
+                'Convalidación Requerida',
+                'Ir a Convalidación',
+                'Cancelar'
+            );
             
             return; // Exit early, don't save version yet
         }
         
         // No added/removed subjects, proceed with normal save
-        const description = prompt(
-            'Guardar cambios actuales y crear versión histórica.\n\n' +
-            'Los cambios se aplicarán a la malla actual.\n' +
-            'El estado anterior se guardará como versión histórica.\n\n' +
-            'Descripción de la versión histórica (opcional):'
-        );
-        
-        // User cancelled
-        if (description === null) return;
+        showPromptModal(
+            'Guardar cambios actuales y crear versión histórica.\n\nLos cambios se aplicarán a la malla actual.\nEl estado anterior se guardará como versión histórica.\n\nDescripción de la versión histórica (opcional):',
+            function(description) {
+                // Gather all current curriculum data
+                const curriculumData = {
+                    subjects: [],
+                    changes: window.simulationChanges || {}
+                };
 
-        // Gather all current curriculum data
-        const curriculumData = {
-            subjects: [],
-            changes: window.simulationChanges || {}
-        };
+                // Collect all subjects with their current state
+                document.querySelectorAll('.subject-card').forEach(card => {
+                    const semester = card.closest('.semester-column')?.dataset.semester;
+                    const prerequisites = card.dataset.prerequisites ? 
+                        card.dataset.prerequisites.split(',').map(p => p.trim()).filter(p => p) : 
+                        [];
 
-        // Collect all subjects with their current state
-        document.querySelectorAll('.subject-card').forEach(card => {
-            const semester = card.closest('.semester-column')?.dataset.semester;
-            const prerequisites = card.dataset.prerequisites ? 
-                card.dataset.prerequisites.split(',').map(p => p.trim()).filter(p => p) : 
-                [];
+                    curriculumData.subjects.push({
+                        code: card.dataset.subjectId,
+                        name: card.querySelector('.subject-name')?.textContent.trim(),
+                        semester: parseInt(semester),
+                        credits: parseInt(card.querySelector('.subject-credits')?.textContent) || 3,
+                        type: card.dataset.type,
+                        prerequisites: prerequisites,
+                        description: card.title || '',
+                        display_order: Array.from(card.parentElement.children).indexOf(card) + 1
+                    });
+                });
 
-            curriculumData.subjects.push({
-                code: card.dataset.subjectId,
-                name: card.querySelector('.subject-name')?.textContent.trim(),
-                semester: parseInt(semester),
-                credits: parseInt(card.querySelector('.subject-credits')?.textContent) || 3,
-                type: card.dataset.type,
-                prerequisites: prerequisites,
-                description: card.title || '',
-                display_order: Array.from(card.parentElement.children).indexOf(card) + 1
-            });
-        });
-
-        // Send to server
-        fetch('/simulation/versions/save', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                // Send to server
+                fetch('/simulation/versions/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({
+                        description: description,
+                        curriculum_data: curriculumData
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showSuccessMessage(data.message || 'Cambios guardados correctamente');
+                        
+                        // Reload versions list
+                        loadVersionsList();
+                        
+                        // Clear simulation changes since we just saved
+                        simulationChanges = [];
+                        updateSimulationStatus();
+                        
+                        // Optional: Reload page to show updated curriculum
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1500);
+                    } else {
+                        showAlertModal(data.message || 'No se pudo guardar la versión. Intente nuevamente.', 'error', 'Error al Guardar');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error saving version:', error);
+                    showAlertModal(`Error al guardar la versión: ${error.message}`, 'error', 'Error al Guardar');
+                });
             },
-            body: JSON.stringify({
-                description: description,
-                curriculum_data: curriculumData
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showSuccessMessage(data.message || 'Cambios guardados correctamente');
-                
-                // Reload versions list
-                loadVersionsList();
-                
-                // Clear simulation changes since we just saved
-                simulationChanges = [];
-                updateSimulationStatus();
-                
-                // Optional: Reload page to show updated curriculum
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
-            } else {
-                alert('Error al guardar: ' + (data.message || 'Error desconocido'));
-            }
-        })
-        .catch(error => {
-            console.error('Error saving version:', error);
-            alert('Error al guardar la versión: ' + error.message);
-        });
+            'Guardar Versión',
+            'Ingrese una descripción para esta versión',
+            ''
+        );
     };
 
     /**
@@ -3439,12 +3748,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Disable editing for old versions
                     disableEditingMode();
                 } else {
-                    alert('Error al cargar la versión: ' + (data.message || 'Error desconocido'));
+                    showAlertModal(data.message || 'No se pudo cargar la versión seleccionada.', 'error', 'Error al Cargar Versión');
                 }
             })
             .catch(error => {
                 console.error('Error loading version:', error);
-                alert('Error al cargar la versión: ' + error.message);
+                showAlertModal(`Error al cargar la versión: ${error.message}`, 'error', 'Error al Cargar');
             });
     };
 
@@ -3521,7 +3830,7 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     window.deleteVersion = function(versionId) {
         if (!versionId) {
-            alert('Error: ID de versión no válido.');
+            showAlertModal('ID de versión no válido. No se puede proceder con la eliminación.', 'error', 'Error de Versión');
             return;
         }
         
@@ -3531,55 +3840,56 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 const version = data.versions.find(v => v.id == versionId);
                 if (!version) {
-                    alert('Error: Versión no encontrada.');
+                    showAlertModal('La versión seleccionada no se encontró en el sistema.', 'error', 'Versión No Encontrada');
                     return;
                 }
                 
                 const date = new Date(version.created_at).toLocaleDateString('es-ES');
                 const versionName = `v${version.version_number} - ${date}`;
                 
-                // Double confirmation
-                if (!confirm(`⚠️ ¿Estás seguro que deseas eliminar la versión "${versionName}"?\n\nEsta acción NO se puede deshacer.`)) {
-                    return;
-                }
-                
-                if (!confirm(`⚠️ ÚLTIMA CONFIRMACIÓN\n\n¿Realmente deseas eliminar "${versionName}"?`)) {
-                    return;
-                }
-                
-                // Send delete request
-                fetch(`/simulation/versions/${versionId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showSuccessMessage(`Versión "${versionName}" eliminada correctamente`);
-                        
-                        // Reload versions list
-                        loadVersionsList();
-                        
-                        // Reset to current version if needed
-                        const currentVersionText = document.getElementById('currentVersionText');
-                        if (currentVersionText) {
-                            currentVersionText.textContent = 'Versión Actual (En Edición)';
-                        }
-                    } else {
-                        alert('Error al eliminar: ' + (data.message || 'Error desconocido'));
-                    }
-                })
-                .catch(error => {
-                    console.error('Error deleting version:', error);
-                    alert('Error al eliminar la versión: ' + error.message);
-                });
+                // Show confirmation modal
+                showConfirmModal(
+                    `¿Estás seguro que deseas eliminar la versión "${versionName}"?\n\n⚠️ ADVERTENCIA: Esta acción NO se puede deshacer.\n\nSe eliminará permanentemente esta versión del historial.`,
+                    function() {
+                        // Send delete request
+                        fetch(`/simulation/versions/${versionId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                showSuccessMessage(`Versión "${versionName}" eliminada correctamente`);
+                                
+                                // Reload versions list
+                                loadVersionsList();
+                                
+                                // Reset to current version if needed
+                                const currentVersionText = document.getElementById('currentVersionText');
+                                if (currentVersionText) {
+                                    currentVersionText.textContent = 'Versión Actual (En Edición)';
+                                }
+                            } else {
+                                showAlertModal(data.message || 'No se pudo eliminar la versión. Intente nuevamente.', 'error', 'Error al Eliminar');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error deleting version:', error);
+                            showAlertModal(`Error al eliminar la versión: ${error.message}`, 'error', 'Error al Eliminar');
+                        });
+                    },
+                    'danger',
+                    'Eliminar Versión',
+                    'Sí, eliminar',
+                    'Cancelar'
+                );
             })
             .catch(error => {
                 console.error('Error loading versions:', error);
-                alert('Error al cargar la información de la versión.');
+                showAlertModal('No se pudo cargar la información de las versiones.', 'error', 'Error de Conexión');
             });
     };
 
