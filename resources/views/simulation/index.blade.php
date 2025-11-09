@@ -121,34 +121,43 @@
         <!-- Curriculum Controls -->
         <div class="curriculum-controls mb-3">
             <div class="row align-items-center">
-                <div class="col-md-4">
-                    <label for="versionSelector" class="form-label mb-1 small fw-bold">
+                <div class="col-md-3">
+                    <label class="form-label mb-1 small fw-bold">
                         <i class="fas fa-code-branch me-1"></i>
                         Versión de Malla:
                     </label>
-                    <select class="form-select form-select-sm" id="versionSelector" onchange="loadCurriculumVersion()">
-                            <option value="current">Versión Actual (En Edición)</option>
-                            <!-- Las versiones guardadas se cargarán aquí dinámicamente -->
-                        </select>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteSelectedVersion()" title="Eliminar versión seleccionada">
-                            <i class="fas fa-trash"></i>
+                    <div class="dropdown w-100">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="versionDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span id="currentVersionText">Versión Actual (En Edición)</span>
                         </button>
+                        <ul class="dropdown-menu w-100" id="versionDropdownMenu" aria-labelledby="versionDropdown">
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="loadCurriculumVersion('current'); return false;">
+                                    Versión Actual (En Edición)
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">Versiones Guardadas</h6></li>
+                            <!-- Las versiones se cargarán aquí dinámicamente -->
+                        </ul>
                     </div>
                 </div>
-                <div class="col-md-8 text-end">
+                <div class="col-md-9 text-end">
                     <button class="btn btn-success me-2" onclick="addNewSubject()">
                         <i class="fas fa-plus me-1"></i>
                         Agregar Materia
                     </button>
-                    <button class="btn btn-primary ms-2" onclick="showComponentCredits()">
-                        <i class="fas fa-chart-bar me-1"></i>
-                        Créditos por Componente
-                    </button>
-                </div>
-                <div class="col-md-4 text-end">
-                    <button class="btn btn-success me-2" onclick="saveCurrentCurriculum()">
+                    <button class="btn btn-primary me-2" onclick="saveCurrentCurriculum()">
                         <i class="fas fa-save me-1"></i>
                         Guardar Malla
+                    </button>
+                    <button class="btn btn-info me-2" onclick="showComponentCredits()">
+                        <i class="fas fa-chart-pie me-1"></i>
+                        Créditos por Componente
+                    </button>
+                    <button class="btn btn-warning" onclick="resetSimulation()">
+                        <i class="fas fa-undo me-1"></i>
+                        Reset
                     </button>
                 </div>
             </div>
@@ -466,6 +475,30 @@
         .subject-card.drag-shift-down {
             transform: translateY(110px);
             transition: transform 0.3s ease;
+        }
+
+        /* Version Dropdown Custom Styles */
+        #versionDropdownMenu .dropdown-item {
+            padding: 0 !important;
+        }
+
+        #versionDropdownMenu .dropdown-item > a {
+            padding: 0.5rem 1rem;
+            display: block;
+        }
+
+        #versionDropdownMenu .dropdown-item > a:hover {
+            background-color: #f8f9fa;
+        }
+
+        #versionDropdownMenu .btn-link {
+            padding: 0.5rem !important;
+            text-decoration: none;
+        }
+
+        #versionDropdownMenu .btn-link:hover {
+            background-color: #ffe0e0;
+            border-radius: 4px;
         }
     </style>
 @endpush

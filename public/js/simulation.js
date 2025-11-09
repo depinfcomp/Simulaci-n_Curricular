@@ -602,28 +602,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const controlsHtml = `
             <div class="simulation-controls mb-3">
                 <div class="row">
-                    <div class="col-md-8">
+                    <div class="col-md-12">
                         <div id="simulation-status"></div>
-                    </div>
-                    <div class="col-md-4 text-end">
-                        <button class="btn btn-info me-2" onclick="openConvalidation()">
-                            <i class="fas fa-exchange-alt me-1"></i>
-                            Realizar Convalidación
-                        </button>
-                        <div class="btn-group" role="group">
-                            <button class="btn btn-primary" onclick="analyzeImpact()">
-                                <i class="fas fa-chart-line me-1"></i>
-                                Analizar
-                            </button>
-                            <button class="btn btn-warning" onclick="resetSimulation()">
-                                <i class="fas fa-undo me-1"></i>
-                                Reset
-                            </button>
-                            <button class="btn btn-success" onclick="saveSimulation()">
-                                <i class="fas fa-save me-1"></i>
-                                Guardar
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -3013,26 +2993,45 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/simulation/versions')
             .then(response => response.json())
             .then(data => {
-                const selector = document.getElementById('versionSelector');
-                if (!selector) return;
+                const menu = document.getElementById('versionDropdownMenu');
+                if (!menu) return;
 
-                // Keep the "current" option
-                let options = '<option value="current">Versión Actual (En Edición)</option>';
+                // Build the menu items
+                let items = `
+                    <li>
+                        <a class="dropdown-item" href="#" onclick="loadCurriculumVersion('current'); return false;">
+                            Versión Actual (En Edición)
+                        </a>
+                    </li>
+                `;
                 
                 // Add saved versions
                 if (data.versions && data.versions.length > 0) {
-                    options += '<optgroup label="Versiones Guardadas">';
+                    items += '<li><hr class="dropdown-divider"></li>';
+                    items += '<li><h6 class="dropdown-header">Versiones Guardadas</h6></li>';
+                    
                     data.versions.forEach(version => {
                         const date = new Date(version.created_at).toLocaleDateString('es-ES');
                         const isCurrent = version.is_current ? ' ⭐' : '';
-                        options += `<option value="${version.id}">
-                            v${version.version_number}${isCurrent} - ${date}
-                        </option>`;
+                        items += `
+                            <li>
+                                <div class="dropdown-item d-flex justify-content-between align-items-center p-0">
+                                    <a href="#" class="flex-grow-1 text-decoration-none text-dark px-3 py-2" 
+                                       onclick="loadCurriculumVersion('${version.id}'); return false;">
+                                        v${version.version_number}${isCurrent} - ${date}
+                                    </a>
+                                    <button class="btn btn-sm btn-link text-danger p-2" 
+                                            onclick="event.stopPropagation(); deleteVersion(${version.id}); return false;"
+                                            title="Eliminar versión">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </li>
+                        `;
                     });
-                    options += '</optgroup>';
                 }
 
-                selector.innerHTML = options;
+                menu.innerHTML = items;
             })
             .catch(error => {
                 console.error('Error loading versions:', error);
@@ -3202,11 +3201,14 @@ document.addEventListener('DOMContentLoaded', function() {
     /**
      * Load a specific curriculum version
      */
-    window.loadCurriculumVersion = function() {
-        const selector = document.getElementById('versionSelector');
-        const versionId = selector.value;
+    window.loadCurriculumVersion = function(versionId) {
+        const currentVersionText = document.getElementById('currentVersionText');
 
         if (versionId === 'current') {
+            // Update button text
+            if (currentVersionText) {
+                currentVersionText.textContent = 'Versión Actual (En Edición)';
+            }
             // Reload current version (refresh page)
             window.location.reload();
             return;
@@ -3217,6 +3219,12 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    // Update button text with version info
+                    if (currentVersionText && data.version) {
+                        const date = new Date(data.version.created_at).toLocaleDateString('es-ES');
+                        currentVersionText.textContent = `v${data.version.version_number} - ${date}`;
+                    }
+                    
                     // Show info about viewing old version
                     const versionInfo = `
                         <div class="alert alert-info alert-dismissible fade show" role="alert">
@@ -3315,67 +3323,70 @@ document.addEventListener('DOMContentLoaded', function() {
     loadVersionsList();
 
     /**
-     * Delete selected version with confirmation
+     * Delete a specific version with confirmation
      */
-    window.deleteSelectedVersion = function() {
-        const selector = document.getElementById('versionSelector');
-        const versionId = selector.value;
-        
-        if (versionId === 'current') {
-            alert('No puedes eliminar la versión actual en edición.');
-            return;
-        }
-        
+    window.deleteVersion = function(versionId) {
         if (!versionId) {
-            alert('Por favor selecciona una versión para eliminar.');
+            alert('Error: ID de versión no válido.');
             return;
         }
         
-        // Get version info
-        const selectedOption = selector.options[selector.selectedIndex];
-        const versionName = selectedOption.textContent;
-        
-        // Double confirmation
-        if (!confirm(`⚠️ ¿Estás seguro que deseas eliminar la versión "${versionName}"?\n\nEsta acción NO se puede deshacer.`)) {
-            return;
-        }
-        
-        if (!confirm(`⚠️ ÚLTIMA CONFIRMACIÓN\n\n¿Realmente deseas eliminar "${versionName}"?`)) {
-            return;
-        }
-        
-        // Show loading
-        selector.disabled = true;
-        
-        // Send delete request
-        fetch(`/simulation/versions/${versionId}`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showSuccessMessage(`Versión "${versionName}" eliminada correctamente`);
+        // Get version info for confirmation
+        fetch(`/simulation/versions`)
+            .then(response => response.json())
+            .then(data => {
+                const version = data.versions.find(v => v.id == versionId);
+                if (!version) {
+                    alert('Error: Versión no encontrada.');
+                    return;
+                }
                 
-                // Reload versions list
-                loadVersionsList();
+                const date = new Date(version.created_at).toLocaleDateString('es-ES');
+                const versionName = `v${version.version_number} - ${date}`;
                 
-                // Reset to current version
-                selector.value = 'current';
-            } else {
-                alert('Error al eliminar: ' + (data.message || 'Error desconocido'));
-            }
-        })
-        .catch(error => {
-            console.error('Error deleting version:', error);
-            alert('Error al eliminar la versión: ' + error.message);
-        })
-        .finally(() => {
-            selector.disabled = false;
-        });
+                // Double confirmation
+                if (!confirm(`⚠️ ¿Estás seguro que deseas eliminar la versión "${versionName}"?\n\nEsta acción NO se puede deshacer.`)) {
+                    return;
+                }
+                
+                if (!confirm(`⚠️ ÚLTIMA CONFIRMACIÓN\n\n¿Realmente deseas eliminar "${versionName}"?`)) {
+                    return;
+                }
+                
+                // Send delete request
+                fetch(`/simulation/versions/${versionId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showSuccessMessage(`Versión "${versionName}" eliminada correctamente`);
+                        
+                        // Reload versions list
+                        loadVersionsList();
+                        
+                        // Reset to current version if needed
+                        const currentVersionText = document.getElementById('currentVersionText');
+                        if (currentVersionText) {
+                            currentVersionText.textContent = 'Versión Actual (En Edición)';
+                        }
+                    } else {
+                        alert('Error al eliminar: ' + (data.message || 'Error desconocido'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting version:', error);
+                    alert('Error al eliminar la versión: ' + error.message);
+                });
+            })
+            .catch(error => {
+                console.error('Error loading versions:', error);
+                alert('Error al cargar la información de la versión.');
+            });
     };
 
     // FIXED: Global scroll fix watcher - monitors and fixes scroll issues
