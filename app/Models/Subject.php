@@ -17,6 +17,7 @@ class Subject extends Model
         'code',
         'name',
         'semester',
+        'display_order',
         'credits',
         'classroom_hours',
         'student_hours',

@@ -563,7 +563,8 @@
     display: flex;
     justify-content: center;
     gap: 5px;
-    overflow-x: auto;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
     padding: 15px;
     min-height: 550px;
 }

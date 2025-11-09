@@ -363,4 +363,141 @@ class SimulationController extends Controller
         
         return $delays;
     }
+
+    /**
+     * Get all curriculum versions
+     */
+    public function getVersions()
+    {
+        $versions = \App\Models\CurriculumVersion::orderBy('version_number', 'desc')->get();
+        
+        return response()->json([
+            'success' => true,
+            'versions' => $versions
+        ]);
+    }
+
+    /**
+     * Get a specific curriculum version
+     */
+    public function getVersion($id)
+    {
+        $version = \App\Models\CurriculumVersion::with('subjects')->findOrFail($id);
+        
+        return response()->json([
+            'success' => true,
+            'version' => $version
+        ]);
+    }
+
+    /**
+     * Save current curriculum as a new version
+     */
+    public function saveVersion(Request $request)
+    {
+        $request->validate([
+            'curriculum_data' => 'required|array',
+            'description' => 'nullable|string',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            // Get next version number
+            $versionNumber = \App\Models\CurriculumVersion::getNextVersionNumber();
+
+            // Create new version
+            $version = \App\Models\CurriculumVersion::create([
+                'version_number' => $versionNumber,
+                'user_id' => auth()->id(),
+                'description' => $request->description,
+                'is_current' => true,
+                'curriculum_data' => $request->curriculum_data,
+            ]);
+
+            // Save subjects for this version
+            $subjects = $request->curriculum_data['subjects'] ?? [];
+            foreach ($subjects as $subjectData) {
+                \App\Models\CurriculumVersionSubject::create([
+                    'curriculum_version_id' => $version->id,
+                    'code' => $subjectData['code'],
+                    'name' => $subjectData['name'],
+                    'semester' => $subjectData['semester'],
+                    'credits' => $subjectData['credits'] ?? 3,
+                    'classroom_hours' => $subjectData['classroom_hours'] ?? 3,
+                    'student_hours' => $subjectData['student_hours'] ?? 6,
+                    'type' => $subjectData['type'] ?? 'profesional',
+                    'is_required' => $subjectData['is_required'] ?? true,
+                    'description' => $subjectData['description'] ?? null,
+                    'display_order' => $subjectData['display_order'] ?? 0,
+                    'prerequisites' => $subjectData['prerequisites'] ?? [],
+                ]);
+            }
+
+            // Update main subjects table with changes if needed
+            $this->applyChangesToMainCurriculum($request->curriculum_data);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'version' => $version,
+                'message' => "Malla guardada como versión {$versionNumber}"
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al guardar la versión: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Apply changes from simulation to main curriculum
+     */
+    private function applyChangesToMainCurriculum($curriculumData)
+    {
+        $changes = $curriculumData['changes'] ?? [];
+        
+        foreach ($changes as $subjectCode => $changeData) {
+            if ($changeData['action'] === 'added') {
+                // Add new subject
+                Subject::updateOrCreate(
+                    ['code' => $subjectCode],
+                    [
+                        'name' => $changeData['data']['name'] ?? 'Nueva Materia',
+                        'semester' => $changeData['data']['semester'] ?? 1,
+                        'credits' => $changeData['data']['credits'] ?? 3,
+                        'classroom_hours' => $changeData['data']['classroom_hours'] ?? 3,
+                        'student_hours' => $changeData['data']['student_hours'] ?? 6,
+                        'type' => $changeData['data']['type'] ?? 'profesional',
+                        'is_required' => $changeData['data']['is_required'] ?? true,
+                        'description' => $changeData['data']['description'] ?? null,
+                    ]
+                );
+            } elseif ($changeData['action'] === 'removed') {
+                // Mark as removed or delete
+                Subject::where('code', $subjectCode)->delete();
+            } elseif ($changeData['action'] === 'modified') {
+                // Update subject
+                $subject = Subject::where('code', $subjectCode)->first();
+                if ($subject) {
+                    $subject->update($changeData['data']);
+                }
+            }
+        }
+
+        // Update display_order for all subjects based on curriculum data
+        $subjects = $curriculumData['subjects'] ?? [];
+        foreach ($subjects as $subjectData) {
+            Subject::where('code', $subjectData['code'])
+                ->update([
+                    'display_order' => $subjectData['display_order'] ?? 0,
+                    'semester' => $subjectData['semester']
+                ]);
+        }
+    }
 }

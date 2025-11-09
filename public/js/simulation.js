@@ -278,6 +278,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         console.log('Total cards made draggable:', document.querySelectorAll('.subject-card').length);
         
+        let currentPlaceholder = null;
+        
         // Use event delegation for drag events
         document.addEventListener('dragstart', function(e) {
             if (e.target.classList.contains('subject-card')) {
@@ -293,6 +295,19 @@ document.addEventListener('DOMContentLoaded', function() {
             if (e.target.classList.contains('subject-card')) {
                 e.target.classList.remove('dragging');
                 console.log('Drag ended:', e.target.dataset.subjectId);
+                
+                // Remove any existing placeholder
+                if (currentPlaceholder) {
+                    currentPlaceholder.remove();
+                    currentPlaceholder = null;
+                }
+                
+                // Remove all shift classes
+                document.querySelectorAll('.subject-card').forEach(card => {
+                    card.classList.remove('drag-shift-up', 'drag-shift-down');
+                    card.style.transform = '';
+                });
+                
                 draggedCard = null;
             }
         });
@@ -306,12 +321,73 @@ document.addEventListener('DOMContentLoaded', function() {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
                 this.classList.add('drag-over');
+                
+                if (!draggedCard) return;
+                
+                // Get the semester of the dragged card and current column
+                const draggedSemester = draggedCard.closest('.semester-column')?.dataset.semester;
+                const currentSemester = this.dataset.semester;
+                
+                // Only show placeholder if moving within the same semester
+                if (draggedSemester === currentSemester) {
+                    // Find the subject list
+                    const subjectList = this.querySelector('.subject-list');
+                    if (!subjectList) return;
+                    
+                    // Get all cards in this column (excluding dragged card)
+                    const cards = Array.from(subjectList.querySelectorAll('.subject-card:not(.dragging)'));
+                    
+                    // Find which card we're hovering over
+                    const afterCard = cards.reduce((closest, child) => {
+                        const box = child.getBoundingClientRect();
+                        const offset = e.clientY - box.top - box.height / 2;
+                        
+                        if (offset < 0 && offset > closest.offset) {
+                            return { offset: offset, element: child };
+                        } else {
+                            return closest;
+                        }
+                    }, { offset: Number.NEGATIVE_INFINITY }).element;
+                    
+                    // Remove existing placeholder
+                    if (currentPlaceholder) {
+                        currentPlaceholder.remove();
+                    }
+                    
+                    // Create new placeholder
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'drag-placeholder';
+                    currentPlaceholder = placeholder;
+                    
+                    // Insert placeholder at appropriate position
+                    if (afterCard) {
+                        subjectList.insertBefore(placeholder, afterCard);
+                    } else {
+                        subjectList.appendChild(placeholder);
+                    }
+                } else {
+                    // Different semester - remove any existing placeholder
+                    if (currentPlaceholder) {
+                        currentPlaceholder.remove();
+                        currentPlaceholder = null;
+                    }
+                }
             });
             
             column.addEventListener('dragleave', function(e) {
                 // Only remove drag-over if we're actually leaving the column
                 if (!this.contains(e.relatedTarget)) {
                     this.classList.remove('drag-over');
+                    
+                    // Remove placeholder when leaving column
+                    if (currentPlaceholder && !this.contains(e.relatedTarget)) {
+                        setTimeout(() => {
+                            if (currentPlaceholder) {
+                                currentPlaceholder.remove();
+                                currentPlaceholder = null;
+                            }
+                        }, 50);
+                    }
                 }
             });
             
@@ -328,21 +404,51 @@ document.addEventListener('DOMContentLoaded', function() {
                     const newSemester = this.dataset.semester;
                     const subjectId = draggedCard.dataset.subjectId;
                     const oldSemester = draggedCard.closest('.semester-column').dataset.semester;
+                    const subjectList = this.querySelector('.subject-list');
+                    
+                    // Get the position where placeholder is
+                    let insertBeforeCard = null;
+                    if (currentPlaceholder && currentPlaceholder.nextElementSibling) {
+                        insertBeforeCard = currentPlaceholder.nextElementSibling;
+                    }
+                    
+                    // Remove placeholder
+                    if (currentPlaceholder) {
+                        currentPlaceholder.remove();
+                        currentPlaceholder = null;
+                    }
                     
                     console.log('Moving subject:', {
                         subjectId,
                         from: oldSemester,
-                        to: newSemester
+                        to: newSemester,
+                        insertBefore: insertBeforeCard?.dataset.subjectId
                     });
                     
                     if (newSemester !== oldSemester) {
+                        // Moving to different semester
                         console.log('*** CALLING MODAL FUNCTION ***');
                         console.log('Subject:', subjectId, 'From:', oldSemester, 'To:', newSemester);
+                        
+                        // Store target position for later
+                        window.tempMoveTargetCard = insertBeforeCard;
                         
                         // Show modal to optionally edit prerequisites
                         showMoveSubjectModal(draggedCard, this, newSemester, oldSemester);
                     } else {
-                        console.log('Same semester, no modal needed');
+                        // Reordering within same semester
+                        console.log('Same semester, reordering...');
+                        
+                        if (insertBeforeCard && insertBeforeCard !== draggedCard) {
+                            // Insert before the target card
+                            subjectList.insertBefore(draggedCard, insertBeforeCard);
+                        } else {
+                            // Append to end
+                            subjectList.appendChild(draggedCard);
+                        }
+                        
+                        // Recalculate display_order
+                        recalculateDisplayOrder(newSemester);
                     }
                 }
             });
@@ -352,13 +458,42 @@ document.addEventListener('DOMContentLoaded', function() {
     // Move subject to new semester
     function moveSubjectToSemester(card, newColumn, newSemester) {
         const subjectList = newColumn.querySelector('.subject-list');
-        subjectList.appendChild(card);
+        const targetCard = window.tempMoveTargetCard;
+        
+        if (targetCard && targetCard !== card) {
+            // Insert before the target card
+            subjectList.insertBefore(card, targetCard);
+        } else {
+            // Append to end
+            subjectList.appendChild(card);
+        }
+        
+        // Clean up temp variable
+        delete window.tempMoveTargetCard;
         
         // Update semester display
         const semesterBadge = card.querySelector('.semester-badge');
         if (semesterBadge) {
             semesterBadge.textContent = `Semestre ${newSemester}`;
         }
+        
+        // Recalculate display_order for the new semester
+        recalculateDisplayOrder(newSemester);
+    }
+    
+    // Recalculate display_order for all subjects in a semester
+    function recalculateDisplayOrder(semester) {
+        const column = document.querySelector(`.semester-column[data-semester="${semester}"]`);
+        if (!column) return;
+        
+        const cards = Array.from(column.querySelectorAll('.subject-card'));
+        cards.forEach((card, index) => {
+            const subjectCode = card.dataset.subjectId;
+            const newOrder = index + 1;
+            
+            // Record the display_order change
+            recordSimulationChange(subjectCode, 'display_order', newOrder, null);
+        });
     }
     
     // Record simulation changes
@@ -1034,6 +1169,37 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add event listeners to ensure proper cleanup
         modalElement.addEventListener('hidden.bs.modal', function () {
             cleanupModal(modalElement);
+            
+            // FIXED: Aggressive cleanup to restore scroll
+            const forceCleanup = () => {
+                // Remove Bootstrap modal state
+                document.body.classList.remove('modal-open');
+                document.body.style.removeProperty('overflow');
+                document.body.style.removeProperty('padding-right');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                
+                // Ensure curriculum grid maintains proper overflow
+                const curriculumGrid = document.querySelector('.curriculum-grid');
+                if (curriculumGrid) {
+                    curriculumGrid.style.setProperty('overflow-x', 'auto', 'important');
+                    curriculumGrid.style.setProperty('overflow-y', 'visible', 'important');
+                }
+                
+                // Remove any stuck modal backdrops
+                document.querySelectorAll('.modal-backdrop, .modal-backdrop.fade, .modal-backdrop.show').forEach(backdrop => {
+                    backdrop.remove();
+                });
+                
+                // Force browser reflow
+                void document.body.offsetHeight;
+            };
+            
+            // Execute cleanup multiple times
+            forceCleanup();
+            setTimeout(forceCleanup, 50);
+            setTimeout(forceCleanup, 150);
+            setTimeout(forceCleanup, 300);
         });
         
         modal.show();
@@ -1043,6 +1209,10 @@ document.addEventListener('DOMContentLoaded', function() {
     window.confirmMoveSubject = function(subjectId, newSemester, oldSemester) {
         const moveData = window.tempMoveData;
         const editPrereqs = document.getElementById('editPrerequisites').checked;
+        
+        // Store current scroll position before moving
+        const curriculumGrid = document.querySelector('.curriculum-grid');
+        const scrollLeft = curriculumGrid ? curriculumGrid.scrollLeft : 0;
         
         // Move the subject
         moveSubjectToSemester(moveData.card, moveData.newColumn, newSemester);
@@ -1083,6 +1253,47 @@ document.addEventListener('DOMContentLoaded', function() {
         if (modal) {
             modal.hide();
         }
+        
+        // FIXED: Aggressive scroll restoration and cleanup
+        const forceScrollRestoration = () => {
+            // Restore scroll position
+            if (curriculumGrid) {
+                curriculumGrid.scrollLeft = scrollLeft;
+                
+                // Force overflow styles with !important equivalent
+                curriculumGrid.style.setProperty('overflow-x', 'auto', 'important');
+                curriculumGrid.style.setProperty('overflow-y', 'visible', 'important');
+                curriculumGrid.style.setProperty('display', 'flex', 'important');
+            }
+            
+            // Aggressive body cleanup
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+            
+            // Remove all modal backdrops (sometimes multiple get stuck)
+            const backdrops = document.querySelectorAll('.modal-backdrop, .modal-backdrop.fade, .modal-backdrop.show');
+            backdrops.forEach(backdrop => {
+                backdrop.remove();
+            });
+            
+            // Force page reflow
+            void document.body.offsetHeight;
+            
+            console.log('Scroll restored:', {
+                scrollLeft: curriculumGrid?.scrollLeft,
+                overflowX: curriculumGrid?.style.overflowX,
+                bodyOverflow: document.body.style.overflow,
+                backdropsRemoved: backdrops.length
+            });
+        };
+        
+        // Execute restoration multiple times to ensure it works
+        setTimeout(forceScrollRestoration, 100);
+        setTimeout(forceScrollRestoration, 300);
+        setTimeout(forceScrollRestoration, 500);
         
         // Clean up temp data
         delete window.tempMoveData;
@@ -1563,7 +1774,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="subjectSemester" class="form-label">Semestre *</label>
-                                            <select class="form-select" id="subjectSemester" required>
+                                            <select class="form-select" id="subjectSemester" required onchange="updatePositionSelector()">
                                                 <option value="">Seleccionar semestre</option>
                                                 <option value="1">1° Semestre</option>
                                                 <option value="2">2° Semestre</option>
@@ -1576,6 +1787,17 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 <option value="9">9° Semestre</option>
                                                 <option value="10">10° Semestre</option>
                                             </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        <div class="mb-3">
+                                            <label for="subjectPosition" class="form-label">Posición en el Semestre</label>
+                                            <select class="form-select" id="subjectPosition">
+                                                <option value="end">Al final del semestre</option>
+                                            </select>
+                                            <div class="form-text">Seleccione dónde aparecerá la materia en el semestre</div>
                                         </div>
                                     </div>
                                 </div>
@@ -1822,6 +2044,40 @@ document.addEventListener('DOMContentLoaded', function() {
         if (chip) chip.remove();
     };
 
+    // Update position selector based on selected semester
+    window.updatePositionSelector = function() {
+        const semester = document.getElementById('subjectSemester').value;
+        const positionSelect = document.getElementById('subjectPosition');
+        
+        if (!semester) {
+            positionSelect.innerHTML = '<option value="end">Al final del semestre</option>';
+            return;
+        }
+        
+        // Get all subjects in the selected semester
+        const semesterColumn = document.querySelector(`[data-semester="${semester}"] .subject-list`);
+        if (!semesterColumn) {
+            positionSelect.innerHTML = '<option value="end">Al final del semestre</option>';
+            return;
+        }
+        
+        const subjectsInSemester = Array.from(semesterColumn.querySelectorAll('.subject-card'));
+        
+        // Build options
+        let options = '<option value="beginning">Al inicio del semestre</option>';
+        
+        subjectsInSemester.forEach((card, index) => {
+            const code = card.dataset.subjectId;
+            const nameElement = card.querySelector('.subject-name');
+            const name = nameElement ? nameElement.textContent.trim() : code;
+            options += `<option value="${code}">Después de: ${code} - ${name}</option>`;
+        });
+        
+        options += '<option value="end" selected>Al final del semestre</option>';
+        
+        positionSelect.innerHTML = options;
+    };
+
     // Keep old function for compatibility
     function showPrerequisiteHelper() {
         showPrerequisiteSelector();
@@ -1880,7 +2136,36 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        semesterColumn.appendChild(newSubjectCard);
+        // Get position preference
+        const position = document.getElementById('subjectPosition').value;
+        
+        // Insert card based on selected position
+        if (position === 'beginning') {
+            // Insert at the beginning
+            const firstCard = semesterColumn.querySelector('.subject-card');
+            if (firstCard) {
+                semesterColumn.insertBefore(newSubjectCard, firstCard);
+            } else {
+                semesterColumn.appendChild(newSubjectCard);
+            }
+        } else if (position === 'end') {
+            // Append to the end
+            semesterColumn.appendChild(newSubjectCard);
+        } else {
+            // Insert after specific subject
+            const targetCard = semesterColumn.querySelector(`[data-subject-id="${position}"]`);
+            if (targetCard && targetCard.nextSibling) {
+                semesterColumn.insertBefore(newSubjectCard, targetCard.nextSibling);
+            } else if (targetCard) {
+                semesterColumn.appendChild(newSubjectCard);
+            } else {
+                // Fallback to end if target not found
+                semesterColumn.appendChild(newSubjectCard);
+            }
+        }
+        
+        // Recalculate display_order for all cards in this semester
+        recalculateDisplayOrder(semester);
         
         // Update credits (check if it's a leveling subject)
         const creditsNum = parseInt(credits) || 0;
@@ -2323,6 +2608,268 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }, 5000);
     }
+
+    // ============================================
+    // SISTEMA DE VERSIONES DE MALLAS
+    // ============================================
+
+    /**
+     * Load available curriculum versions into the selector
+     */
+    function loadVersionsList() {
+        fetch('/simulation/versions')
+            .then(response => response.json())
+            .then(data => {
+                const selector = document.getElementById('versionSelector');
+                if (!selector) return;
+
+                // Keep the "current" option
+                let options = '<option value="current">Versión Actual (En Edición)</option>';
+                
+                // Add saved versions
+                if (data.versions && data.versions.length > 0) {
+                    options += '<optgroup label="Versiones Guardadas">';
+                    data.versions.forEach(version => {
+                        const date = new Date(version.created_at).toLocaleDateString('es-ES');
+                        const isCurrent = version.is_current ? ' ⭐' : '';
+                        options += `<option value="${version.id}">
+                            v${version.version_number}${isCurrent} - ${date}
+                        </option>`;
+                    });
+                    options += '</optgroup>';
+                }
+
+                selector.innerHTML = options;
+            })
+            .catch(error => {
+                console.error('Error loading versions:', error);
+            });
+    }
+
+    /**
+     * Save current curriculum as a new version
+     */
+    window.saveCurrentCurriculum = function() {
+        // Show confirmation dialog with optional description
+        const description = prompt(
+            'Guardar la malla actual como nueva versión.\n\n' +
+            'Descripción de cambios (opcional):'
+        );
+        
+        // User cancelled
+        if (description === null) return;
+
+        // Gather all current curriculum data
+        const curriculumData = {
+            subjects: [],
+            changes: window.simulationChanges || {}
+        };
+
+        // Collect all subjects with their current state
+        document.querySelectorAll('.subject-card').forEach(card => {
+            const semester = card.closest('.semester-column')?.dataset.semester;
+            const prerequisites = card.dataset.prerequisites ? 
+                card.dataset.prerequisites.split(',').map(p => p.trim()).filter(p => p) : 
+                [];
+
+            curriculumData.subjects.push({
+                code: card.dataset.subjectId,
+                name: card.querySelector('.subject-name')?.textContent.trim(),
+                semester: parseInt(semester),
+                credits: parseInt(card.querySelector('.subject-credits')?.textContent) || 3,
+                type: card.dataset.type,
+                prerequisites: prerequisites,
+                description: card.title || '',
+                display_order: Array.from(card.parentElement.children).indexOf(card) + 1
+            });
+        });
+
+        // Send to server
+        fetch('/simulation/versions/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({
+                description: description,
+                curriculum_data: curriculumData
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccessMessage(`Malla guardada como versión ${data.version.version_number}`);
+                
+                // Reload versions list
+                loadVersionsList();
+                
+                // Clear simulation changes since we just saved
+                window.simulationChanges = {};
+            } else {
+                alert('Error al guardar la versión: ' + (data.message || 'Error desconocido'));
+            }
+        })
+        .catch(error => {
+            console.error('Error saving version:', error);
+            alert('Error al guardar la versión: ' + error.message);
+        });
+    };
+
+    /**
+     * Load a specific curriculum version
+     */
+    window.loadCurriculumVersion = function() {
+        const selector = document.getElementById('versionSelector');
+        const versionId = selector.value;
+
+        if (versionId === 'current') {
+            // Reload current version (refresh page)
+            window.location.reload();
+            return;
+        }
+
+        // Load specific version
+        fetch(`/simulation/versions/${versionId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show info about viewing old version
+                    const versionInfo = `
+                        <div class="alert alert-info alert-dismissible fade show" role="alert">
+                            <strong>Visualizando versión ${data.version.version_number}</strong><br>
+                            Creada: ${new Date(data.version.created_at).toLocaleString('es-ES')}<br>
+                            ${data.version.description ? 'Descripción: ' + data.version.description : ''}
+                            <br><small class="text-muted">Esta es una versión de solo lectura. Para editarla, vuelva a "Versión Actual".</small>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    `;
+                    
+                    const controls = document.querySelector('.curriculum-controls');
+                    controls.insertAdjacentHTML('afterend', versionInfo);
+
+                    // Rebuild curriculum grid with version data
+                    rebuildCurriculumFromVersion(data.version);
+                    
+                    // Disable editing for old versions
+                    disableEditingMode();
+                } else {
+                    alert('Error al cargar la versión: ' + (data.message || 'Error desconocido'));
+                }
+            })
+            .catch(error => {
+                console.error('Error loading version:', error);
+                alert('Error al cargar la versión: ' + error.message);
+            });
+    };
+
+    /**
+     * Rebuild curriculum grid from version data
+     */
+    function rebuildCurriculumFromVersion(version) {
+        const subjects = version.curriculum_data.subjects || [];
+        
+        // Clear all subject lists
+        document.querySelectorAll('.subject-list').forEach(list => {
+            list.innerHTML = '';
+        });
+
+        // Rebuild subjects
+        subjects.forEach(subject => {
+            const semesterColumn = document.querySelector(`[data-semester="${subject.semester}"] .subject-list`);
+            if (!semesterColumn) return;
+
+            const card = createSubjectCard(
+                subject.code,
+                subject.name,
+                subject.semester,
+                subject.prerequisites.join(','),
+                subject.description,
+                subject.credits,
+                subject.classroom_hours || 3,
+                subject.student_hours || 6,
+                subject.type,
+                subject.is_required !== false
+            );
+
+            semesterColumn.appendChild(card);
+        });
+
+        // Update credits display
+        updateCreditsDisplay();
+        
+        // Update prerequisites relationships
+        updateUnlocksRelationships();
+    }
+
+    /**
+     * Disable editing mode when viewing old versions
+     */
+    function disableEditingMode() {
+        // Disable drag and drop
+        document.querySelectorAll('.subject-card').forEach(card => {
+            card.draggable = false;
+            card.style.cursor = 'default';
+        });
+
+        // Disable buttons
+        document.querySelectorAll('.curriculum-controls button:not(#versionSelector)').forEach(btn => {
+            if (btn.textContent.includes('Exportar')) {
+                // Keep export button enabled
+                return;
+            }
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+        });
+
+        // Hide edit/delete buttons on cards
+        document.querySelectorAll('.subject-card .btn-danger, .subject-card .btn-primary').forEach(btn => {
+            btn.style.display = 'none';
+        });
+    }
+
+    // Load versions list on page load
+    loadVersionsList();
+
+    // FIXED: Global scroll fix watcher - monitors and fixes scroll issues
+    const scrollFixWatcher = new MutationObserver((mutations) => {
+        // Check if body has modal-open but no visible modals
+        if (document.body.classList.contains('modal-open')) {
+            const visibleModals = document.querySelectorAll('.modal.show');
+            
+            // If no modals are visible but body is marked as modal-open, clean up
+            if (visibleModals.length === 0) {
+                console.log('⚠️ Detected stuck modal state, cleaning up...');
+                
+                // Clean body
+                document.body.classList.remove('modal-open');
+                document.body.style.removeProperty('overflow');
+                document.body.style.removeProperty('padding-right');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                
+                // Clean grid
+                const curriculumGrid = document.querySelector('.curriculum-grid');
+                if (curriculumGrid) {
+                    curriculumGrid.style.setProperty('overflow-x', 'auto', 'important');
+                    curriculumGrid.style.setProperty('overflow-y', 'visible', 'important');
+                }
+                
+                // Remove backdrops
+                document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+                
+                console.log('✅ Scroll fixed automatically');
+            }
+        }
+    });
+    
+    // Start watching body for class changes
+    scrollFixWatcher.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style']
+    });
+    
+    console.log('🔧 Scroll fix watcher initialized');
 
     // Debug: Verify functions are available
     console.log('=== SIMULATION JS LOADED ===');

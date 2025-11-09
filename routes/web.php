@@ -20,6 +20,11 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
     
     Route::post('/simulation/analyze-impact', [SimulationController::class, 'analyzeImpact'])->name('simulation.analyzeImpact');
     Route::get('/simulation/original-order', [SubjectOrderController::class, 'getOriginalOrderJson'])->name('simulation.originalOrder');
+    
+    // Curriculum versions routes
+    Route::get('/simulation/versions', [SimulationController::class, 'getVersions'])->name('simulation.versions');
+    Route::post('/simulation/versions/save', [SimulationController::class, 'saveVersion'])->name('simulation.versions.save');
+    Route::get('/simulation/versions/{id}', [SimulationController::class, 'getVersion'])->name('simulation.versions.show');
 
     // Convalidation routes
     Route::group(['prefix' => 'convalidation'], function () {

@@ -101,22 +101,25 @@ class SubjectSeeder extends Seeder
 
         ];
 
-        foreach ($subjects as $subject) {
-            DB::table('subjects')->updateOrInsert(
-                ['code' => $subject['code']], // Condition to check for existing record
-                [
-                    'name' => $subject['name'],
-                    'semester' => $subject['semester'],
-                    'credits' => $subject['credits'],
-                    'classroom_hours' => $subject['classroom_hours'],
-                    'student_hours' => $subject['student_hours'],
-                    'type' => $subject['type'],
-                    'is_required' => $subject['is_required'],
-                    'is_leveling' => $subject['is_leveling'],
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]
-            );
+        // Delete all existing subjects first to ensure fresh insert with correct order
+        DB::table('subjects')->delete();
+
+        // Insert all subjects in order with display_order
+        foreach ($subjects as $index => $subject) {
+            DB::table('subjects')->insert([
+                'code' => $subject['code'],
+                'name' => $subject['name'],
+                'semester' => $subject['semester'],
+                'display_order' => $index + 1,
+                'credits' => $subject['credits'],
+                'classroom_hours' => $subject['classroom_hours'],
+                'student_hours' => $subject['student_hours'],
+                'type' => $subject['type'],
+                'is_required' => $subject['is_required'],
+                'is_leveling' => $subject['is_leveling'],
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
         }
     }
 }

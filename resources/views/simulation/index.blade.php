@@ -120,8 +120,18 @@
 
         <!-- Curriculum Controls -->
         <div class="curriculum-controls mb-3">
-            <div class="row">
-                <div class="col-md-6">
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <label for="versionSelector" class="form-label mb-1 small fw-bold">
+                        <i class="fas fa-code-branch me-1"></i>
+                        Versión de Malla:
+                    </label>
+                    <select class="form-select form-select-sm" id="versionSelector" onchange="loadCurriculumVersion()">
+                        <option value="current">Versión Actual (En Edición)</option>
+                        <!-- Las versiones guardadas se cargarán aquí dinámicamente -->
+                    </select>
+                </div>
+                <div class="col-md-5">
                     <button class="btn btn-success" onclick="addNewSubject()">
                         <i class="fas fa-plus me-1"></i>
                         Agregar Materia
@@ -131,10 +141,14 @@
                         Créditos por Componente
                     </button>
                 </div>
-                <div class="col-md-6 text-end">
+                <div class="col-md-4 text-end">
+                    <button class="btn btn-success me-2" onclick="saveCurrentCurriculum()">
+                        <i class="fas fa-save me-1"></i>
+                        Guardar Malla
+                    </button>
                     <button class="btn btn-info" onclick="exportModifiedCurriculum()">
                         <i class="fas fa-download me-1"></i>
-                        Exportar Malla Modificada
+                        Exportar Malla
                     </button>
                 </div>
             </div>
@@ -143,7 +157,10 @@
         <!-- Curriculum Grid -->
         <div class="curriculum-grid">
             @php
-                $subjects = \App\Models\Subject::with(['prerequisites', 'requiredFor'])->orderBy('semester')->get();
+                $subjects = \App\Models\Subject::with(['prerequisites', 'requiredFor'])
+                    ->orderBy('semester')
+                    ->orderBy('display_order')
+                    ->get();
                 $subjectsBySemester = $subjects->groupBy('semester');
             @endphp
 
@@ -406,6 +423,48 @@
             0% { transform: scale(0.8); opacity: 0; }
             50% { transform: scale(1.2); }
             100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Drag & Drop Placeholder Styles */
+        .subject-card.dragging {
+            opacity: 0.5;
+            transform: scale(0.95);
+        }
+
+        .drag-placeholder {
+            height: 100px;
+            margin: 8px 0;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            border: 2px dashed #2196f3;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1976d2;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+        }
+
+        .drag-placeholder::before {
+            content: "⬇ Soltar aquí ⬇";
+            font-size: 14px;
+            animation: pulse 1.5s ease infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        .subject-card.drag-shift-up {
+            transform: translateY(-110px);
+            transition: transform 0.3s ease;
+        }
+
+        .subject-card.drag-shift-down {
+            transform: translateY(110px);
+            transition: transform 0.3s ease;
         }
     </style>
 @endpush
