@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SimulationController;
 use App\Http\Controllers\SubjectOrderController;
 use App\Http\Controllers\ConvalidationController;
+use App\Http\Controllers\ImportCurriculumController;
 
 // Redirect root to login
 Route::get('/', function () {
@@ -32,6 +33,9 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         // New route for impact analysis
         Route::post('/{externalCurriculum}/analyze-impact', [ConvalidationController::class, 'analyzeConvalidationImpact'])->name('convalidation.analyze-impact');
         
+        // Route to get total credits from external curriculum
+        Route::get('/{externalCurriculum}/total-credits', [ConvalidationController::class, 'getTotalCredits'])->name('convalidation.total-credits');
+        
         // New route for convalidations summary
         Route::get('/{externalCurriculum}/convalidations-summary', [ConvalidationController::class, 'getConvalidationsSummary'])->name('convalidation.summary');
         
@@ -48,6 +52,20 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         
         // Save modified curriculum from simulation
         Route::post('/save-modified-curriculum', [ConvalidationController::class, 'saveModifiedCurriculum'])->name('convalidation.save-modified-curriculum');
+    });
+
+    // Import curriculum wizard routes
+    Route::prefix('import-curriculum')->name('import.')->group(function () {
+        Route::get('/', [ImportCurriculumController::class, 'index'])->name('index');
+        Route::post('/upload', [ImportCurriculumController::class, 'upload'])->name('upload');
+        Route::post('/{import}/analyze', [ImportCurriculumController::class, 'analyze'])->name('analyze');
+        Route::post('/{import}/mapping', [ImportCurriculumController::class, 'updateMapping'])->name('mapping');
+        Route::post('/{import}/validate', [ImportCurriculumController::class, 'validateData'])->name('validate');
+        Route::post('/{import}/fill', [ImportCurriculumController::class, 'updateMissingData'])->name('fill');
+        Route::post('/{import}/confirm', [ImportCurriculumController::class, 'confirm'])->name('confirm');
+        Route::get('/{import}/status', [ImportCurriculumController::class, 'status'])->name('status');
+        Route::get('/templates', [ImportCurriculumController::class, 'templates'])->name('templates');
+        Route::post('/{import}/apply-template', [ImportCurriculumController::class, 'applyTemplate'])->name('apply-template');
     });
 });
 

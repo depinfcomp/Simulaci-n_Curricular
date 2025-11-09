@@ -66,6 +66,82 @@ function showImpactConfigModal(curriculumId) {
     currentCurriculumId = curriculumId;
     const modal = new bootstrap.Modal(document.getElementById('impactConfigModal'));
     modal.show();
+    
+    // Cargar total de créditos de la malla
+    loadCurriculumTotalCredits(curriculumId);
+}
+
+function loadCurriculumTotalCredits(curriculumId) {
+    const creditsElement = document.getElementById('curriculumTotalCredits');
+    
+    if (!creditsElement) {
+        console.error('[loadCurriculumTotalCredits] Element #curriculumTotalCredits not found!');
+        return;
+    }
+    
+    creditsElement.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Cargando...';
+    
+    console.log('[loadCurriculumTotalCredits] Starting for curriculum ID:', curriculumId);
+    const startTime = performance.now();
+    
+    const csrfToken = document.querySelector('meta[name="csrf-token"]');
+    if (!csrfToken) {
+        console.error('[loadCurriculumTotalCredits] CSRF token not found');
+        creditsElement.innerHTML = '<span class="text-danger">❌ Token no encontrado</span>';
+        return;
+    }
+    
+    // Fetch total credits from external subjects
+    const url = `/convalidation/${curriculumId}/total-credits`;
+    console.log('[loadCurriculumTotalCredits] Fetching from URL:', url);
+    console.log('[loadCurriculumTotalCredits] Base URL:', window.location.origin);
+    console.log('[loadCurriculumTotalCredits] Full URL:', window.location.origin + url);
+    
+    fetch(url, {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': csrfToken.getAttribute('content'),
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        const fetchTime = performance.now() - startTime;
+        console.log('[loadCurriculumTotalCredits] Response received in:', fetchTime.toFixed(2), 'ms');
+        console.log('[loadCurriculumTotalCredits] Response status:', response.status);
+        console.log('[loadCurriculumTotalCredits] Response headers:', response.headers);
+        
+        if (!response.ok) {
+            console.error('[loadCurriculumTotalCredits] HTTP Error:', response.status, response.statusText);
+            throw new Error(`Error HTTP ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        const totalTime = performance.now() - startTime;
+        console.log('[loadCurriculumTotalCredits] ✅ Data received:', data);
+        console.log('[loadCurriculumTotalCredits] Total time:', totalTime.toFixed(2), 'ms');
+        
+        if (data.success) {
+            const displayText = `<strong>${data.total_credits}</strong> créditos` + 
+                              (data.total_subjects ? ` <small class="text-muted">(${data.total_subjects} materias)</small>` : '') +
+                              (data.duration_ms ? ` <small class="text-muted">[${data.duration_ms}ms]</small>` : '');
+            creditsElement.innerHTML = displayText;
+            console.log('[loadCurriculumTotalCredits] ✅ Display updated successfully');
+        } else {
+            console.error('[loadCurriculumTotalCredits] Response success=false:', data);
+            creditsElement.innerHTML = '<span class="text-danger">❌ Error al calcular</span>';
+        }
+    })
+    .catch(error => {
+        const totalTime = performance.now() - startTime;
+        console.error('[loadCurriculumTotalCredits] ❌ Error:', error);
+        console.error('[loadCurriculumTotalCredits] Error type:', error.constructor.name);
+        console.error('[loadCurriculumTotalCredits] Error message:', error.message);
+        console.error('[loadCurriculumTotalCredits] Failed after:', totalTime.toFixed(2), 'ms');
+        creditsElement.innerHTML = `<span class="text-danger">❌ Error: ${error.message}</span>`;
+    });
 }
 
 function runImpactAnalysis() {
@@ -82,9 +158,14 @@ function runImpactAnalysis() {
     const analysisModal = new bootstrap.Modal(document.getElementById('impactAnalysisModal'));
     analysisModal.show();
 
-    // Get form values
-    const maxFreeElectiveCredits = document.getElementById('maxFreeElectiveCredits').value || 12;
-    const priorityCriteria = document.querySelector('input[name="priority_criteria"]:checked')?.value || 'credits';
+    // Get form values - Todos los límites de créditos (todos obligatorios)
+    const maxFreeElectiveCredits = document.getElementById('maxFreeElectiveCredits').value || 36;
+    const maxOptionalProfessionalCredits = document.getElementById('maxOptionalProfessionalCredits').value || 9;
+    const maxOptionalFundamentalCredits = document.getElementById('maxOptionalFundamentalCredits').value || 6;
+    const maxLevelingCredits = document.getElementById('maxLevelingCredits').value || 12;
+    const maxRequiredFundamentalCredits = document.getElementById('maxRequiredFundamentalCredits').value || 60;
+    const maxRequiredProfessionalCredits = document.getElementById('maxRequiredProfessionalCredits').value || 80;
+    const maxThesisCredits = document.getElementById('maxThesisCredits').value || 6;
 
     // Reset content
     document.getElementById('impactAnalysisContent').innerHTML = `
@@ -105,7 +186,7 @@ function runImpactAnalysis() {
         return;
     }
 
-    // Perform the AJAX request
+    // Perform the AJAX request con todos los límites
     fetch(`/convalidation/${currentCurriculumId}/analyze-impact`, {
         method: 'POST',
         headers: {
@@ -114,7 +195,12 @@ function runImpactAnalysis() {
         },
         body: JSON.stringify({
             max_free_elective_credits: maxFreeElectiveCredits,
-            priority_criteria: priorityCriteria
+            max_optional_professional_credits: maxOptionalProfessionalCredits,
+            max_optional_fundamental_credits: maxOptionalFundamentalCredits,
+            max_leveling_credits: maxLevelingCredits,
+            max_required_fundamental_credits: maxRequiredFundamentalCredits,
+            max_required_professional_credits: maxRequiredProfessionalCredits,
+            max_thesis_credits: maxThesisCredits
         })
     })
     .then(response => {
@@ -213,7 +299,103 @@ function displayImpactResults(results) {
 }
 
 function generateSummaryTab(results) {
+    // Component breakdown section
+    let componentBreakdown = '';
+    if (results.credits_by_component) {
+        const componentNames = {
+            'fundamental_required': { name: 'Fundamental Obligatorio', color: 'warning' },
+            'fundamental_optional': { name: 'Fundamental Optativo', color: 'warning' },
+            'professional_required': { name: 'Disciplinar Obligatorio', color: 'success' },
+            'professional_optional': { name: 'Disciplinar Optativo', color: 'success' },
+            'leveling': { name: 'Nivelación', color: 'danger' },
+            'thesis': { name: 'Trabajo de Grado', color: 'dark' },
+            'free_elective': { name: 'Libre Elección', color: 'primary' },
+        };
+
+        componentBreakdown = `
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-layer-group me-2"></i>
+                            Desglose de Créditos por Componente
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+        `;
+
+        for (const [component, data] of Object.entries(results.credits_by_component)) {
+            if (!componentNames[component]) continue;
+            
+            const { name, color } = componentNames[component];
+            const used = data.used || 0;
+            const overflow = data.overflow || 0;
+            const excess = data.excess || 0;
+            const total = used + overflow + excess;
+
+            if (total > 0) {
+                componentBreakdown += `
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card border-${color}">
+                            <div class="card-body">
+                                <h6 class="text-${color}">
+                                    <i class="fas fa-circle me-1"></i>
+                                    ${name}
+                                </h6>
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between">
+                                        <small>Válidos:</small>
+                                        <span class="badge bg-${color}">${used} créditos</span>
+                                    </div>
+                                </div>
+                `;
+
+                if (overflow > 0) {
+                    componentBreakdown += `
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between">
+                                <small>→ Libre Elección:</small>
+                                <span class="badge bg-primary">${overflow} créditos</span>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                if (excess > 0) {
+                    componentBreakdown += `
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between">
+                                <small>❌ Excedentes:</small>
+                                <span class="badge bg-secondary">${excess} créditos</span>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                componentBreakdown += `
+                                <div class="progress mt-2" style="height: 6px;">
+                                    <div class="progress-bar bg-${color}" style="width: ${(used/total)*100}%" title="Válidos: ${used}"></div>
+                                    <div class="progress-bar bg-primary" style="width: ${(overflow/total)*100}%" title="Overflow: ${overflow}"></div>
+                                    <div class="progress-bar bg-secondary" style="width: ${(excess/total)*100}%" title="Excedentes: ${excess}"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        componentBreakdown += `
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     return `
+        ${componentBreakdown}
         <div class="row mb-4">
             <div class="col-md-6">
                 <div class="card">

@@ -13,6 +13,10 @@
                     <p class="text-muted mb-0">Gestiona convalidaciones de mallas curriculares externas</p>
                 </div>
                 <div>
+                    <a href="{{ route('import.index') }}" class="btn btn-success me-2">
+                        <i class="fas fa-file-import me-2"></i>
+                        Importar Malla desde Excel
+                    </a>
                     <a href="{{ route('convalidation.create') }}" class="btn btn-primary">
                         <i class="fas fa-upload me-2"></i>
                         Realizar Convalidación
@@ -289,6 +293,24 @@
                         a esta nueva malla con convalidaciones, mostrando cómo cambiaría su progreso académico.
                     </p>
                 </div>
+
+                <!-- Total de créditos de la malla -->
+                <div class="alert alert-primary mb-3">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h6 class="mb-0">
+                                <i class="fas fa-calculator me-2"></i>
+                                Total de Créditos de la Malla Externa
+                            </h6>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <h4 class="mb-0" id="curriculumTotalCredits">
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                Calculando...
+                            </h4>
+                        </div>
+                    </div>
+                </div>
                 
                 <form id="impactConfigForm">
                     <div class="row">
@@ -297,49 +319,67 @@
                                 <div class="card-header">
                                     <h6 class="mb-0">
                                         <i class="fas fa-graduation-cap me-2"></i>
-                                        Límites de Convalidación
+                                        Límites de Créditos por Componente
                                     </h6>
                                 </div>
                                 <div class="card-body">
+                                    <div class="alert alert-info mb-3">
+                                        <small>
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            Los créditos excedentes de cada componente se convalidarán como libre elección hasta el límite. 
+                                            El resto no se contará en el avance. <strong>Todos los campos son obligatorios.</strong>
+                                        </small>
+                                    </div>
+                                    
+                                    <!-- Libre Elección -->
                                     <div class="mb-3">
                                         <label for="maxFreeElectiveCredits" class="form-label">
-                                            <strong>Créditos máximos de libre elección</strong>
+                                            <strong><i class="fas fa-circle text-primary me-1"></i> Libre Elección</strong>
+                                            <span class="text-danger">*</span>
                                         </label>
-                                        <div class="input-group">
+                                        <div class="input-group input-group-sm">
                                             <input type="number" class="form-control" id="maxFreeElectiveCredits" 
-                                                   value="12" min="0" max="50" step="1">
+                                                   value="36" min="0" max="200" step="1" required>
                                             <span class="input-group-text">créditos</span>
-                                        </div>
-                                        <div class="form-text">
-                                            Solo se convalidarán las materias de libre elección hasta este límite. 
-                                            Las materias excedentes afectarán negativamente el progreso.
                                         </div>
                                     </div>
                                     
+                                    <!-- Disciplinar Optativo -->
                                     <div class="mb-3">
-                                        <label class="form-label">
-                                            <strong>Criterio de prioridad para libre elección</strong>
+                                        <label for="maxOptionalProfessionalCredits" class="form-label">
+                                            <strong><i class="fas fa-circle text-success me-1"></i> Disciplinar Optativo</strong>
+                                            <span class="text-danger">*</span>
                                         </label>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="priorityCriteria" 
-                                                   id="priorityCredits" value="credits" checked>
-                                            <label class="form-check-label" for="priorityCredits">
-                                                Priorizar materias con más créditos
-                                            </label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" class="form-control" id="maxOptionalProfessionalCredits" 
+                                                   value="9" min="0" max="200" step="1" required>
+                                            <span class="input-group-text">créditos</span>
                                         </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="priorityCriteria" 
-                                                   id="prioritySemester" value="semester">
-                                            <label class="form-check-label" for="prioritySemester">
-                                                Priorizar materias de semestres tempranos
-                                            </label>
+                                    </div>
+                                    
+                                    <!-- Fundamental Optativo -->
+                                    <div class="mb-3">
+                                        <label for="maxOptionalFundamentalCredits" class="form-label">
+                                            <strong><i class="fas fa-circle text-warning me-1"></i> Fundamental Optativo</strong>
+                                            <span class="text-danger">*</span>
+                                        </label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" class="form-control" id="maxOptionalFundamentalCredits" 
+                                                   value="6" min="0" max="200" step="1" required>
+                                            <span class="input-group-text">créditos</span>
                                         </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="priorityCriteria" 
-                                                   id="priorityStudents" value="students">
-                                            <label class="form-check-label" for="priorityStudents">
-                                                Priorizar materias que beneficien a más estudiantes
-                                            </label>
+                                    </div>
+                                    
+                                    <!-- Nivelación -->
+                                    <div class="mb-3">
+                                        <label for="maxLevelingCredits" class="form-label">
+                                            <strong><i class="fas fa-circle text-danger me-1"></i> Nivelación</strong>
+                                            <span class="text-danger">*</span>
+                                        </label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" class="form-control" id="maxLevelingCredits" 
+                                                   value="12" min="0" max="200" step="1" required>
+                                            <span class="input-group-text">créditos</span>
                                         </div>
                                     </div>
                                 </div>
@@ -350,34 +390,48 @@
                             <div class="card">
                                 <div class="card-header">
                                     <h6 class="mb-0">
-                                        <i class="fas fa-chart-line me-2"></i>
-                                        Vista Previa de Convalidaciones
+                                        <i class="fas fa-sliders-h me-2"></i>
+                                        Límites Adicionales
                                     </h6>
                                 </div>
                                 <div class="card-body">
-                                    <div id="convalidationPreview">
-                                        <div class="text-center text-muted">
-                                            <i class="fas fa-spinner fa-spin"></i>
-                                            Cargando convalidaciones...
+                                    <!-- Fundamental Obligatorio -->
+                                    <div class="mb-3">
+                                        <label for="maxRequiredFundamentalCredits" class="form-label">
+                                            <strong><i class="fas fa-circle text-warning me-1"></i> Fundamental Obligatorio</strong>
+                                            <span class="text-danger">*</span>
+                                        </label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" class="form-control" id="maxRequiredFundamentalCredits" 
+                                                   value="60" min="0" max="200" step="1" required>
+                                            <span class="input-group-text">créditos</span>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row mt-3">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h6 class="mb-0">
-                                        <i class="fas fa-exclamation-triangle me-2"></i>
-                                        Materias Excedentes (No se convalidarán)
-                                    </h6>
-                                </div>
-                                <div class="card-body">
-                                    <div id="excessSubjects">
-                                        <p class="text-muted mb-0">Las materias excedentes se mostrarán aquí una vez configurado el límite.</p>
+                                    
+                                    <!-- Disciplinar Obligatorio -->
+                                    <div class="mb-3">
+                                        <label for="maxRequiredProfessionalCredits" class="form-label">
+                                            <strong><i class="fas fa-circle text-success me-1"></i> Disciplinar Obligatorio</strong>
+                                            <span class="text-danger">*</span>
+                                        </label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" class="form-control" id="maxRequiredProfessionalCredits" 
+                                                   value="80" min="0" max="200" step="1" required>
+                                            <span class="input-group-text">créditos</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Trabajo de Grado -->
+                                    <div class="mb-3">
+                                        <label for="maxThesisCredits" class="form-label">
+                                            <strong><i class="fas fa-book me-1"></i> Trabajo de Grado</strong>
+                                            <span class="text-danger">*</span>
+                                        </label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" class="form-control" id="maxThesisCredits" 
+                                                   value="6" min="0" max="50" step="1" required>
+                                            <span class="input-group-text">créditos</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -456,5 +510,5 @@
 @endsection
 
 @push('scripts')
-    <script src="{{ asset('js/convalidation-index.js') }}"></script>
+    <script src="{{ asset('js/convalidation-index.js') }}?v={{ time() }}"></script>
 @endpush

@@ -46,6 +46,14 @@ class ExternalCurriculum extends Model
     }
 
     /**
+     * Get the credit limits configuration for this curriculum.
+     */
+    public function creditLimitsConfig()
+    {
+        return $this->hasOne(CreditLimitsConfig::class);
+    }
+
+    /**
      * Get convalidations grouped by semester.
      */
     public function getConvalidationsBySemester()

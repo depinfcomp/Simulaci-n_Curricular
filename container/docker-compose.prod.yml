@@ -1,0 +1,41 @@
+version: '3.5'
+services:
+    backend:
+        container_name: ${COMPOSE_PROJECT_NAME}_backend
+        restart: unless-stopped
+        build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+                USER_ID: ${USER_ID:-0}
+                GROUP_ID: ${GROUP_ID:-0}
+                USER_NAME: ${CONTAINER_USER}
+        expose:
+            - 80
+        volumes:
+            - ${PROJECTFOLDER}:/var/www/html
+        working_dir: /var/www/html/
+        user: ${CONTAINER_USER}
+        networks:
+            - gaia
+    chaea_db:
+        image: postgres:9.6.24-bullseye
+        container_name: ${COMPOSE_PROJECT_NAME}_db
+        restart: unless-stopped
+        environment:
+            - POSTGRES_DB=${DB_DATABASE}
+            - POSTGRES_USER=${DB_USERNAME}
+            - POSTGRES_PASSWORD=${DB_PASSWORD}
+        ports:
+            - '${POSTGRES_PORT_MAPPING}:5432'
+        volumes:
+            - ${DB_BACKUP_FOLDER}:/var/lib/postgresql/data
+            - ${DB_BACKUPS_RESTORE_FOLDER}:/var/lib/postgresql/user_data
+        networks:
+            - gaia
+networks:
+    backend:
+        name: ${COMPOSE_PROJECT_NAME}_backend
+    gaia:
+        name: gaia
+        external: true
