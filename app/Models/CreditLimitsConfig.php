@@ -100,12 +100,16 @@ class CreditLimitsConfig extends Model
             return $this->max_free_elective_credits;
         }
         
-        // Nivelación (lengua extranjera)
-        if ($type === 'lengua_extranjera') {
+        // Nivelación
+        if ($type === 'nivelacion') {
             return $this->max_leveling_credits;
         }
         
-        // Trabajo de grado (identificado por código o nombre)
+        // Trabajo de grado
+        if ($type === 'trabajo_grado') {
+            return $this->max_thesis_credits;
+        }
+        
         // Este caso se maneja de forma especial en el controlador
         
         return null; // Sin límite
@@ -131,8 +135,11 @@ class CreditLimitsConfig extends Model
         if ($type === 'libre_eleccion') {
             return 'Libre Elección';
         }
-        if ($type === 'lengua_extranjera') {
+        if ($type === 'nivelacion') {
             return 'Nivelación';
+        }
+        if ($type === 'trabajo_grado') {
+            return 'Trabajo de Grado';
         }
         
         return 'Otro';

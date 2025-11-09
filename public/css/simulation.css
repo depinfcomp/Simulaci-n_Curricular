@@ -243,26 +243,48 @@
     background: #ffe0b2;
 }
 
-/* Gradients for lengua_extranjera (pink/rose tones) - Horizontal gradient */
-.subject-card.lengua_extranjera .subject-card-header {
+/* Gradients for nivelacion (pink/rose tones) - Horizontal gradient */
+.subject-card.nivelacion .subject-card-header {
     background: linear-gradient(90deg, #df8c9d 0%, #e9b5bf 50%, #f5dbdf 100%);
 }
 
-.subject-card.lengua_extranjera .subject-card-header::after {
+.subject-card.nivelacion .subject-card-header::after {
     background: linear-gradient(90deg, #df8c9d 0%, #e9b5bf 100%);
 }
 
-/* Individual box colors for lengua_extranjera */
-.subject-card.lengua_extranjera .info-box:nth-child(1) {
+/* Individual box colors for nivelacion */
+.subject-card.nivelacion .info-box:nth-child(1) {
     background: #df8c9d;
 }
 
-.subject-card.lengua_extranjera .info-box:nth-child(2) {
+.subject-card.nivelacion .info-box:nth-child(2) {
     background: #e9b5bf;
 }
 
-.subject-card.lengua_extranjera .info-box:nth-child(3) {
+.subject-card.nivelacion .info-box:nth-child(3) {
     background: #f5dbdf;
+}
+
+/* Gradients for trabajo_grado (green tones like profesional) - Horizontal gradient */
+.subject-card.trabajo_grado .subject-card-header {
+    background: linear-gradient(90deg, #66bb6a 0%, #81c784 50%, #c8e6c9 100%);
+}
+
+.subject-card.trabajo_grado .subject-card-header::after {
+    background: linear-gradient(90deg, #66bb6a 0%, #81c784 100%);
+}
+
+/* Individual box colors for trabajo_grado */
+.subject-card.trabajo_grado .info-box:nth-child(1) {
+    background: #66bb6a;
+}
+
+.subject-card.trabajo_grado .info-box:nth-child(2) {
+    background: #81c784;
+}
+
+.subject-card.trabajo_grado .info-box:nth-child(3) {
+    background: #c8e6c9;
 }
 
 /* Footer code background colors matching first header box */
@@ -282,8 +304,12 @@
     background: #66bb6a;
 }
 
-.subject-card.lengua_extranjera .subject-code {
+.subject-card.nivelacion .subject-code {
     background: #df8c9d;
+}
+
+.subject-card.trabajo_grado .subject-code {
+    background: #66bb6a;
 }
 
 .subject-card.libre_eleccion .subject-code {
