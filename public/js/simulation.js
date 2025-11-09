@@ -212,7 +212,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function initializeSimulation() {
         storeOriginalCurriculum();
         enableDragAndDrop();
-        addSimulationControls();
         
         // Debug: Log initialization
         console.log('Simulation initialized');
@@ -598,20 +597,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Add simulation controls
-    function addSimulationControls() {
-        const controlsHtml = `
-            <div class="simulation-controls mb-3">
-                <div class="row">
-                    <div class="col-md-12">
-                        <div id="simulation-status"></div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        const gridContainer = document.querySelector('.curriculum-grid');
-        gridContainer.insertAdjacentHTML('beforebegin', controlsHtml);
-    }
     
     // Analyze impact of changes
     window.analyzeImpact = function() {
@@ -1680,9 +1665,218 @@ document.addEventListener('DOMContentLoaded', function() {
         const subjectCard = e.target.closest('.subject-card');
         if (subjectCard) {
             e.preventDefault();
-            showPrerequisiteEditor(subjectCard);
+            showSubjectContextMenu(e, subjectCard);
         }
     });
+    
+    // Show context menu with options
+    function showSubjectContextMenu(event, card) {
+        // Remove any existing context menu
+        const existingMenu = document.getElementById('subjectContextMenu');
+        if (existingMenu) {
+            existingMenu.remove();
+        }
+        
+        const subjectId = card.dataset.subjectId;
+        const subjectName = card.querySelector('.subject-name').textContent;
+        
+        // Create context menu
+        const menuHtml = `
+            <div id="subjectContextMenu" class="context-menu" style="position: fixed; top: ${event.clientY}px; left: ${event.clientX}px; z-index: 9999;">
+                <div class="list-group shadow-lg" style="min-width: 200px;">
+                    <button type="button" class="list-group-item list-group-item-action" onclick="editSubjectPrerequisites('${subjectId}')">
+                        <i class="fas fa-link me-2"></i>
+                        Editar Prerrequisitos
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action list-group-item-danger" 
+                            id="deleteSubjectBtn" 
+                            onclick="startDeleteSubjectTimer('${subjectId}', '${subjectName}')" 
+                            disabled>
+                        <i class="fas fa-trash me-2"></i>
+                        <span id="deleteSubjectText">Eliminar Materia (<span id="deleteTimer">5</span>s)</span>
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', menuHtml);
+        
+        // Close menu when clicking outside
+        setTimeout(() => {
+            document.addEventListener('click', closeContextMenu);
+        }, 100);
+        
+        // Start countdown for delete button
+        let countdown = 5;
+        const timer = setInterval(() => {
+            countdown--;
+            const timerSpan = document.getElementById('deleteTimer');
+            if (timerSpan) {
+                timerSpan.textContent = countdown;
+            }
+            
+            if (countdown <= 0) {
+                clearInterval(timer);
+                const deleteBtn = document.getElementById('deleteSubjectBtn');
+                if (deleteBtn) {
+                    deleteBtn.disabled = false;
+                    deleteBtn.classList.add('fw-bold');
+                    document.getElementById('deleteSubjectText').textContent = 'Eliminar Materia';
+                }
+            }
+        }, 1000);
+        
+        // Store timer to clear it if menu is closed early
+        document.getElementById('subjectContextMenu').dataset.timerId = timer;
+    }
+    
+    // Close context menu
+    function closeContextMenu() {
+        const menu = document.getElementById('subjectContextMenu');
+        if (menu) {
+            // Clear timer if exists
+            const timerId = menu.dataset.timerId;
+            if (timerId) {
+                clearInterval(parseInt(timerId));
+            }
+            menu.remove();
+        }
+        document.removeEventListener('click', closeContextMenu);
+    }
+    
+    // Edit subject prerequisites (old function renamed)
+    window.editSubjectPrerequisites = function(subjectId) {
+        closeContextMenu();
+        const card = document.querySelector(`[data-subject-id="${subjectId}"]`);
+        if (card) {
+            showPrerequisiteEditor(card);
+        }
+    };
+    
+    // Start delete subject process
+    window.startDeleteSubjectTimer = function(subjectId, subjectName) {
+        closeContextMenu();
+        showDeleteSubjectWarning(subjectId, subjectName);
+    };
+    
+    // Show delete warning modal
+    function showDeleteSubjectWarning(subjectId, subjectName) {
+        const modalHtml = `
+            <div class="modal fade" id="deleteSubjectModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Advertencia: Eliminar Materia
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-warning">
+                                <h6 class="alert-heading">
+                                    <i class="fas fa-user-graduate me-2"></i>
+                                    Impacto en Estudiantes
+                                </h6>
+                                <p class="mb-0">
+                                    Esta acción puede afectar a los estudiantes que ya cursaron o están cursando esta materia.
+                                </p>
+                            </div>
+                            
+                            <h6 class="mb-2">Materia a eliminar:</h6>
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h5 class="mb-1">${subjectName}</h5>
+                                    <span class="badge bg-secondary">${subjectId}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <p class="fw-bold text-danger mb-2">⚠️ Se sugiere tener precaución</p>
+                                <ul class="small text-muted mb-0">
+                                    <li>Al guardar la malla, será redirigido al apartado de <strong>Convalidación</strong></li>
+                                    <li>Allí podrá <strong>mitigar el impacto</strong> en los estudiantes afectados</li>
+                                    <li>Se mostrará cuántos estudiantes se ven afectados por este cambio</li>
+                                    <li>Esta acción <strong>no se puede deshacer</strong> después de guardar</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="fas fa-times me-1"></i>
+                                Cancelar
+                            </button>
+                            <button type="button" class="btn btn-danger" onclick="confirmDeleteSubject('${subjectId}')">
+                                <i class="fas fa-trash me-1"></i>
+                                Eliminar Materia
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        const existingModal = document.getElementById('deleteSubjectModal');
+        if (existingModal) {
+            const existingModalInstance = bootstrap.Modal.getInstance(existingModal);
+            if (existingModalInstance) {
+                existingModalInstance.dispose();
+            }
+            existingModal.remove();
+        }
+        
+        // Add modal to body
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Show modal
+        const modalElement = document.getElementById('deleteSubjectModal');
+        const modal = new bootstrap.Modal(modalElement);
+        
+        modalElement.addEventListener('hidden.bs.modal', function () {
+            cleanupModal(modalElement);
+        });
+        
+        modal.show();
+    }
+    
+    // Confirm delete subject
+    window.confirmDeleteSubject = function(subjectId) {
+        // Close modal
+        const modalElement = document.getElementById('deleteSubjectModal');
+        if (modalElement) {
+            const modal = bootstrap.Modal.getInstance(modalElement);
+            if (modal) {
+                modal.hide();
+            }
+        }
+        
+        // Remove subject from DOM
+        const card = document.querySelector(`[data-subject-id="${subjectId}"]`);
+        if (card) {
+            // Add visual feedback
+            card.style.opacity = '0.5';
+            card.style.border = '2px solid red';
+            
+            // Register as deleted change
+            simulationChanges.push({
+                type: 'deleted',
+                subjectId: subjectId,
+                subjectName: card.querySelector('.subject-name').textContent,
+                semester: card.closest('.semester-column').dataset.semester,
+                timestamp: new Date().toISOString()
+            });
+            
+            // Mark card as deleted
+            card.dataset.deleted = 'true';
+            card.style.textDecoration = 'line-through';
+            
+            // Update simulation status
+            updateSimulationStatus();
+            
+            showSuccessMessage(`Materia marcada para eliminación. Recuerda guardar los cambios.`);
+        }
+    };
     
     // Show prerequisite editor
     function showPrerequisiteEditor(card) {
