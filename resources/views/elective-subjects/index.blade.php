@@ -100,18 +100,17 @@
                                     <table class="table table-hover mb-0">
                                         <thead class="table-light">
                                             <tr>
-                                                <th>Código</th>
+                                                <th class="text-center">Código</th>
                                                 <th>Nombre</th>
-                                                <th>Créditos</th>
-                                                <th>Semestre</th>
-                                                <th>Estado</th>
+                                                <th class="text-center">Créditos</th>
+                                                <th class="text-center">Estado</th>
                                                 <th class="text-center">Acciones</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             @foreach($professionalElectives as $elective)
                                                 <tr class="{{ !$elective->is_active ? 'table-secondary' : '' }}">
-                                                    <td>
+                                                    <td class="text-center">
                                                         <strong>{{ $elective->code }}</strong>
                                                     </td>
                                                     <td>
@@ -122,17 +121,10 @@
                                                             @endif
                                                         </div>
                                                     </td>
-                                                    <td>
+                                                    <td class="text-center">
                                                         <span class="badge bg-primary">{{ $elective->credits }}</span>
                                                     </td>
-                                                    <td>
-                                                        @if($elective->semester)
-                                                            <span class="badge bg-secondary">Sem {{ $elective->semester }}</span>
-                                                        @else
-                                                            <span class="text-muted">-</span>
-                                                        @endif
-                                                    </td>
-                                                    <td>
+                                                    <td class="text-center">
                                                         <span class="badge bg-{{ $elective->is_active ? 'success' : 'secondary' }}">
                                                             {{ $elective->is_active ? 'Activa' : 'Inactiva' }}
                                                         </span>
@@ -191,18 +183,17 @@
                                     <table class="table table-hover mb-0">
                                         <thead class="table-light">
                                             <tr>
-                                                <th>Código</th>
+                                                <th class="text-center">Código</th>
                                                 <th>Nombre</th>
-                                                <th>Créditos</th>
-                                                <th>Semestre</th>
-                                                <th>Estado</th>
+                                                <th class="text-center">Créditos</th>
+                                                <th class="text-center">Estado</th>
                                                 <th class="text-center">Acciones</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             @foreach($fundamentalElectives as $elective)
                                                 <tr class="{{ !$elective->is_active ? 'table-secondary' : '' }}">
-                                                    <td>
+                                                    <td class="text-center">
                                                         <strong>{{ $elective->code }}</strong>
                                                     </td>
                                                     <td>
@@ -213,17 +204,10 @@
                                                             @endif
                                                         </div>
                                                     </td>
-                                                    <td>
+                                                    <td class="text-center">
                                                         <span class="badge bg-primary">{{ $elective->credits }}</span>
                                                     </td>
-                                                    <td>
-                                                        @if($elective->semester)
-                                                            <span class="badge bg-secondary">Sem {{ $elective->semester }}</span>
-                                                        @else
-                                                            <span class="text-muted">-</span>
-                                                        @endif
-                                                    </td>
-                                                    <td>
+                                                    <td class="text-center">
                                                         <span class="badge bg-{{ $elective->is_active ? 'success' : 'secondary' }}">
                                                             {{ $elective->is_active ? 'Activa' : 'Inactiva' }}
                                                         </span>
@@ -311,9 +295,13 @@
                             <div class="invalid-feedback"></div>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label for="create_semester" class="form-label">Semestre Recomendado</label>
-                            <input type="number" class="form-control" id="create_semester" name="semester" min="1" max="10">
-                            <small class="text-muted">Opcional</small>
+                            <label for="create_semester" class="form-label">
+                                Semestre Sugerido
+                                <i class="fas fa-info-circle text-muted" 
+                                   title="Placeholder orientativo: las optativas no tienen semestre fijo"></i>
+                            </label>
+                            <input type="number" class="form-control" id="create_semester" name="semester" min="1" max="10" placeholder="Ej: 7">
+                            <small class="text-muted">Campo orientativo (opcional) - Las optativas no tienen semestre fijo</small>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label for="create_is_active" class="form-label">Estado</label>
@@ -393,9 +381,13 @@
                             <div class="invalid-feedback"></div>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label for="edit_semester" class="form-label">Semestre Recomendado</label>
-                            <input type="number" class="form-control" id="edit_semester" name="semester" min="1" max="10">
-                            <small class="text-muted">Opcional</small>
+                            <label for="edit_semester" class="form-label">
+                                Semestre Sugerido
+                                <i class="fas fa-info-circle text-muted" 
+                                   title="Placeholder orientativo: las optativas no tienen semestre fijo"></i>
+                            </label>
+                            <input type="number" class="form-control" id="edit_semester" name="semester" min="1" max="10" placeholder="Ej: 7">
+                            <small class="text-muted">Campo orientativo (opcional) - Las optativas no tienen semestre fijo</small>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label for="edit_is_active" class="form-label">Estado</label>
