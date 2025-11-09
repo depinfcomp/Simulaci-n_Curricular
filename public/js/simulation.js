@@ -477,12 +477,14 @@ document.addEventListener('DOMContentLoaded', function() {
             semesterBadge.textContent = `Semestre ${newSemester}`;
         }
         
-        // Recalculate display_order for the new semester
-        recalculateDisplayOrder(newSemester);
+        // Recalculate display_order for the new semester WITHOUT tracking
+        // (moving between semesters is already tracked as 'semester' change)
+        recalculateDisplayOrder(newSemester, false);
     }
     
     // Recalculate display_order for all subjects in a semester
-    function recalculateDisplayOrder(semester) {
+    // trackChanges: if true, records changes (user action); if false, silent update (load/init)
+    function recalculateDisplayOrder(semester, trackChanges = true) {
         const column = document.querySelector(`.semester-column[data-semester="${semester}"]`);
         if (!column) return;
         
@@ -490,25 +492,38 @@ document.addEventListener('DOMContentLoaded', function() {
         cards.forEach((card, index) => {
             const subjectCode = card.dataset.subjectId;
             const newOrder = index + 1;
+            const currentOrder = card.dataset.displayOrder;
             
-            // Record the display_order change
-            recordSimulationChange(subjectCode, 'display_order', newOrder, null);
+            // Update the display order in the dataset
+            card.dataset.displayOrder = newOrder;
+            
+            // Only record the change if tracking is enabled AND order actually changed
+            if (trackChanges && currentOrder && parseInt(currentOrder) !== newOrder) {
+                recordSimulationChange(subjectCode, 'display_order', newOrder, parseInt(currentOrder));
+            }
         });
     }
     
     // Record simulation changes
+    // Record simulation changes with enhanced metadata
     function recordSimulationChange(subjectId, changeType, newValue, oldValue) {
+        // Get subject name for better display
+        const card = document.querySelector(`[data-subject-id="${subjectId}"]`);
+        const subjectName = card ? card.querySelector('.subject-name')?.textContent.trim() : subjectId;
+        
         // Remove existing change for this subject and type
         simulationChanges = simulationChanges.filter(change => 
             !(change.subject_code === subjectId && change.type === changeType)
         );
         
-        // Add new change
+        // Add new change with timestamp and metadata
         simulationChanges.push({
             subject_code: subjectId,
+            subject_name: subjectName,
             type: changeType,
             new_value: newValue,
-            old_value: oldValue
+            old_value: oldValue,
+            timestamp: new Date().toISOString()
         });
         
         updateSimulationStatus();
@@ -516,16 +531,50 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update simulation status display
     function updateSimulationStatus() {
+        // Count meaningful changes (exclude display_order)
+        const meaningfulChanges = simulationChanges.filter(c => c.type !== 'display_order');
+        const changesByType = {
+            added: simulationChanges.filter(c => c.type === 'added').length,
+            removed: simulationChanges.filter(c => c.type === 'removed').length,
+            semester: simulationChanges.filter(c => c.type === 'semester').length,
+            prerequisites: simulationChanges.filter(c => c.type === 'prerequisites').length,
+        };
+        
         const statusDiv = document.getElementById('simulation-status');
         if (statusDiv) {
-            statusDiv.innerHTML = `
-                <div class="alert alert-info">
-                    <strong>Simulación activa:</strong> ${simulationChanges.length} cambio(s) temporal(es)
-                    <button class="btn btn-sm btn-outline-primary ms-2" onclick="showChangesModal()">
-                        Ver cambios
-                    </button>
-                </div>
-            `;
+            if (meaningfulChanges.length > 0) {
+                let summary = [];
+                if (changesByType.added > 0) summary.push(`${changesByType.added} agregada(s)`);
+                if (changesByType.removed > 0) summary.push(`${changesByType.removed} eliminada(s)`);
+                if (changesByType.semester > 0) summary.push(`${changesByType.semester} movida(s)`);
+                if (changesByType.prerequisites > 0) summary.push(`${changesByType.prerequisites} prerreq. modificado(s)`);
+                
+                statusDiv.innerHTML = `
+                    <div class="alert alert-warning border-warning shadow-sm">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>Simulación Activa: ${meaningfulChanges.length} cambio(s) temporal(es)</strong>
+                                </h6>
+                                <small class="text-muted">${summary.join(' • ')}</small>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary me-2" onclick="showChangesModal()">
+                                    <i class="fas fa-clipboard-list me-1"></i>
+                                    Ver cambios
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="clearAllChanges()">
+                                    <i class="fas fa-undo me-1"></i>
+                                    Deshacer Todo
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                statusDiv.innerHTML = '';
+            }
         }
     }
     
@@ -898,50 +947,272 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Show changes modal
+    // Show enhanced changes modal with detailed information
     window.showChangesModal = function() {
+        // Group changes by type for better organization
+        const changesByType = {
+            added: simulationChanges.filter(c => c.type === 'added'),
+            removed: simulationChanges.filter(c => c.type === 'removed'),
+            semester: simulationChanges.filter(c => c.type === 'semester'),
+            prerequisites: simulationChanges.filter(c => c.type === 'prerequisites'),
+            display_order: simulationChanges.filter(c => c.type === 'display_order'),
+            other: simulationChanges.filter(c => !['added', 'removed', 'semester', 'prerequisites', 'display_order'].includes(c.type))
+        };
+        
+        // Count total meaningful changes (exclude display_order for count)
+        const meaningfulChanges = simulationChanges.filter(c => c.type !== 'display_order').length;
+        
         const modalHtml = `
             <div class="modal fade" id="changesModal" tabindex="-1">
-                <div class="modal-dialog modal-lg">
+                <div class="modal-dialog modal-xl">
                     <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Cambios Temporales</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title">
+                                <i class="fas fa-clipboard-list me-2"></i>
+                                Auditoría de Cambios Temporales
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            ${simulationChanges.length > 0 ? `
-                                <div class="table-responsive">
-                                    <table class="table table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>Materia</th>
-                                                <th>Tipo de Cambio</th>
-                                                <th>Valor Anterior</th>
-                                                <th>Valor Nuevo</th>
-                                                <th>Acciones</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${simulationChanges.map((change, index) => `
-                                                <tr>
-                                                    <td>${change.subject_code}</td>
-                                                    <td>${change.type === 'semester' ? 'Semestre' : 'Prerrequisitos'}</td>
-                                                    <td>${change.old_value}</td>
-                                                    <td>${change.new_value}</td>
-                                                    <td>
-                                                        <button class="btn btn-sm btn-danger" onclick="removeChange(${index})">
-                                                            <i class="fas fa-trash"></i>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
+                            ${meaningfulChanges > 0 ? `
+                                <!-- Summary Cards -->
+                                <div class="row mb-4">
+                                    <div class="col-md-3">
+                                        <div class="card text-center border-success">
+                                            <div class="card-body">
+                                                <h3 class="text-success mb-0">${changesByType.added.length}</h3>
+                                                <small class="text-muted">Materias Agregadas</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card text-center border-danger">
+                                            <div class="card-body">
+                                                <h3 class="text-danger mb-0">${changesByType.removed.length}</h3>
+                                                <small class="text-muted">Materias Eliminadas</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card text-center border-primary">
+                                            <div class="card-body">
+                                                <h3 class="text-primary mb-0">${changesByType.semester.length}</h3>
+                                                <small class="text-muted">Cambios de Semestre</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card text-center border-warning">
+                                            <div class="card-body">
+                                                <h3 class="text-warning mb-0">${changesByType.prerequisites.length}</h3>
+                                                <small class="text-muted">Cambios de Prerrequisitos</small>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            ` : '<p class="text-muted">No hay cambios temporales.</p>'}
+                                
+                                <!-- Added Subjects -->
+                                ${changesByType.added.length > 0 ? `
+                                    <div class="mb-4">
+                                        <h6 class="fw-bold text-success">
+                                            <i class="fas fa-plus-circle me-2"></i>
+                                            Materias Agregadas (${changesByType.added.length})
+                                        </h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-hover">
+                                                <thead class="table-success">
+                                                    <tr>
+                                                        <th>Código</th>
+                                                        <th>Nombre</th>
+                                                        <th>Semestre</th>
+                                                        <th>Acciones</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${changesByType.added.map((change, index) => {
+                                                        const originalIndex = simulationChanges.indexOf(change);
+                                                        const data = change.new_value || {};
+                                                        return `
+                                                        <tr>
+                                                            <td><strong>${change.subject_code}</strong></td>
+                                                            <td>${change.subject_name || data.name || 'N/A'}</td>
+                                                            <td>Semestre ${data.semester || 'N/A'}</td>
+                                                            <td>
+                                                                <button class="btn btn-sm btn-outline-danger" onclick="removeChange(${originalIndex})" title="Deshacer">
+                                                                    <i class="fas fa-undo"></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    `}).join('')}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                
+                                <!-- Removed Subjects -->
+                                ${changesByType.removed.length > 0 ? `
+                                    <div class="mb-4">
+                                        <h6 class="fw-bold text-danger">
+                                            <i class="fas fa-minus-circle me-2"></i>
+                                            Materias Eliminadas (${changesByType.removed.length})
+                                        </h6>
+                                        <div class="alert alert-danger">
+                                            <strong>⚠️ Atención:</strong> Estas materias serán eliminadas de la malla permanentemente.
+                                        </div>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-hover">
+                                                <thead class="table-danger">
+                                                    <tr>
+                                                        <th>Código</th>
+                                                        <th>Nombre</th>
+                                                        <th>Semestre Original</th>
+                                                        <th>Acciones</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${changesByType.removed.map((change, index) => {
+                                                        const originalIndex = simulationChanges.indexOf(change);
+                                                        return `
+                                                        <tr>
+                                                            <td><strong>${change.subject_code}</strong></td>
+                                                            <td>${change.subject_name}</td>
+                                                            <td>Semestre ${change.old_value || 'N/A'}</td>
+                                                            <td>
+                                                                <button class="btn btn-sm btn-outline-success" onclick="removeChange(${originalIndex})" title="Restaurar">
+                                                                    <i class="fas fa-undo"></i> Restaurar
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    `}).join('')}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                
+                                <!-- Semester Changes -->
+                                ${changesByType.semester.length > 0 ? `
+                                    <div class="mb-4">
+                                        <h6 class="fw-bold text-primary">
+                                            <i class="fas fa-exchange-alt me-2"></i>
+                                            Cambios de Semestre (${changesByType.semester.length})
+                                        </h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-hover">
+                                                <thead class="table-primary">
+                                                    <tr>
+                                                        <th>Código</th>
+                                                        <th>Nombre</th>
+                                                        <th>Semestre Original</th>
+                                                        <th>Nuevo Semestre</th>
+                                                        <th>Cambio</th>
+                                                        <th>Acciones</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${changesByType.semester.map((change, index) => {
+                                                        const originalIndex = simulationChanges.indexOf(change);
+                                                        const diff = parseInt(change.new_value) - parseInt(change.old_value);
+                                                        const diffText = diff > 0 ? `+${diff}` : diff;
+                                                        const diffClass = diff > 0 ? 'text-success' : 'text-danger';
+                                                        return `
+                                                        <tr>
+                                                            <td><strong>${change.subject_code}</strong></td>
+                                                            <td>${change.subject_name}</td>
+                                                            <td><span class="badge bg-secondary">${change.old_value}°</span></td>
+                                                            <td><span class="badge bg-primary">${change.new_value}°</span></td>
+                                                            <td>
+                                                                <span class="${diffClass} fw-bold">${diffText}</span>
+                                                                ${Math.abs(diff) > 2 ? '<i class="fas fa-exclamation-triangle text-warning ms-1" title="Cambio grande"></i>' : ''}
+                                                            </td>
+                                                            <td>
+                                                                <button class="btn btn-sm btn-outline-danger" onclick="removeChange(${originalIndex})" title="Deshacer">
+                                                                    <i class="fas fa-undo"></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    `}).join('')}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                
+                                <!-- Prerequisites Changes -->
+                                ${changesByType.prerequisites.length > 0 ? `
+                                    <div class="mb-4">
+                                        <h6 class="fw-bold text-warning">
+                                            <i class="fas fa-project-diagram me-2"></i>
+                                            Cambios de Prerrequisitos (${changesByType.prerequisites.length})
+                                        </h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-hover">
+                                                <thead class="table-warning">
+                                                    <tr>
+                                                        <th>Código</th>
+                                                        <th>Nombre</th>
+                                                        <th>Prerrequisitos Anteriores</th>
+                                                        <th>Nuevos Prerrequisitos</th>
+                                                        <th>Acciones</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${changesByType.prerequisites.map((change, index) => {
+                                                        const originalIndex = simulationChanges.indexOf(change);
+                                                        const oldPrereqs = change.old_value ? change.old_value.split(',').filter(p => p.trim()) : [];
+                                                        const newPrereqs = change.new_value ? change.new_value.split(',').filter(p => p.trim()) : [];
+                                                        return `
+                                                        <tr>
+                                                            <td><strong>${change.subject_code}</strong></td>
+                                                            <td>${change.subject_name}</td>
+                                                            <td>
+                                                                ${oldPrereqs.length > 0 ? 
+                                                                    oldPrereqs.map(p => `<span class="badge bg-secondary me-1">${p}</span>`).join('') 
+                                                                    : '<span class="text-muted">Ninguno</span>'}
+                                                            </td>
+                                                            <td>
+                                                                ${newPrereqs.length > 0 ? 
+                                                                    newPrereqs.map(p => `<span class="badge bg-primary me-1">${p}</span>`).join('') 
+                                                                    : '<span class="text-muted">Ninguno</span>'}
+                                                            </td>
+                                                            <td>
+                                                                <button class="btn btn-sm btn-outline-danger" onclick="removeChange(${originalIndex})" title="Deshacer">
+                                                                    <i class="fas fa-undo"></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    `}).join('')}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                
+                                <!-- Reordering Summary (if many) -->
+                                ${changesByType.display_order.length > 0 ? `
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <strong>Reordenamientos:</strong> ${changesByType.display_order.length} materia(s) han sido reordenadas dentro de sus semestres.
+                                    </div>
+                                ` : ''}
+                            ` : '<div class="alert alert-secondary text-center"><i class="fas fa-info-circle me-2"></i>No hay cambios temporales registrados.</div>'}
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="fas fa-times me-1"></i>
+                                Cerrar
+                            </button>
+                            ${meaningfulChanges > 0 ? `
+                                <button type="button" class="btn btn-warning" onclick="exportChangesReport()">
+                                    <i class="fas fa-file-export me-1"></i>
+                                    Exportar Reporte
+                                </button>
+                                <button type="button" class="btn btn-danger" onclick="clearAllChanges()">
+                                    <i class="fas fa-trash-alt me-1"></i>
+                                    Deshacer Todos
+                                </button>
+                            ` : ''}
                         </div>
                     </div>
                 </div>
@@ -1024,6 +1295,128 @@ document.addEventListener('DOMContentLoaded', function() {
         if (confirm('¿Está seguro de que desea guardar estos cambios permanentemente?')) {
             alert('Funcionalidad de guardado no implementada. Los cambios son temporales.');
         }
+    };
+    
+    // Export changes report
+    window.exportChangesReport = function() {
+        // Group changes by type
+        const changesByType = {
+            added: simulationChanges.filter(c => c.type === 'added'),
+            removed: simulationChanges.filter(c => c.type === 'removed'),
+            semester: simulationChanges.filter(c => c.type === 'semester'),
+            prerequisites: simulationChanges.filter(c => c.type === 'prerequisites'),
+            display_order: simulationChanges.filter(c => c.type === 'display_order')
+        };
+        
+        // Generate report text
+        let report = '=== REPORTE DE CAMBIOS CURRICULARES ===\n\n';
+        report += `Fecha: ${new Date().toLocaleString('es-ES')}\n`;
+        report += `Total de cambios: ${simulationChanges.filter(c => c.type !== 'display_order').length}\n\n`;
+        
+        if (changesByType.added.length > 0) {
+            report += '--- MATERIAS AGREGADAS ---\n';
+            changesByType.added.forEach(c => {
+                const data = c.new_value || {};
+                report += `• ${c.subject_code} - ${c.subject_name} (Semestre ${data.semester})\n`;
+            });
+            report += '\n';
+        }
+        
+        if (changesByType.removed.length > 0) {
+            report += '--- MATERIAS ELIMINADAS ---\n';
+            changesByType.removed.forEach(c => {
+                report += `• ${c.subject_code} - ${c.subject_name}\n`;
+            });
+            report += '\n';
+        }
+        
+        if (changesByType.semester.length > 0) {
+            report += '--- CAMBIOS DE SEMESTRE ---\n';
+            changesByType.semester.forEach(c => {
+                const diff = parseInt(c.new_value) - parseInt(c.old_value);
+                report += `• ${c.subject_code} - ${c.subject_name}: Semestre ${c.old_value} → ${c.new_value} (${diff > 0 ? '+' : ''}${diff})\n`;
+            });
+            report += '\n';
+        }
+        
+        if (changesByType.prerequisites.length > 0) {
+            report += '--- CAMBIOS DE PRERREQUISITOS ---\n';
+            changesByType.prerequisites.forEach(c => {
+                report += `• ${c.subject_code} - ${c.subject_name}\n`;
+                report += `  Antes: ${c.old_value || 'Ninguno'}\n`;
+                report += `  Ahora: ${c.new_value || 'Ninguno'}\n`;
+            });
+            report += '\n';
+        }
+        
+        if (changesByType.display_order.length > 0) {
+            report += `--- REORDENAMIENTOS ---\n`;
+            report += `${changesByType.display_order.length} materia(s) reordenadas dentro de sus semestres.\n\n`;
+        }
+        
+        // Create downloadable file
+        const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cambios_curriculares_${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showSuccessMessage('Reporte exportado exitosamente');
+    };
+    
+    // Clear all changes
+    window.clearAllChanges = function() {
+        if (!confirm('¿Está seguro de que desea deshacer TODOS los cambios? Esta acción no se puede revertir.')) {
+            return;
+        }
+        
+        // Revert all visual changes
+        simulationChanges.forEach(change => {
+            if (change.type === 'semester') {
+                const card = document.querySelector(`[data-subject-id="${change.subject_code}"]`);
+                if (card) {
+                    const originalColumn = document.querySelector(`[data-semester="${change.old_value}"]`);
+                    const subjectList = originalColumn?.querySelector('.subject-list');
+                    if (subjectList) {
+                        subjectList.appendChild(card);
+                        card.classList.remove('moved');
+                        const semesterBadge = card.querySelector('.semester-badge');
+                        if (semesterBadge) {
+                            semesterBadge.textContent = `Semestre ${change.old_value}`;
+                        }
+                    }
+                }
+            } else if (change.type === 'removed') {
+                // Restore removed card if stored somewhere
+                // Implementation depends on how you're handling removed cards
+            } else if (change.type === 'prerequisites') {
+                const card = document.querySelector(`[data-subject-id="${change.subject_code}"]`);
+                if (card) {
+                    card.dataset.prerequisites = change.old_value;
+                }
+            }
+        });
+        
+        // Clear array
+        simulationChanges = [];
+        updateSimulationStatus();
+        
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('changesModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
+        showSuccessMessage('Todos los cambios han sido revertidos');
+        
+        // Reload page to ensure clean state
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
     };
     
     // Show modal when moving a subject to allow prerequisite editing
@@ -2164,8 +2557,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        // Recalculate display_order for all cards in this semester
-        recalculateDisplayOrder(semester);
+        // Recalculate display_order for all cards in this semester (silent - no tracking)
+        recalculateDisplayOrder(semester, false);
         
         // Update credits (check if it's a leveling subject)
         const creditsNum = parseInt(credits) || 0;
@@ -2650,10 +3043,94 @@ document.addEventListener('DOMContentLoaded', function() {
      * Save current curriculum as a new version
      */
     window.saveCurrentCurriculum = function() {
-        // Show confirmation dialog with optional description
+        // Check if there are added or removed subjects
+        const hasAddedSubjects = simulationChanges.some(c => c.type === 'added');
+        const hasRemovedSubjects = simulationChanges.some(c => c.type === 'removed');
+        
+        if (hasAddedSubjects || hasRemovedSubjects) {
+            // Show info message and redirect to convalidation
+            const message = `
+                ⚠️ CONVALIDACIÓN REQUERIDA
+                
+                Has ${hasAddedSubjects ? 'agregado' : ''} ${hasAddedSubjects && hasRemovedSubjects ? 'y' : ''} ${hasRemovedSubjects ? 'eliminado' : ''} materias.
+                
+                Antes de guardar la versión, debes convalidar estas materias.
+                
+                Serás redirigido al apartado de convalidación.
+                Una vez completada la convalidación, podrás guardar la nueva versión de la malla.
+            `.trim();
+            
+            if (!confirm(message)) return;
+            
+            // Export to convalidation system
+            const exportName = `Malla_Modificada_${new Date().toISOString().split('T')[0]}`;
+            const curriculum = getCurrentCurriculumState();
+            
+            // Show loading
+            const originalButton = event?.target || document.querySelector('button[onclick="saveCurrentCurriculum()"]');
+            if (originalButton) {
+                originalButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Exportando...';
+                originalButton.disabled = true;
+            }
+            
+            // Prepare payload
+            const payload = {
+                name: exportName,
+                institution: 'Simulación Curricular - Cambios Pendientes',
+                curriculum: curriculum,
+                changes: simulationChanges,
+                _token: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+            };
+            
+            // Send to backend
+            fetch('/convalidation/save-modified-curriculum', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': payload._token,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showSuccessMessage('Malla exportada. Redirigiendo a convalidación...');
+                    
+                    // Store pending save flag in sessionStorage
+                    sessionStorage.setItem('pendingSave', JSON.stringify({
+                        description: 'Versión con convalidaciones completadas',
+                        exportedAt: new Date().toISOString()
+                    }));
+                    
+                    // Redirect to convalidation
+                    setTimeout(() => {
+                        window.location.href = data.redirect_url;
+                    }, 1500);
+                } else {
+                    throw new Error(data.message || 'Error desconocido');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert(`Error al exportar: ${error.message}`);
+                
+                // Restore button
+                if (originalButton) {
+                    originalButton.innerHTML = '<i class="fas fa-save me-1"></i>Guardar Malla';
+                    originalButton.disabled = false;
+                }
+            });
+            
+            return; // Exit early, don't save version yet
+        }
+        
+        // No added/removed subjects, proceed with normal save
         const description = prompt(
-            'Guardar la malla actual como nueva versión.\n\n' +
-            'Descripción de cambios (opcional):'
+            'Guardar cambios actuales y crear versión histórica.\n\n' +
+            'Los cambios se aplicarán a la malla actual.\n' +
+            'El estado anterior se guardará como versión histórica.\n\n' +
+            'Descripción de la versión histórica (opcional):'
         );
         
         // User cancelled
@@ -2699,15 +3176,21 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showSuccessMessage(`Malla guardada como versión ${data.version.version_number}`);
+                showSuccessMessage(data.message || 'Cambios guardados correctamente');
                 
                 // Reload versions list
                 loadVersionsList();
                 
                 // Clear simulation changes since we just saved
-                window.simulationChanges = {};
+                simulationChanges = [];
+                updateSimulationStatus();
+                
+                // Optional: Reload page to show updated curriculum
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
             } else {
-                alert('Error al guardar la versión: ' + (data.message || 'Error desconocido'));
+                alert('Error al guardar: ' + (data.message || 'Error desconocido'));
             }
         })
         .catch(error => {
@@ -2830,6 +3313,70 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Load versions list on page load
     loadVersionsList();
+
+    /**
+     * Delete selected version with confirmation
+     */
+    window.deleteSelectedVersion = function() {
+        const selector = document.getElementById('versionSelector');
+        const versionId = selector.value;
+        
+        if (versionId === 'current') {
+            alert('No puedes eliminar la versión actual en edición.');
+            return;
+        }
+        
+        if (!versionId) {
+            alert('Por favor selecciona una versión para eliminar.');
+            return;
+        }
+        
+        // Get version info
+        const selectedOption = selector.options[selector.selectedIndex];
+        const versionName = selectedOption.textContent;
+        
+        // Double confirmation
+        if (!confirm(`⚠️ ¿Estás seguro que deseas eliminar la versión "${versionName}"?\n\nEsta acción NO se puede deshacer.`)) {
+            return;
+        }
+        
+        if (!confirm(`⚠️ ÚLTIMA CONFIRMACIÓN\n\n¿Realmente deseas eliminar "${versionName}"?`)) {
+            return;
+        }
+        
+        // Show loading
+        selector.disabled = true;
+        
+        // Send delete request
+        fetch(`/simulation/versions/${versionId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccessMessage(`Versión "${versionName}" eliminada correctamente`);
+                
+                // Reload versions list
+                loadVersionsList();
+                
+                // Reset to current version
+                selector.value = 'current';
+            } else {
+                alert('Error al eliminar: ' + (data.message || 'Error desconocido'));
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting version:', error);
+            alert('Error al eliminar la versión: ' + error.message);
+        })
+        .finally(() => {
+            selector.disabled = false;
+        });
+    };
 
     // FIXED: Global scroll fix watcher - monitors and fixes scroll issues
     const scrollFixWatcher = new MutationObserver((mutations) => {

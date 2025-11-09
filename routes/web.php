@@ -25,6 +25,7 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
     Route::get('/simulation/versions', [SimulationController::class, 'getVersions'])->name('simulation.versions');
     Route::post('/simulation/versions/save', [SimulationController::class, 'saveVersion'])->name('simulation.versions.save');
     Route::get('/simulation/versions/{id}', [SimulationController::class, 'getVersion'])->name('simulation.versions.show');
+    Route::delete('/simulation/versions/{id}', [SimulationController::class, 'deleteVersion'])->name('simulation.versions.delete');
 
     // Convalidation routes
     Route::group(['prefix' => 'convalidation'], function () {

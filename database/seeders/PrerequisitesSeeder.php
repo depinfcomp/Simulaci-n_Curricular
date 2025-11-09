@@ -19,17 +19,17 @@ class PrerequisitesSeeder extends Seeder
         // Prerequisites mapping based on prerrequisitos.txt
         $prerequisites = [
             // 2nd semester
-            '4200916' => ['4200910'], // PROGRAMACIÓN ORIENTADA A OBJETOS → Fundamentos de Programación
             '1000005' => ['1000004'], // CÁLCULO INTEGRAL → Cálculo Diferencial
-            
-            // 3rd semester  
-            '4100548' => ['4200916'], // ESTRUCTURAS DE DATOS → Programación Orientada a Objetos
+            '4100548' => ['4200916'], // ESTRUCTURAS DE DATOS → Fundamentos de Programación (1° sem)
+
+            // 3rd semester 
+            '4200916' => ['4100548'], // PROGRAMACIÓN ORIENTADA A OBJETOS → Estructuras de Datos (2° sem)
             '4200908' => [], // ARQUITECTURA DE COMPUTADORES → N/A
             '4100578' => ['1000005'], // ESTADÍSTICA I → Cálculo Integral
             '4100550' => ['4100538'], // SISTEMAS DE INFORMACIÓN → Introducción a ASI
 
             // 4th semester
-            '4100549' => ['4100548'], // ANÁLISIS Y DISEÑO DE ALGORITMOS → Estructuras de Datos
+            '4100549' => ['4200916'], // ANÁLISIS Y DISEÑO DE ALGORITMOS → POO (3° sem)
             '4100552' => ['4200916'], // BASES DE DATOS I → POO
             '4100555' => ['4100550'], // PLANEACIÓN DE SI → Sistemas de Información
             '4100591' => ['1000003'], // INVESTIGACIÓN DE OPERACIONES I → Álgebra Lineal

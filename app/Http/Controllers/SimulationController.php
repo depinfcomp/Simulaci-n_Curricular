@@ -392,6 +392,8 @@ class SimulationController extends Controller
 
     /**
      * Save current curriculum as a new version
+     * LOGIC: Saves the PREVIOUS state as a historical version,
+     * and keeps the CURRENT modified state as active
      */
     public function saveVersion(Request $request)
     {
@@ -403,21 +405,42 @@ class SimulationController extends Controller
         try {
             DB::beginTransaction();
 
+            // STEP 1: Capture the CURRENT state from database (before changes)
+            $previousState = [
+                'subjects' => []
+            ];
+            
+            $currentSubjects = Subject::with(['prerequisites', 'requiredFor'])->get();
+            foreach ($currentSubjects as $subject) {
+                $previousState['subjects'][] = [
+                    'code' => $subject->code,
+                    'name' => $subject->name,
+                    'semester' => $subject->semester,
+                    'credits' => $subject->credits,
+                    'classroom_hours' => $subject->classroom_hours,
+                    'student_hours' => $subject->student_hours,
+                    'type' => $subject->type,
+                    'is_required' => $subject->is_required,
+                    'description' => $subject->description,
+                    'display_order' => $subject->display_order,
+                    'prerequisites' => $subject->prerequisites->pluck('code')->toArray(),
+                ];
+            }
+
             // Get next version number
             $versionNumber = \App\Models\CurriculumVersion::getNextVersionNumber();
 
-            // Create new version
+            // STEP 2: Save the PREVIOUS state as a historical version
             $version = \App\Models\CurriculumVersion::create([
                 'version_number' => $versionNumber,
                 'user_id' => auth()->id(),
-                'description' => $request->description,
-                'is_current' => true,
-                'curriculum_data' => $request->curriculum_data,
+                'description' => $request->description ?: 'Versión histórica antes de cambios',
+                'is_current' => false, // Historical version
+                'curriculum_data' => $previousState,
             ]);
 
-            // Save subjects for this version
-            $subjects = $request->curriculum_data['subjects'] ?? [];
-            foreach ($subjects as $subjectData) {
+            // Save subjects for this historical version
+            foreach ($previousState['subjects'] as $subjectData) {
                 \App\Models\CurriculumVersionSubject::create([
                     'curriculum_version_id' => $version->id,
                     'code' => $subjectData['code'],
@@ -434,7 +457,7 @@ class SimulationController extends Controller
                 ]);
             }
 
-            // Update main subjects table with changes if needed
+            // STEP 3: Apply the NEW changes to the main curriculum (this becomes active)
             $this->applyChangesToMainCurriculum($request->curriculum_data);
 
             DB::commit();
@@ -442,7 +465,7 @@ class SimulationController extends Controller
             return response()->json([
                 'success' => true,
                 'version' => $version,
-                'message' => "Malla guardada como versión {$versionNumber}"
+                'message' => "Cambios aplicados. Versión anterior guardada como {$versionNumber}"
             ]);
 
         } catch (\Exception $e) {
@@ -500,4 +523,46 @@ class SimulationController extends Controller
                 ]);
         }
     }
+
+    /**
+     * Delete a curriculum version
+     */
+    public function deleteVersion($id)
+    {
+        try {
+            $version = \App\Models\CurriculumVersion::findOrFail($id);
+            
+            // Prevent deleting the current version if it's marked as current
+            if ($version->is_current) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No puedes eliminar la versión actual activa.'
+                ], 400);
+            }
+            
+            DB::beginTransaction();
+            
+            // Delete related curriculum_version_subjects
+            \App\Models\CurriculumVersionSubject::where('curriculum_version_id', $version->id)->delete();
+            
+            // Delete the version
+            $version->delete();
+            
+            DB::commit();
+            
+            return response()->json([
+                'success' => true,
+                'message' => "Versión {$version->version_number} eliminada correctamente"
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar la versión: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
+

@@ -121,18 +121,22 @@
         <!-- Curriculum Controls -->
         <div class="curriculum-controls mb-3">
             <div class="row align-items-center">
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label for="versionSelector" class="form-label mb-1 small fw-bold">
                         <i class="fas fa-code-branch me-1"></i>
                         Versión de Malla:
                     </label>
                     <select class="form-select form-select-sm" id="versionSelector" onchange="loadCurriculumVersion()">
-                        <option value="current">Versión Actual (En Edición)</option>
-                        <!-- Las versiones guardadas se cargarán aquí dinámicamente -->
-                    </select>
+                            <option value="current">Versión Actual (En Edición)</option>
+                            <!-- Las versiones guardadas se cargarán aquí dinámicamente -->
+                        </select>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteSelectedVersion()" title="Eliminar versión seleccionada">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </div>
-                <div class="col-md-5">
-                    <button class="btn btn-success" onclick="addNewSubject()">
+                <div class="col-md-8 text-end">
+                    <button class="btn btn-success me-2" onclick="addNewSubject()">
                         <i class="fas fa-plus me-1"></i>
                         Agregar Materia
                     </button>
@@ -145,10 +149,6 @@
                     <button class="btn btn-success me-2" onclick="saveCurrentCurriculum()">
                         <i class="fas fa-save me-1"></i>
                         Guardar Malla
-                    </button>
-                    <button class="btn btn-info" onclick="exportModifiedCurriculum()">
-                        <i class="fas fa-download me-1"></i>
-                        Exportar Malla
                     </button>
                 </div>
             </div>
@@ -174,6 +174,7 @@
                                      draggable="true"
                                      data-subject-id="{{ $subject->code }}"
                                      data-type="{{ $subject->type }}"
+                                     data-display-order="{{ $subject->display_order }}"
                                      data-prerequisites="{{ $subject->prerequisites->pluck('code')->implode(',') }}"
                                      data-unlocks="{{ $subject->requiredFor->pluck('code')->implode(',') }}">
                                     
