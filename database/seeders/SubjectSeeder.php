@@ -80,7 +80,7 @@ class SubjectSeeder extends Seeder
             // 8th semester
             ['code' => '4200914', 'name' => 'MODELOS DE GESTIÓN DE TECNOLOGÍAS DE LA INFORMACIÓN', 'semester' => 8, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
             ['code' => '4100562', 'name' => 'FORMULACIÓN Y EVALUACIÓN DE PROYECTOS INFORMÁTICOS', 'semester' => 8, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
-            ['code' => '4200911', 'name' => 'GERENCIA ESTRATÉGICA DEL TALENTO HUMANO', 'semester' => 8, 'credits' => 2, 'classroom_hours' => 2, 'student_hours' => 4, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
+            ['code' => '4200911', 'name' => 'GERENCIA ESTRATÉGICA DEL TALENTO HUMANO', 'semester' => 8, 'credits' => 2, 'classroom_hours' => 2, 'student_hours' => 4, 'type' => 'fundamental', 'is_required' => true, 'is_leveling' => false],
             ['code' => '4100560', 'name' => 'METODOLOGÍA DE LA INVESTIGACIÓN', 'semester' => 8, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
             ['code' => '4200918', 'name' => 'TENDENCIAS EN ADMINISTRACIÓN DE SISTEMAS INFORMÁTICOS', 'semester' => 8, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
             ['code' => '#LIBRE-07', 'name' => 'LIBRE ELECCIÓN', 'semester' => 8, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'libre_eleccion', 'is_required' => false, 'is_leveling' => false],
