@@ -75,7 +75,17 @@ class ElectiveSubject extends Model
     {
         return $this->isFundamental() 
             ? 'Optativa Fundamental' 
-            : 'Optativa Disciplinar/Profesional';
+            : 'Optativa Profesional';
+    }
+
+    /**
+     * Get Bootstrap color class for the elective type badge
+     */
+    public function getTypeColorAttribute(): string
+    {
+        return $this->isFundamental() 
+            ? 'warning'   // Orange (naranja) for Optativa Fundamental
+            : 'success';  // Green (verde) for Optativa Profesional
     }
 
     /**

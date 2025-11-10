@@ -303,12 +303,12 @@ function generateSummaryTab(results) {
     let componentBreakdown = '';
     if (results.credits_by_component) {
         const componentNames = {
-            'fundamental_required': { name: 'Fundamental Obligatorio', color: 'warning' },
-            'fundamental_optional': { name: 'Fundamental Optativo', color: 'warning' },
-            'professional_required': { name: 'Disciplinar Obligatorio', color: 'success' },
-            'professional_optional': { name: 'Disciplinar Optativo', color: 'success' },
+            'fundamental_required': { name: 'Fundamentación Obligatoria', color: 'warning' },
+            'fundamental_optional': { name: 'Optativa Fundamentación', color: 'warning' },
+            'professional_required': { name: 'Profesional Obligatoria', color: 'success' },
+            'professional_optional': { name: 'Optativa Profesional', color: 'success' },
             'leveling': { name: 'Nivelación', color: 'danger' },
-            'thesis': { name: 'Trabajo de Grado', color: 'dark' },
+            'thesis': { name: 'Trabajo de Grado', color: 'success' },
             'free_elective': { name: 'Libre Elección', color: 'primary' },
         };
 

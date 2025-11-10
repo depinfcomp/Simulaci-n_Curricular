@@ -7,6 +7,7 @@ use App\Http\Controllers\ConvalidationController;
 use App\Http\Controllers\ImportCurriculumController;
 use App\Http\Controllers\AcademicHistoryController;
 use App\Http\Controllers\ElectiveSubjectController;
+use App\Http\Controllers\SubjectAliasController;
 
 // Redirect root to login
 Route::get('/', function () {
@@ -86,6 +87,8 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         Route::get('/{import}', [AcademicHistoryController::class, 'show'])->name('show');
         Route::delete('/{import}', [AcademicHistoryController::class, 'destroy'])->name('destroy');
         Route::get('/{import}/export', [AcademicHistoryController::class, 'export'])->name('export');
+        Route::get('/{import}/export-successful', [AcademicHistoryController::class, 'exportSuccessful'])->name('export-successful');
+        Route::get('/{import}/export-failed', [AcademicHistoryController::class, 'exportFailed'])->name('export-failed');
     });
 
     // Elective Subjects routes
@@ -96,6 +99,15 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         Route::put('/{electiveSubject}', [ElectiveSubjectController::class, 'update'])->name('update');
         Route::delete('/{electiveSubject}', [ElectiveSubjectController::class, 'destroy'])->name('destroy');
         Route::post('/{electiveSubject}/toggle-status', [ElectiveSubjectController::class, 'toggleStatus'])->name('toggle-status');
+    });
+
+    // Subject Aliases routes
+    Route::prefix('subject-aliases')->name('subject-aliases.')->group(function () {
+        Route::get('/', [SubjectAliasController::class, 'index'])->name('index');
+        Route::post('/', [SubjectAliasController::class, 'store'])->name('store');
+        Route::delete('/{alias}', [SubjectAliasController::class, 'destroy'])->name('destroy');
+        Route::post('/bulk-import', [SubjectAliasController::class, 'bulkImport'])->name('bulk-import');
+        Route::get('/get-aliases', [SubjectAliasController::class, 'getAliases'])->name('get-aliases');
     });
 });
 

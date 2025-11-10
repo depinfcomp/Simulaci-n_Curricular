@@ -60,6 +60,12 @@
                                         Materias Optativas
                                     </a>
                                 </li>
+                                <li>
+                                    <a class="dropdown-item" href="{{ route('subject-aliases.index') }}">
+                                        <i class="fas fa-code-branch me-2"></i>
+                                        Alias de Materias
+                                    </a>
+                                </li>
                             </ul>
                         </li>
 

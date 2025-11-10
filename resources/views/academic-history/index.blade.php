@@ -165,12 +165,40 @@
                                             <td class="text-center">
                                                 <div class="btn-group" role="group">
                                                     @if($import->status == 'completed')
-                                                        <a href="{{ route('academic-history.export', $import) }}" 
-                                                           class="btn btn-sm btn-outline-success"
-                                                           title="Exportar a CSV">
-                                                            <i class="fas fa-download"></i>
-                                                            Exportar
-                                                        </a>
+                                                        <!-- Dropdown for export options -->
+                                                        <div class="btn-group" role="group">
+                                                            <button type="button" 
+                                                                    class="btn btn-sm btn-outline-success dropdown-toggle" 
+                                                                    data-bs-toggle="dropdown" 
+                                                                    aria-expanded="false"
+                                                                    title="Opciones de exportación">
+                                                                <i class="fas fa-download"></i>
+                                                                Exportar
+                                                            </button>
+                                                            <ul class="dropdown-menu">
+                                                                <li>
+                                                                    <a class="dropdown-item" href="{{ route('academic-history.export-successful', $import) }}">
+                                                                        <i class="fas fa-check-circle text-success"></i>
+                                                                        Registros Exitosos
+                                                                        <span class="badge bg-success ms-1">{{ $import->successful_imports }}</span>
+                                                                    </a>
+                                                                </li>
+                                                                <li>
+                                                                    <a class="dropdown-item" href="{{ route('academic-history.export-failed', $import) }}">
+                                                                        <i class="fas fa-times-circle text-danger"></i>
+                                                                        Registros Fallidos
+                                                                        <span class="badge bg-danger ms-1">{{ $import->failed_imports }}</span>
+                                                                    </a>
+                                                                </li>
+                                                                <li><hr class="dropdown-divider"></li>
+                                                                <li>
+                                                                    <a class="dropdown-item" href="{{ route('academic-history.export', $import) }}">
+                                                                        <i class="fas fa-file-csv text-primary"></i>
+                                                                        Exportar Todo (Original)
+                                                                    </a>
+                                                                </li>
+                                                            </ul>
+                                                        </div>
                                                     @endif
                                                     <button type="button" 
                                                             class="btn btn-sm btn-outline-danger"
