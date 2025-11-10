@@ -201,94 +201,41 @@ class Student extends Model
         return 0;
     }
 
-        /**
-     * Calculate average grade based on passed courses with grades
-     * Formula: Σ(Credits × Grade) / Σ(Credits with grades)
-     * Uses student_subject table and looks up credits in both subjects and elective_subjects
+            /**
+     * Calculate weighted average grade
+     * Delegates to StudentMetricsService for consistent calculation
      */
-    public function calculateAverageGrade()
+    public function calculateAverageGrade(): float
     {
-        // Get all passed/failed subjects with grades from student_subject
-        // IMPORTANTE: Excluir materias de nivelación del promedio
-        $records = \DB::table('student_subject')
-            ->where('student_subject.student_id', $this->id)
-            ->whereNotNull('student_subject.grade')
-            ->where('student_subject.grade', '>', 0)
-            ->whereIn('student_subject.status', ['passed', 'failed'])
-            ->where(function($query) {
-                // Excluir nivelación del promedio
-                $query->whereNull('student_subject.assigned_component')
-                      ->orWhere('student_subject.assigned_component', '!=', 'leveling');
-            })
-            ->select('student_subject.subject_code', 'student_subject.grade')
-            ->get();
-
-        if ($records->isEmpty()) {
-            return 0;
-        }
-
-        $totalWeighted = 0;
-        $totalCredits = 0;
-
-        foreach ($records as $record) {
-            $credits = self::getSubjectCredits($record->subject_code);
-            if ($credits > 0) {
-                $totalWeighted += ($credits * $record->grade);
-                $totalCredits += $credits;
-            }
-        }
-
-        return $totalCredits > 0 ? round($totalWeighted / $totalCredits, 2) : 0;
+        $metricsService = app(\App\Services\StudentMetricsService::class);
+        return $metricsService->calculateAverageGrade($this->document);
     }
 
     /**
      * Calculate progress percentage based on approved credits that count toward degree
-     * Formula: (Approved Credits / Total Program Credits) × 100
-     * Only counts credits where counts_towards_degree = true
+     * Delegates to StudentMetricsService for consistent calculation
      */
     public function calculateProgressPercentageFromCredits(int $totalProgramCredits = 167)
     {
-        $approvedCredits = \DB::table('student_subject')
-            ->where('student_id', $this->id)
-            ->where('status', 'passed')
-            ->where('grade', '>=', 3.0) // Passing grade
-            ->where('counts_towards_degree', true) // Only credits that count
-            ->sum('credits_counted'); // Use credits_counted for accurate partial credits
-
-        return $approvedCredits > 0 ? round(($approvedCredits / $totalProgramCredits) * 100, 2) : 0;
+        $metricsService = app(\App\Services\StudentMetricsService::class);
+        $approvedCredits = $metricsService->calculateApprovedCredits($this->document);
+        return $metricsService->calculateProgressPercentage($approvedCredits);
     }
 
     /**
      * Update all academic metrics for this student
+     * Delegates to StudentMetricsService which calculates and saves all metrics
      */
     public function updateAcademicMetrics(int $totalProgramCredits = 167)
     {
-        $this->average_grade = $this->calculateAverageGrade();
-        $this->progress_percentage = $this->calculateProgressPercentageFromCredits($totalProgramCredits);
+        $metricsService = app(\App\Services\StudentMetricsService::class);
+        $metricsService->setTotalProgramCredits($totalProgramCredits);
+        $metrics = $metricsService->calculateAndSaveMetrics($this->document);
         
-        // Calculate approved credits (only those that count toward degree)
-        $this->approved_credits = \DB::table('student_subject')
-            ->where('student_id', $this->id)
-            ->where('status', 'passed')
-            ->where('grade', '>=', 3.0)
-            ->where('counts_towards_degree', true)
-            ->sum('credits_counted');
-
-        // Calculate total credits taken (all passed and failed subjects, using getSubjectCredits)
-        $allRecords = \DB::table('student_subject')
-            ->where('student_id', $this->id)
-            ->whereIn('status', ['passed', 'failed'])
-            ->select('subject_code')
-            ->get();
-            
-        $totalCreditsTaken = 0;
-        foreach ($allRecords as $record) {
-            $totalCreditsTaken += self::getSubjectCredits($record->subject_code);
-        }
+        // Refresh the model from database to get updated values
+        $this->refresh();
         
-        $this->total_credits_taken = $totalCreditsTaken;
-
-        $this->save();
+        return $metrics;
     }
 }
 

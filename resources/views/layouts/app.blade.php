@@ -88,7 +88,7 @@
                                 <li>
                                     <a class="dropdown-item" href="{{ route('import.index') }}">
                                         <i class="fas fa-file-excel me-2"></i>
-                                        Importar Malla Externa
+                                        Importar Malla Curricular
                                     </a>
                                 </li>
                             </ul>

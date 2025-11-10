@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class AcademicHistoryController extends Controller
@@ -31,8 +32,8 @@ class AcademicHistoryController extends Controller
 
         $stats = [
             'total_imports' => AcademicHistoryImport::count(),
-            'total_records' => AcademicHistory::count(),
-            'unique_students' => AcademicHistory::distinct('student_code')->count(),
+            'total_records' => DB::table('student_subject')->count(), // Changed to count from student_subject
+            'unique_students' => DB::table('student_subject')->distinct('student_document')->count('student_document'),
             'avg_success_rate' => AcademicHistoryImport::where('status', 'completed')
                 ->avg(DB::raw('(successful_imports / NULLIF(total_records, 0)) * 100')) ?? 0
         ];
@@ -717,89 +718,21 @@ class AcademicHistoryController extends Controller
 
             $successfulRecords = $summary['successful_records'];
             
-            // Get unique documents from successful records
-            $documents = array_unique(array_column($successfulRecords, 'documento'));
-            
-            // Query actual data from database with all calculated fields
-            $records = DB::table('students')
-                ->join('student_subject', 'students.id', '=', 'student_subject.student_id')
-                ->whereIn('students.document', $documents)
-                ->select(
-                    'students.document',
-                    'students.name as student_name',
-                    'students.average_grade',
-                    'students.progress_percentage',
-                    'students.approved_credits',
-                    'student_subject.subject_code',
-                    'student_subject.grade',
-                    'student_subject.status',
-                    'student_subject.counts_towards_degree',
-                    'student_subject.assigned_component',
-                    'student_subject.credits_counted',
-                    'student_subject.created_at'
-                )
-                ->orderBy('students.document')
-                ->orderBy('student_subject.subject_code')
-                ->get();
-            
-            // Get subject names and credits
-            $subjects = DB::table('subjects')
-                ->select('code', 'name', 'credits', 'component')
-                ->get()
-                ->keyBy('code');
-                
-            $electiveSubjects = DB::table('elective_subjects')
-                ->select('code', 'name', 'credits', 'type as component')
-                ->get()
-                ->keyBy('code');
-            
-            $allSubjects = $subjects->merge($electiveSubjects);
-            
-            // Create CSV content with detailed information
-            $csv = "\xEF\xBB\xBF"; // UTF-8 BOM for Excel compatibility
-            $csv .= "Documento,Nombre Estudiante,Promedio,Progreso %,Créditos Aprobados,Código Asignatura,Nombre Asignatura,Créditos Asignatura,Componente Original,Nota,Estado,Cuenta para Grado,Componente Asignado,Créditos Contados,Fecha Importación\n";
-            
-            foreach ($records as $record) {
-                $subject = $allSubjects->get($record->subject_code);
-                $subjectName = $subject ? $subject->name : 'Desconocida';
-                $subjectCredits = $subject ? $subject->credits : 0;
-                $originalComponent = $subject ? $subject->component : 'N/A';
-                
-                $studentName = str_replace('"', '""', $record->student_name);
-                $subjectNameEscaped = str_replace('"', '""', $subjectName);
-                $statusText = $record->status === 'passed' ? 'Aprobada' : ($record->status === 'failed' ? 'Reprobada' : 'Inscrita');
-                $countsText = $record->counts_towards_degree ? 'Sí' : 'No';
-                $assignedComp = $record->assigned_component ?? 'N/A';
-                $creditsCount = $record->credits_counted ?? 0;
-                
-                $csv .= sprintf(
-                    "%s,\"%s\",%.2f,%.2f,%d,%s,\"%s\",%d,%s,%.2f,%s,%s,%s,%d,%s\n",
-                    $record->document,
-                    $studentName,
-                    $record->average_grade,
-                    $record->progress_percentage,
-                    $record->approved_credits,
-                    $record->subject_code,
-                    $subjectNameEscaped,
-                    $subjectCredits,
-                    $originalComponent,
-                    $record->grade,
-                    $statusText,
-                    $countsText,
-                    $assignedComp,
-                    $creditsCount,
-                    date('Y-m-d H:i:s', strtotime($record->created_at))
-                );
+            if (empty($successfulRecords)) {
+                return redirect()->back()->with('info', 'No hay registros exitosos en esta importación');
             }
             
-            $filename = 'exitosos_' . $import->original_filename . '_' . now()->format('Y-m-d_His') . '.csv';
+            // Use Excel export class
+            $filename = 'exitosos_' . pathinfo($import->original_filename, PATHINFO_FILENAME) . '_' . now()->format('Y-m-d_His') . '.xlsx';
             
-            return response($csv)
-                ->header('Content-Type', 'text/csv; charset=UTF-8')
-                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+            return Excel::download(
+                new \App\Exports\SuccessfulImportExport($successfulRecords, $import->created_at->format('Y-m-d H:i:s')),
+                $filename
+            );
                 
         } catch (\Exception $e) {
             Log::error('Error exporting successful records: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
             return redirect()->back()->with('error', 'Error al exportar registros exitosos: ' . $e->getMessage());
         }
     }
@@ -823,36 +756,78 @@ class AcademicHistoryController extends Controller
                 return redirect()->back()->with('info', 'No hay registros fallidos en esta importación');
             }
             
-            // Create CSV content with error information
-            $csv = "\xEF\xBB\xBF"; // UTF-8 BOM for Excel compatibility
-            $csv .= "Documento,Código Asignatura,Nombre Asignatura,Período,Nota Numérica,Nota Alfabética,Créditos,Motivo del Error\n";
+            // Use Excel export class
+            $filename = 'fallidos_' . pathinfo($import->original_filename, PATHINFO_FILENAME) . '_' . now()->format('Y-m-d_His') . '.xlsx';
             
-            foreach ($failedRecords as $record) {
-                $asignatura = isset($record['asignatura']) ? str_replace('"', '""', $record['asignatura']) : '';
-                $error = isset($record['error']) ? str_replace('"', '""', $record['error']) : '';
-                
-                $csv .= sprintf(
-                    "%s,%s,\"%s\",%s,%s,%s,%s,\"%s\"\n",
-                    $record['documento'] ?? '',
-                    $record['cod_asignatura'] ?? '',
-                    $asignatura,
-                    $record['periodo'] ?? '',
-                    $record['nota_numerica'] ?? '',
-                    $record['nota_alfabetica'] ?? '',
-                    $record['creditos'] ?? '',
-                    $error
-                );
-            }
-            
-            $filename = 'fallidos_' . $import->original_filename . '_' . now()->format('Y-m-d_His') . '.csv';
-            
-            return response($csv)
-                ->header('Content-Type', 'text/csv; charset=UTF-8')
-                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+            return Excel::download(
+                new \App\Exports\FailedImportExport($failedRecords, $import->created_at->format('Y-m-d H:i:s')),
+                $filename
+            );
                 
         } catch (\Exception $e) {
             Log::error('Error exporting failed records: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
             return redirect()->back()->with('error', 'Error al exportar registros fallidos: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Clear all academic history data
+     * This will truncate: student_subject, students, academic_histories, academic_history_imports
+     */
+    public function clearAll(Request $request)
+    {
+        try {
+            DB::beginTransaction();
+
+            // Get counts before deletion for logging
+            $studentSubjectCount = DB::table('student_subject')->count();
+            $studentsCount = DB::table('students')->count();
+            $academicHistoriesCount = DB::table('academic_histories')->count();
+            $importsCount = DB::table('academic_history_imports')->count();
+
+            // Truncate tables in order (respecting foreign keys)
+            DB::statement('SET CONSTRAINTS ALL DEFERRED');
+            
+            // Delete data from tables with foreign keys first
+            DB::table('student_subject')->truncate();
+            DB::table('academic_histories')->truncate();
+            DB::table('students')->truncate();
+            DB::table('academic_history_imports')->truncate();
+
+            DB::commit();
+
+            Log::info('Academic history data cleared', [
+                'user_id' => auth()->id(),
+                'student_subject_deleted' => $studentSubjectCount,
+                'students_deleted' => $studentsCount,
+                'academic_histories_deleted' => $academicHistoriesCount,
+                'imports_deleted' => $importsCount,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Todas las historias académicas han sido eliminadas correctamente',
+                'deleted' => [
+                    'student_subject' => $studentSubjectCount,
+                    'students' => $studentsCount,
+                    'academic_histories' => $academicHistoriesCount,
+                    'imports' => $importsCount,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            Log::error('Error clearing academic history data', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar las historias académicas: ' . $e->getMessage()
+            ], 500);
         }
     }
 }

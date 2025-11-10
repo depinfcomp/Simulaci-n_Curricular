@@ -14,8 +14,14 @@ return new class extends Migration
         Schema::create('students', function (Blueprint $table) {
             $table->id()->comment('Auto-incrementable ID');
             $table->string('name')->comment('Student full name');
-            $table->string('document', 20)->nullable()->unique()->after('name')->comment('Student ID document number');
+            $table->string('document', 20)->nullable()->unique()->comment('Student ID document number');
+            
+            // Academic metrics (calculated by StudentMetricsService)
+            $table->integer('total_credits_taken')->default(0)->comment('Total credits attempted (all subjects)');
+            $table->integer('approved_credits')->default(0)->comment('Credits that count toward degree');
+            $table->decimal('average_grade', 4, 2)->default(0)->comment('Weighted average grade');
             $table->decimal('progress_percentage', 5, 2)->default(0)->comment('Academic progress percentage (0-100)');
+            
             $table->timestamps();
         });
     }

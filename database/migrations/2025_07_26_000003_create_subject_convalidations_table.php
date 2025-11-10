@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('external_curriculum_id')->constrained()->onDelete('cascade')->comment('Foreign key to external_curriculums');
             $table->foreignId('external_subject_id')->constrained()->onDelete('cascade')->comment('Foreign key to external_subjects');
             $table->string('internal_subject_code')->nullable()->comment('Internal subject code (null for free electives)');
-            $table->enum('convalidation_type', ['direct', 'free_elective'])->comment('Convalidation type');
+            $table->enum('convalidation_type', ['direct', 'free_elective', 'not_convalidated'])->comment('Convalidation type');
             $table->text('notes')->nullable()->comment('Convalidation notes and observations');
             $table->decimal('equivalence_percentage', 5, 2)->default(100.00)->comment('Equivalence percentage');
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending')->comment('Approval status');

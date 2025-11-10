@@ -81,6 +81,7 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
     Route::prefix('academic-history')->name('academic-history.')->group(function () {
         Route::get('/', [AcademicHistoryController::class, 'index'])->name('index');
         Route::post('/upload', [AcademicHistoryController::class, 'upload'])->name('upload');
+        Route::post('/clear-all', [AcademicHistoryController::class, 'clearAll'])->name('clear-all');
         Route::get('/{import}/preview', [AcademicHistoryController::class, 'preview'])->name('preview');
         Route::post('/{import}/mapping', [AcademicHistoryController::class, 'updateMapping'])->name('mapping');
         Route::post('/{import}/process', [AcademicHistoryController::class, 'process'])->name('process');

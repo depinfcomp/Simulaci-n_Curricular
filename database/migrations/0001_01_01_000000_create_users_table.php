@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('email')->unique()->comment('Unique email address');
             $table->timestamp('email_verified_at')->nullable()->comment('Email verification timestamp');
             $table->string('password')->comment('Encrypted password');
+            $table->boolean('must_change_password')->default(false)->comment('Indicates if user must change password on next login');
             $table->rememberToken()->comment('Remember me token');
             $table->timestamps();
         });

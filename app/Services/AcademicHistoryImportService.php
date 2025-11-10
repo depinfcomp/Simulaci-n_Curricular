@@ -304,38 +304,6 @@ class AcademicHistoryImportService
             // Get or create student with case-insensitive document lookup
             $student = $this->getOrCreateStudentWithRandomName($documento);
             
-            // Initialize credit tracking per component for this student
-            $creditUsed = [
-                'fundamental_required' => 0,
-                'professional_required' => 0,
-                'optional_fundamental' => 0,
-                'optional_professional' => 0,
-                'free_elective' => 0,
-                'thesis' => 0,
-                'practice' => 0,
-                'leveling' => 0,
-            ];
-            
-            // First, calculate current credit usage from existing records
-            $existingRecords = DB::table('student_subject')
-                ->where('student_id', $student->id)
-                ->where('status', 'passed')
-                ->get();
-            
-            foreach ($existingRecords as $record) {
-                $subjectCode = $record->subject_code;
-                if (isset($this->subjectTypes[$subjectCode]) && isset($this->subjectCredits[$subjectCode])) {
-                    $component = $this->subjectTypes[$subjectCode];
-                    $credits = $this->subjectCredits[$subjectCode];
-                    
-                    if (isset($creditUsed[$component])) {
-                        $creditUsed[$component] += $credits;
-                    }
-                }
-            }
-            
-            Log::info("Student {$student->document} existing credits: " . json_encode($creditUsed));
-            
             // Process all subjects for this student
             foreach ($studentRecords as $record) {
                 if ($record['is_current']) {
@@ -343,14 +311,19 @@ class AcademicHistoryImportService
                     $this->createCurrentSubject($student, $record);
                 } else {
                     // This is historical data (has grade)
-                    $this->createHistoricalRecordWithCreditDistribution($student, $record, $creditUsed);
+                    // Dummy array to maintain compatibility with signature
+                    $dummyArray = [];
+                    $this->createHistoricalRecordWithCreditDistribution($student, $record, $dummyArray);
                 }
             }
             
-            // After all records processed, update student metrics
-            $student->updateAcademicMetrics();
+            // After all records processed, calculate and save student metrics using StudentMetricsService
+            $metricsService = app(StudentMetricsService::class);
+            $metrics = $metricsService->calculateAndSaveMetrics($student->document);
+            
             Log::info("Updated academic metrics for student {$student->document}: " .
-                      "Progress: {$student->progress_percentage}%, Avg: {$student->average_grade}");
+                      "Progress: {$metrics['progress_percentage']}%, Avg: {$metrics['average_grade']}, " .
+                      "Credits: {$metrics['approved_credits']}");
         });
     }
 
@@ -582,8 +555,10 @@ class AcademicHistoryImportService
             'documento' => $documento,
             'subject_code' => $codAsignatura,
             'grade' => $grade,
+            'alphabetic_grade' => $notaAlfabeticaRaw, // Include alphabetic grade
             'status' => $status,
-            'periodo_inscripcion' => $periodoInscripcion,
+            'period' => $periodoInscripcion, // Rename to 'period' for consistency
+            'periodo_inscripcion' => $periodoInscripcion, // Keep old name for backward compatibility
             'is_current' => !$hasGrade,
             'raw_data' => [
                 'asignatura' => $asignaturaNombre,
@@ -613,7 +588,7 @@ class AcademicHistoryImportService
 
         // Also check if this subject already exists in historical records (student_subject)
         $historicalRecord = DB::table('student_subject')
-            ->where('student_id', $student->id)
+            ->where('student_document', $student->document)
             ->where('subject_code', $record['subject_code'])
             ->where('status', 'passed') // Only check if already passed
             ->first();
@@ -636,25 +611,38 @@ class AcademicHistoryImportService
     }
 
     /**
-     * Create historical academic record with credit distribution logic
+     * Create historical academic record (simplified - no credit distribution)
+     * Credit distribution is now handled dynamically by CreditDistributionService
      */
     private function createHistoricalRecordWithCreditDistribution(Student $student, array $record, array &$creditUsed): void
     {
+        $subjectCode = $record['subject_code'];
+        
+        // Get subject information from database
+        $subjectInfo = $this->getSubjectInfo($subjectCode);
+        
+        if (!$subjectInfo) {
+            Log::warning("Subject info not found for code: {$subjectCode}");
+            return;
+        }
+        
         // Check if record already exists
         $existing = DB::table('student_subject')
-            ->where('student_id', $student->id)
-            ->where('subject_code', $record['subject_code'])
+            ->where('student_document', $student->document)
+            ->where('subject_code', $subjectCode)
             ->first();
 
         if ($existing) {
             // Update only if new grade is better (higher than existing)
             if ($record['grade'] > $existing->grade) {
                 DB::table('student_subject')
-                    ->where('student_id', $student->id)
-                    ->where('subject_code', $record['subject_code'])
+                    ->where('student_document', $student->document)
+                    ->where('subject_code', $subjectCode)
                     ->update([
                         'grade' => $record['grade'],
+                        'alphabetic_grade' => $record['alphabetic_grade'] ?? null,
                         'status' => $record['status'],
+                        'period' => $record['period'] ?? null,
                         'updated_at' => now(),
                     ]);
                 $this->stats['history']['created']++; // Count as updated
@@ -664,66 +652,18 @@ class AcademicHistoryImportService
             return;
         }
 
-        // Only distribute credits if the subject was passed
-        if ($record['status'] !== 'passed') {
-            // Failed subjects: just record, no credit distribution
-            DB::table('student_subject')->insert([
-                'student_id' => $student->id,
-                'subject_code' => $record['subject_code'],
-                'grade' => $record['grade'],
-                'status' => $record['status'],
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            
-            $this->stats['history']['created']++;
-            return;
-        }
-
-        // Get subject info
-        $subjectCode = $record['subject_code'];
-        $subjectCredits = $this->subjectCredits[$subjectCode] ?? 0;
-        $subjectComponent = $this->subjectTypes[$subjectCode] ?? 'free_elective';
-        
-        if ($subjectCredits == 0) {
-            Log::warning("Subject {$subjectCode} has 0 credits, skipping credit distribution");
-            DB::table('student_subject')->insert([
-                'student_id' => $student->id,
-                'subject_code' => $record['subject_code'],
-                'grade' => $record['grade'],
-                'status' => $record['status'],
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            $this->stats['history']['created']++;
-            return;
-        }
-
-        // Distribute credits according to component limits
-        $distribution = $this->distributeCredits($subjectComponent, $subjectCredits, $creditUsed);
-        
-        Log::info("Subject {$subjectCode} ({$subjectComponent}, {$subjectCredits} credits) distributed as: " . 
-                  json_encode($distribution));
-
-        // Determine primary component for this subject
-        $assignedComponent = $subjectComponent;
-        $creditsCounted = $distribution['total_assigned'] ?? $subjectCredits;
-        $countsTowardsDegree = $distribution['counts_towards_degree'] ?? true;
-        
-        // If credits went to free_elective instead, record that
-        if (!empty($distribution['free_elective']) && empty($distribution[$subjectComponent])) {
-            $assignedComponent = 'free_elective';
-        }
-
-        // Insert record with credit distribution tracking
+        // Insert the raw data with denormalized subject info
+        // Credit counting will be calculated dynamically when needed
         DB::table('student_subject')->insert([
-            'student_id' => $student->id,
-            'subject_code' => $record['subject_code'],
+            'student_document' => $student->document,
+            'subject_code' => $subjectCode,
+            'subject_name' => $subjectInfo['name'],
+            'subject_credits' => $subjectInfo['credits'],
+            'subject_type' => $subjectInfo['type'],
             'grade' => $record['grade'],
+            'alphabetic_grade' => $record['alphabetic_grade'] ?? null,
             'status' => $record['status'],
-            'counts_towards_degree' => $countsTowardsDegree,
-            'assigned_component' => $assignedComponent,
-            'credits_counted' => $creditsCounted,
+            'period' => $record['period'] ?? null,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -732,82 +672,41 @@ class AcademicHistoryImportService
     }
 
     /**
-     * Distribute credits across components respecting limits
-     * Returns array with distribution details and updates $creditUsed
-     * 
-     * SPECIAL CASE: Nivelación subjects have NO LIMIT
-     * 
-     * OVERFLOW LOGIC:
-     * 1. Try to assign to original component
-     * 2. If component is full, overflow to free_elective
-     * 3. If free_elective is also full, mark as 'lost' (doesn't count)
-     * 
-     * Example: 9 max optativa_profesional, student has 12 credits
-     * - 9 go to optativa_profesional
-     * - 3 overflow to free_elective (if space available)
-     * - If free_elective full, those 3 are lost and don't count for progress
+     * Get subject information (name, credits, type) from database
      */
-    private function distributeCredits(string $component, int $credits, array &$creditUsed): array
+    private function getSubjectInfo(string $subjectCode): ?array
     {
-        $distribution = [];
-        $remainingCredits = $credits;
-        
-        // SPECIAL CASE: Nivelación subjects have no limit and don't count for degree progress
-        if ($component === 'leveling') {
-            $distribution[$component] = $credits;
-            $creditUsed[$component] += $credits;
-            $distribution['total_assigned'] = $credits;
-            $distribution['counts_towards_degree'] = false; // Nivelación doesn't count for degree
-            $distribution['lost'] = 0;
-            Log::info("Materia de Nivelación: {$credits} créditos asignados (sin límite, no cuenta para avance)");
-            return $distribution;
+        // Try regular subjects first
+        $subject = Subject::where('code', $subjectCode)->first();
+        if ($subject) {
+            return [
+                'name' => $subject->name,
+                'credits' => $subject->credits,
+                'type' => $subject->type,
+            ];
         }
         
-        // Get limit for this component
-        $componentLimit = $this->creditLimits[$component] ?? 0;
-        $currentUsed = $creditUsed[$component] ?? 0;
-        $availableInComponent = max(0, $componentLimit - $currentUsed);
+        // Try elective subjects
+        $elective = ElectiveSubject::where('code', $subjectCode)->first();
+        if ($elective) {
+            return [
+                'name' => $elective->name,
+                'credits' => $elective->credits,
+                'type' => $elective->elective_type,
+            ];
+        }
         
-        // Step 1: Try to assign to original component
-        if ($availableInComponent > 0) {
-            $assignedToComponent = min($remainingCredits, $availableInComponent);
-            $distribution[$component] = $assignedToComponent;
-            $creditUsed[$component] += $assignedToComponent;
-            $remainingCredits -= $assignedToComponent;
+        // Try to find through alias
+        $alias = DB::table('subject_aliases')
+            ->where('alias_code', $subjectCode)
+            ->first();
             
-            Log::info("Assigned {$assignedToComponent} credits to {$component} (used: {$creditUsed[$component]}/{$componentLimit})");
-        } else {
-            Log::info("Component {$component} is FULL ({$currentUsed}/{$componentLimit}), overflow needed");
+        if ($alias) {
+            // Recursively get info for the main subject
+            return $this->getSubjectInfo($alias->subject_code);
         }
         
-        // Step 2: If there are remaining credits, overflow to free_elective
-        if ($remainingCredits > 0 && $component !== 'free_elective') {
-            $freeElectiveLimit = $this->creditLimits['free_elective'] ?? 36;
-            $currentFreeElective = $creditUsed['free_elective'] ?? 0;
-            $availableInFreeElective = max(0, $freeElectiveLimit - $currentFreeElective);
-            
-            if ($availableInFreeElective > 0) {
-                $assignedToFreeElective = min($remainingCredits, $availableInFreeElective);
-                $distribution['free_elective'] = ($distribution['free_elective'] ?? 0) + $assignedToFreeElective;
-                $creditUsed['free_elective'] += $assignedToFreeElective;
-                $remainingCredits -= $assignedToFreeElective;
-                
-                Log::info("Overflow: {$assignedToFreeElective} credits to free_elective (used: {$creditUsed['free_elective']}/{$freeElectiveLimit})");
-            } else {
-                Log::warning("Free elective is FULL ({$currentFreeElective}/{$freeElectiveLimit}), credits will be lost");
-            }
-        }
-        
-        // Step 3: If still remaining credits, they are LOST (don't count toward degree)
-        $distribution['lost'] = $remainingCredits;
-        if ($remainingCredits > 0) {
-            Log::warning("LOST CREDITS: {$remainingCredits} from component {$component} (all components full)");
-        }
-        
-        $distribution['total_assigned'] = $credits - $remainingCredits;
-        $distribution['counts_towards_degree'] = $remainingCredits == 0;
-        
-        return $distribution;
+        return null;
     }
 
     /**

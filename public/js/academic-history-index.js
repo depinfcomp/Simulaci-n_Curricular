@@ -242,3 +242,110 @@ function showConfirmModal(message, onConfirm, type = 'warning', title = null, co
     
     modal.show();
 }
+
+/**
+ * Confirm clearing all academic history data
+ */
+function confirmClearAll() {
+    const message = `ADVERTENCIA: Esta acción es IRREVERSIBLE
+
+Esta acción eliminará PERMANENTEMENTE:
+- Todos los estudiantes importados
+- Todas las materias cursadas (student_subject)
+- Todos los historiales académicos (academic_histories)
+- Todos los registros de importación
+
+¿Está seguro de que desea continuar?`;
+
+    showConfirmModal(
+        message,
+        () => {
+            // Ask for confirmation word
+            const confirmWord = prompt('Para confirmar, escriba "ELIMINAR":');
+            if (confirmWord === 'ELIMINAR') {
+                clearAllData();
+            } else if (confirmWord !== null) {
+                showAlertModal('Confirmación incorrecta. No se eliminó ningún dato.', 'warning', 'Cancelado');
+            }
+        },
+        'danger',
+        'Eliminar Todas las Historias Académicas',
+        'Continuar',
+        'Cancelar'
+    );
+}
+
+/**
+ * Clear all academic history data via AJAX
+ */
+async function clearAllData() {
+    try {
+        // Show loading indicator
+        showAlertModal(
+            '<div class="text-center"><i class="fas fa-spinner fa-spin fa-3x mb-3"></i><br>Eliminando datos...</div>',
+            'warning',
+            'Procesando',
+            false // Don't show close button
+        );
+
+        const response = await fetch('/academic-history/clear-all', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        // Close loading modal
+        const loadingModal = document.getElementById('alertModal');
+        if (loadingModal) {
+            const modalInstance = bootstrap.Modal.getInstance(loadingModal);
+            if (modalInstance) modalInstance.hide();
+        }
+
+        if (data.success) {
+            const deletedInfo = `
+Datos eliminados correctamente:
+
+- Estudiantes: ${data.deleted.students}
+- Materias cursadas: ${data.deleted.student_subject}
+- Historiales académicos: ${data.deleted.academic_histories}
+- Importaciones: ${data.deleted.imports}
+
+La página se recargará automáticamente.
+            `;
+            
+            showAlertModal(deletedInfo, 'success', 'Eliminación Exitosa');
+            
+            // Reload page after 3 seconds
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        } else {
+            showAlertModal(
+                `Error al eliminar los datos:\n${data.message}`,
+                'danger',
+                'Error'
+            );
+        }
+
+    } catch (error) {
+        console.error('Error clearing data:', error);
+        
+        // Close loading modal if still open
+        const loadingModal = document.getElementById('alertModal');
+        if (loadingModal) {
+            const modalInstance = bootstrap.Modal.getInstance(loadingModal);
+            if (modalInstance) modalInstance.hide();
+        }
+        
+        showAlertModal(
+            `Error de conexión: ${error.message}`,
+            'danger',
+            'Error de Red'
+        );
+    }
+}

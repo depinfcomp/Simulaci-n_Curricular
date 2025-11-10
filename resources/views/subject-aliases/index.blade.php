@@ -195,12 +195,9 @@
                 </button>
             </div>
         </div>
-    </div>
+        </div>
 </div>
 
-@endsection
-
-@section('scripts')
 <script>
 let modal;
 
@@ -231,8 +228,7 @@ function saveAlias() {
         body: JSON.stringify({
             subject_code: formData.get('subject_code'),
             alias_code: formData.get('alias_code'),
-            subject_type: formData.get('subject_type'),
-            notes: formData.get('notes')
+            description: formData.get('notes')
         })
     })
     .then(response => response.json())
@@ -276,4 +272,5 @@ function deleteAlias(aliasId) {
     });
 }
 </script>
+
 @endsection

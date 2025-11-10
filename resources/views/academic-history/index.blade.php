@@ -9,10 +9,18 @@
                     <i class="fas fa-history me-2"></i>
                     Historias Académicas
                 </h1>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
-                    <i class="fas fa-upload me-2"></i>
-                    Importar Historia Académica
-                </button>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                        <i class="fas fa-upload me-2"></i>
+                        Importar Historia Académica
+                    </button>
+                    @if($stats['total_records'] > 0)
+                        <button class="btn btn-danger" onclick="confirmClearAll()">
+                            <i class="fas fa-trash-alt me-2"></i>
+                            Eliminar Historias Actuales
+                        </button>
+                    @endif
+                </div>
             </div>
 
             <!-- Statistics Cards -->
