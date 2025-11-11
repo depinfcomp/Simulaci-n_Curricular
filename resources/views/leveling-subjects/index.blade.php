@@ -27,8 +27,7 @@
                 <ul class="mb-0">
                     <li><strong>Materias "Oficiales":</strong> Solo las materias creadas directamente <strong>desde la malla de simulación</strong> serán mostradas con el badge <span class="badge bg-primary"><i class="fas fa-graduation-cap"></i> Oficial</span>.</li>
                     <li><strong>Materias creadas aquí:</strong> Las materias que agregues en este apartado <strong>NO aparecerán en la malla de simulación</strong>.</li>
-                    <li><strong>Importación de CSV:</strong> <strong>Todas las materias</strong> (oficiales y no oficiales) serán tomadas en cuenta durante el proceso de importación de historias académicas.</li>
-                    <li><strong>Créditos mínimos:</strong> Los estudiantes deben cursar al menos <strong>12 créditos</strong> de nivelación según su nivel de ingreso.</li>
+                    <li><strong>Importación de historia académica:</strong> <strong>Todas las materias</strong> (oficiales y no oficiales) serán tomadas en cuenta durante el proceso de importación de historias académicas.</li>
                 </ul>
             </div>
 

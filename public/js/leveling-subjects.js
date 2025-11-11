@@ -60,6 +60,10 @@ async function editLeveling(id) {
             }
         });
         
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
         
         if (result.success) {
@@ -70,20 +74,22 @@ async function editLeveling(id) {
             document.getElementById('edit_code').value = leveling.code;
             document.getElementById('edit_name').value = leveling.name;
             document.getElementById('edit_credits').value = leveling.credits;
-            document.getElementById('edit_semester').value = leveling.semester || '';
-            document.getElementById('edit_classroom_hours').value = leveling.classroom_hours;
-            document.getElementById('edit_student_hours').value = leveling.student_hours;
-            document.getElementById('edit_leveling_type').value = leveling.leveling_type;
+            document.getElementById('edit_classroom_hours').value = leveling.classroom_hours || 0;
+            document.getElementById('edit_student_hours').value = leveling.student_hours || 0;
             document.getElementById('edit_description').value = leveling.description || '';
-            document.getElementById('edit_is_active').value = leveling.is_active ? '1' : '0';
+            
+            // Clear previous errors
+            clearErrors('edit');
             
             // Show modal
             const modal = new bootstrap.Modal(document.getElementById('editModal'));
             modal.show();
+        } else {
+            showErrorModal('Error', result.message || 'No se pudo cargar los datos de la materia');
         }
     } catch (error) {
-        console.error('Error:', error);
-        showErrorModal('Error', 'No se pudo cargar los datos de la materia');
+        console.error('Error completo:', error);
+        showErrorModal('Error', 'No se pudo cargar los datos de la materia: ' + error.message);
     }
 }
 
