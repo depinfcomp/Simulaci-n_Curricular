@@ -7,6 +7,7 @@ use App\Http\Controllers\ConvalidationController;
 use App\Http\Controllers\ImportCurriculumController;
 use App\Http\Controllers\AcademicHistoryController;
 use App\Http\Controllers\ElectiveSubjectController;
+use App\Http\Controllers\LevelingSubjectController;
 use App\Http\Controllers\SubjectAliasController;
 
 // Redirect root to login
@@ -100,6 +101,15 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         Route::put('/{electiveSubject}', [ElectiveSubjectController::class, 'update'])->name('update');
         Route::delete('/{electiveSubject}', [ElectiveSubjectController::class, 'destroy'])->name('destroy');
         Route::post('/{electiveSubject}/toggle-status', [ElectiveSubjectController::class, 'toggleStatus'])->name('toggle-status');
+    });
+
+    // Leveling Subjects routes
+    Route::prefix('leveling-subjects')->name('leveling-subjects.')->group(function () {
+        Route::get('/', [LevelingSubjectController::class, 'index'])->name('index');
+        Route::post('/', [LevelingSubjectController::class, 'store'])->name('store');
+        Route::get('/{levelingSubject}', [LevelingSubjectController::class, 'show'])->name('show');
+        Route::put('/{levelingSubject}', [LevelingSubjectController::class, 'update'])->name('update');
+        Route::delete('/{levelingSubject}', [LevelingSubjectController::class, 'destroy'])->name('destroy');
     });
 
     // Subject Aliases routes

@@ -170,6 +170,10 @@
                     ->orderBy('semester')
                     ->orderBy('display_order')
                     ->get();
+                
+                // Also load all leveling subjects (no is_active column - all subjects are recognized)
+                $levelingSubjects = \App\Models\LevelingSubject::all();
+                
                 $subjectsBySemester = $subjects->groupBy('semester');
             @endphp
 
@@ -234,6 +238,9 @@
     <script src="{{ asset('js/simulation.js') }}?v={{ time() }}"></script>
     <script src="{{ asset('js/debug.js') }}?v={{ time() }}"></script>
     <script>
+        // Leveling subjects data for simulation
+        window.levelingSubjectsCodes = @json($levelingSubjects->pluck('code')->toArray());
+        
         // Debug: Check subject types and colors
         document.addEventListener('DOMContentLoaded', function() {
             console.log('=== COLOR DEBUG ===');

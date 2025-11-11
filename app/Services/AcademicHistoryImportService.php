@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\ElectiveSubject;
+use App\Models\LevelingSubject;
 use App\Models\StudentCurrentSubject;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -77,6 +78,16 @@ class AcademicHistoryImportService
             $this->validElectiveSubjects[$elective->code] = true;
             $this->subjectCredits[$elective->code] = $elective->credits;
             $this->subjectTypes[$elective->code] = $this->mapElectiveTypeToComponent($elective->elective_type);
+        }
+        
+        // Load leveling subjects (nivelación) - ALL of them, no filter
+        $levelingSubjects = LevelingSubject::all();
+        foreach ($levelingSubjects as $leveling) {
+            // Store in validSubjects so they're recognized during import
+            $this->validSubjects[$leveling->code] = true;
+            $this->subjectCredits[$leveling->code] = $leveling->credits;
+            $this->subjectTypes[$leveling->code] = 'leveling'; // Map to leveling component
+            Log::info("Leveling subject loaded: {$leveling->code} - {$leveling->name}");
         }
         
         // Load subject aliases and map them to main subjects

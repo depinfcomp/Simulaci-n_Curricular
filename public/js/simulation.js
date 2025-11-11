@@ -1,6 +1,26 @@
 // Simulation View JavaScript
 
 /**
+ * Check if a subject is a leveling subject
+ * @param {string} code - Subject code
+ * @param {string} type - Subject type from data-type attribute
+ * @returns {boolean} - True if subject is leveling
+ */
+function isLevelingSubject(code, type = null) {
+    // Check if type is explicitly 'nivelacion'
+    if (type === 'nivelacion') {
+        return true;
+    }
+    
+    // Check if code is in leveling subjects list (loaded from database)
+    if (window.levelingSubjectsCodes && Array.isArray(window.levelingSubjectsCodes)) {
+        return window.levelingSubjectsCodes.includes(code);
+    }
+    
+    return false;
+}
+
+/**
  * Show a professional modal instead of alert()
  * @param {string} message - The message to display
  * @param {string} type - Type of modal: 'error', 'warning', 'info', 'success'
@@ -364,8 +384,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const credits = parseInt(creditsElement.textContent) || 0;
                 totalCredits += credits;
                 
-                // Check if it's a leveling subject (nivelacion type)
-                const isLeveling = card.classList.contains('nivelacion');
+                // Check if it's a leveling subject
+                const subjectCode = card.dataset.subjectId;
+                const subjectType = card.dataset.type;
+                const isLeveling = isLevelingSubject(subjectCode, subjectType);
                 if (!isLeveling) {
                     careerCredits += credits;
                 }
@@ -3044,7 +3066,7 @@ document.addEventListener('DOMContentLoaded', function() {
         totalCredits += creditsNum;
         
         // Only add to career credits if it's NOT a leveling subject
-        const isLeveling = type === 'nivelacion';
+        const isLeveling = isLevelingSubject(code, type);
         if (!isLeveling) {
             careerCredits += creditsNum;
         }
@@ -3077,9 +3099,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Create subject card HTML
     function createSubjectCard(code, name, semester, prerequisites, description, credits = 3, classroomHours = 3, studentHours = 6, type = 'profesional', isRequired = true) {
         const card = document.createElement('div');
-        card.className = `subject-card ${type} added-subject`;
+        
+        // Check if this is a leveling subject (from database or by type)
+        const isLeveling = isLevelingSubject(code, type);
+        const actualType = isLeveling ? 'nivelacion' : type;
+        
+        card.className = `subject-card ${actualType} added-subject`;
         card.dataset.subjectId = code;
-        card.dataset.type = type;
+        card.dataset.type = actualType;
         card.dataset.prerequisites = prerequisites;
         card.dataset.unlocks = '';
         card.title = description || name;

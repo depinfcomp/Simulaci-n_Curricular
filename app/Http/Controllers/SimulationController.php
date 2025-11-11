@@ -487,28 +487,59 @@ class SimulationController extends Controller
         
         foreach ($changes as $subjectCode => $changeData) {
             if ($changeData['action'] === 'added') {
+                $subjectData = [
+                    'name' => $changeData['data']['name'] ?? 'Nueva Materia',
+                    'semester' => $changeData['data']['semester'] ?? 1,
+                    'credits' => $changeData['data']['credits'] ?? 3,
+                    'classroom_hours' => $changeData['data']['classroom_hours'] ?? 3,
+                    'student_hours' => $changeData['data']['student_hours'] ?? 6,
+                    'type' => $changeData['data']['type'] ?? 'profesional',
+                    'is_required' => $changeData['data']['is_required'] ?? true,
+                    'description' => $changeData['data']['description'] ?? null,
+                ];
+                
                 // Add new subject
                 Subject::updateOrCreate(
                     ['code' => $subjectCode],
-                    [
-                        'name' => $changeData['data']['name'] ?? 'Nueva Materia',
-                        'semester' => $changeData['data']['semester'] ?? 1,
-                        'credits' => $changeData['data']['credits'] ?? 3,
-                        'classroom_hours' => $changeData['data']['classroom_hours'] ?? 3,
-                        'student_hours' => $changeData['data']['student_hours'] ?? 6,
-                        'type' => $changeData['data']['type'] ?? 'profesional',
-                        'is_required' => $changeData['data']['is_required'] ?? true,
-                        'description' => $changeData['data']['description'] ?? null,
-                    ]
+                    $subjectData
                 );
+                
+                // If it's a leveling subject, also add to leveling_subjects table
+                if (($changeData['data']['type'] ?? 'profesional') === 'nivelacion') {
+                    \App\Models\LevelingSubject::updateOrCreate(
+                        ['code' => $subjectCode],
+                        [
+                            'name' => $subjectData['name'],
+                            'credits' => $subjectData['credits'],
+                            'classroom_hours' => $subjectData['classroom_hours'],
+                            'student_hours' => $subjectData['student_hours'],
+                            'description' => $subjectData['description'],
+                        ]
+                    );
+                }
             } elseif ($changeData['action'] === 'removed') {
                 // Mark as removed or delete
                 Subject::where('code', $subjectCode)->delete();
+                // Note: We don't delete from leveling_subjects - they remain for historical records
             } elseif ($changeData['action'] === 'modified') {
                 // Update subject
                 $subject = Subject::where('code', $subjectCode)->first();
                 if ($subject) {
                     $subject->update($changeData['data']);
+                    
+                    // If it's a leveling subject, also update in leveling_subjects table
+                    if (($changeData['data']['type'] ?? $subject->type) === 'nivelacion') {
+                        \App\Models\LevelingSubject::updateOrCreate(
+                            ['code' => $subjectCode],
+                            [
+                                'name' => $changeData['data']['name'] ?? $subject->name,
+                                'credits' => $changeData['data']['credits'] ?? $subject->credits,
+                                'classroom_hours' => $changeData['data']['classroom_hours'] ?? $subject->classroom_hours,
+                                'student_hours' => $changeData['data']['student_hours'] ?? $subject->student_hours,
+                                'description' => $changeData['data']['description'] ?? $subject->description,
+                            ]
+                        );
+                    }
                 }
             }
         }

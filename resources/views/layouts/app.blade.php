@@ -61,6 +61,12 @@
                                     </a>
                                 </li>
                                 <li>
+                                    <a class="dropdown-item" href="{{ route('leveling-subjects.index') }}">
+                                        <i class="fas fa-layer-group me-2"></i>
+                                        Materias de Nivelación
+                                    </a>
+                                </li>
+                                <li>
                                     <a class="dropdown-item" href="{{ route('subject-aliases.index') }}">
                                         <i class="fas fa-code-branch me-2"></i>
                                         Alias de Materias
