@@ -374,6 +374,59 @@ document.addEventListener('DOMContentLoaded', function() {
     let careerCredits = 0;  // Credits excluding leveling subjects
     let totalCredits = 0;   // All credits including leveling
     
+    // ============================================
+    // PERSISTENT STORAGE SYSTEM (localStorage)
+    // ============================================
+    
+    const STORAGE_KEY = 'simulation_temporary_changes';
+    const CURRICULUM_ID = 'simulation'; // Fixed ID for the main simulation
+    
+    // Save changes to localStorage
+    function saveChangesToStorage() {
+        try {
+            const storageData = {
+                changes: simulationChanges,
+                timestamp: new Date().toISOString(),
+                curriculumId: CURRICULUM_ID
+            };
+            const jsonData = JSON.stringify(storageData);
+            localStorage.setItem(STORAGE_KEY, jsonData);
+        } catch (error) {
+            console.error('Error guardando cambios:', error);
+        }
+    }
+    
+    // Load changes from localStorage
+    function loadChangesFromStorage() {
+        try {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (!stored) {
+                return null;
+            }
+            
+            const storageData = JSON.parse(stored);
+            
+            // Verify it's for the same curriculum
+            if (storageData.curriculumId !== CURRICULUM_ID) {
+                return null;
+            }
+            
+            return storageData.changes;
+        } catch (error) {
+            console.error('Error cargando cambios:', error);
+            return null;
+        }
+    }
+    
+    // Clear changes from localStorage
+    function clearStoredChanges() {
+        try {
+            localStorage.removeItem(STORAGE_KEY);
+        } catch (error) {
+            console.error('Error limpiando cambios:', error);
+        }
+    }
+    
     // Initialize total credits from all visible cards
     function initializeTotalCredits() {
         careerCredits = 0;
@@ -411,6 +464,106 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize on page load
     initializeTotalCredits();
+    
+    // Restore temporary changes from localStorage
+    restoreTemporaryChanges();
+    
+    // Function to restore changes from localStorage
+    function restoreTemporaryChanges() {
+        const storedChanges = loadChangesFromStorage();
+        if (!storedChanges || storedChanges.length === 0) {
+            return;
+        }
+        
+        simulationChanges = storedChanges;
+        
+        // Apply visual changes to the DOM
+        storedChanges.forEach(change => {
+            const card = document.querySelector(`[data-subject-id="${change.subject_code}"]`);
+            
+            switch(change.type) {
+                case 'added':
+                    // Mark card as added (green border)
+                    if (card) {
+                        card.classList.add('added-subject');
+                    } else {
+                        // Card doesn't exist, need to recreate it
+                        if (change.new_value && change.new_value.semester) {
+                            const data = change.new_value;
+                            
+                            // Recreate the card
+                            const newCard = createSubjectCard(
+                                change.subject_code,
+                                data.name || change.subject_name,
+                                data.semester,
+                                Array.isArray(data.prerequisites) ? data.prerequisites.join(',') : (data.prerequisites || ''),
+                                data.description || '',
+                                data.credits || 3,
+                                data.classroomHours || 3,
+                                data.studentHours || 6,
+                                data.type || 'profesional',
+                                data.isRequired !== false
+                            );
+                            
+                            // Add to the appropriate semester
+                            const semesterColumn = document.querySelector(`[data-semester="${data.semester}"] .subject-list`);
+                            if (semesterColumn) {
+                                semesterColumn.appendChild(newCard);
+                                
+                                // Enable drag and drop
+                                enableDragAndDropForCard(newCard);
+                                
+                                // Update credits
+                                const isLeveling = isLevelingSubject(change.subject_code, data.type);
+                                totalCredits += (data.credits || 0);
+                                if (!isLeveling) {
+                                    careerCredits += (data.credits || 0);
+                                }
+                            }
+                        }
+                    }
+                    break;
+                    
+                case 'removed':
+                    // Hide the card
+                    if (card) {
+                        card.style.opacity = '0.5';
+                        card.style.pointerEvents = 'none';
+                        card.setAttribute('data-removed', 'true');
+                    }
+                    break;
+                    
+                case 'semester':
+                    // Move card to new semester
+                    if (card && change.new_value) {
+                        const newSemester = change.new_value;
+                        const semesterColumn = document.querySelector(`[data-semester="${newSemester}"] .subject-list`);
+                        if (semesterColumn) {
+                            semesterColumn.appendChild(card);
+                            card.classList.add('added-subject'); // Mark as changed
+                        }
+                    }
+                    break;
+                    
+                case 'prerequisites':
+                    // Update prerequisites display
+                    if (card) {
+                        card.classList.add('added-subject'); // Mark as changed
+                        card.dataset.prerequisites = change.new_value;
+                    }
+                    break;
+            }
+        });
+        
+        // Update credits display
+        updateCreditsDisplay();
+        
+        // Update status display
+        updateSimulationStatus();
+        
+        // Update unlocks relationships
+        updateUnlocksRelationships();
+    }
     
     // Robust modal cleanup function
     function cleanupModal(modalElement) {
@@ -807,6 +960,9 @@ document.addEventListener('DOMContentLoaded', function() {
             timestamp: new Date().toISOString()
         });
         
+        // Save to localStorage for persistence
+        saveChangesToStorage();
+        
         updateSimulationStatus();
     }
     
@@ -920,9 +1076,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // Reset simulation to original state
     window.resetSimulation = function() {
         showConfirmModal(
-            '¿Está seguro de que desea resetear todos los cambios? Esto recargará la página.',
+            '¿Está seguro de que desea resetear todos los cambios? Esto eliminará todos los cambios temporales y recargará la página.',
             function() {
-                // Simple solution: reload the page to restore original state
+                // Clear all temporary changes
+                simulationChanges = [];
+                
+                // Clear from localStorage
+                clearStoredChanges();
+                
+                // Reload the page to restore original state
                 window.location.reload();
             },
             'warning',
@@ -1663,6 +1825,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Clear array
                 simulationChanges = [];
+                
+                // Clear from localStorage
+                clearStoredChanges();
+                
                 updateSimulationStatus();
                 
                 // Close modal
@@ -2642,7 +2808,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="subjectSemester" class="form-label">Semestre *</label>
-                                            <select class="form-select" id="subjectSemester" required onchange="updatePositionSelector()">
+                                            <select class="form-select" id="subjectSemester" required>
                                                 <option value="">Seleccionar semestre</option>
                                                 <option value="1">1° Semestre</option>
                                                 <option value="2">2° Semestre</option>
@@ -2655,17 +2821,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 <option value="9">9° Semestre</option>
                                                 <option value="10">10° Semestre</option>
                                             </select>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-md-12">
-                                        <div class="mb-3">
-                                            <label for="subjectPosition" class="form-label">Posición en el Semestre</label>
-                                            <select class="form-select" id="subjectPosition">
-                                                <option value="end">Al final del semestre</option>
-                                            </select>
-                                            <div class="form-text">Seleccione dónde aparecerá la materia en el semestre</div>
                                         </div>
                                     </div>
                                 </div>
@@ -2912,40 +3067,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (chip) chip.remove();
     };
 
-    // Update position selector based on selected semester
-    window.updatePositionSelector = function() {
-        const semester = document.getElementById('subjectSemester').value;
-        const positionSelect = document.getElementById('subjectPosition');
-        
-        if (!semester) {
-            positionSelect.innerHTML = '<option value="end">Al final del semestre</option>';
-            return;
-        }
-        
-        // Get all subjects in the selected semester
-        const semesterColumn = document.querySelector(`[data-semester="${semester}"] .subject-list`);
-        if (!semesterColumn) {
-            positionSelect.innerHTML = '<option value="end">Al final del semestre</option>';
-            return;
-        }
-        
-        const subjectsInSemester = Array.from(semesterColumn.querySelectorAll('.subject-card'));
-        
-        // Build options
-        let options = '<option value="beginning">Al inicio del semestre</option>';
-        
-        subjectsInSemester.forEach((card, index) => {
-            const code = card.dataset.subjectId;
-            const nameElement = card.querySelector('.subject-name');
-            const name = nameElement ? nameElement.textContent.trim() : code;
-            options += `<option value="${code}">Después de: ${code} - ${name}</option>`;
-        });
-        
-        options += '<option value="end" selected>Al final del semestre</option>';
-        
-        positionSelect.innerHTML = options;
-    };
-
     // Keep old function for compatibility
     function showPrerequisiteHelper() {
         showPrerequisiteSelector();
@@ -3030,33 +3151,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Get position preference
-        const position = document.getElementById('subjectPosition').value;
-        
-        // Insert card based on selected position
-        if (position === 'beginning') {
-            // Insert at the beginning
-            const firstCard = semesterColumn.querySelector('.subject-card');
-            if (firstCard) {
-                semesterColumn.insertBefore(newSubjectCard, firstCard);
-            } else {
-                semesterColumn.appendChild(newSubjectCard);
-            }
-        } else if (position === 'end') {
-            // Append to the end
-            semesterColumn.appendChild(newSubjectCard);
-        } else {
-            // Insert after specific subject
-            const targetCard = semesterColumn.querySelector(`[data-subject-id="${position}"]`);
-            if (targetCard && targetCard.nextSibling) {
-                semesterColumn.insertBefore(newSubjectCard, targetCard.nextSibling);
-            } else if (targetCard) {
-                semesterColumn.appendChild(newSubjectCard);
-            } else {
-                // Fallback to end if target not found
-                semesterColumn.appendChild(newSubjectCard);
-            }
-        }
+        // Always add new subjects at the end of the semester
+        semesterColumn.appendChild(newSubjectCard);
         
         // Recalculate display_order for all cards in this semester (silent - no tracking)
         recalculateDisplayOrder(semester, false);
@@ -3079,12 +3175,17 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update unlocks relationships for existing subjects
         updateUnlocksRelationships();
 
-        // Record as simulation change
+        // Record as simulation change with ALL necessary data for recreation
         recordSimulationChange(code, 'added', {
             name: name,
             semester: semester,
             prerequisites: prerequisiteArray,
-            description: description
+            description: description,
+            credits: creditsNum,
+            classroomHours: classroomHours,
+            studentHours: studentHours,
+            type: type,
+            isRequired: isRequired
         }, null);
 
         // Close modal
@@ -3707,6 +3808,10 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                         
                         // Clear simulation changes since we just saved
                         simulationChanges = [];
+                        
+                        // Clear from localStorage
+                        clearStoredChanges();
+                        
                         updateSimulationStatus();
                         
                         // Optional: Reload page to show updated curriculum
