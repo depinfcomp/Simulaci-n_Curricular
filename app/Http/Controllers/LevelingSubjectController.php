@@ -87,12 +87,33 @@ class LevelingSubjectController extends Controller
         );
 
         try {
+            // Update the leveling subject
             $levelingSubject->update($validated);
+
+            // Check if this subject also exists in the official curriculum (subjects table)
+            $officialSubject = \App\Models\Subject::where('code', $levelingSubject->code)->first();
+            
+            if ($officialSubject) {
+                // Update the official subject as well to keep them in sync
+                $officialSubject->update([
+                    'name' => $validated['name'],
+                    'credits' => $validated['credits'],
+                    'classroom_hours' => $validated['classroom_hours'] ?? $officialSubject->classroom_hours,
+                    'student_hours' => $validated['student_hours'] ?? $officialSubject->student_hours,
+                    'description' => $validated['description'] ?? $officialSubject->description,
+                ]);
+                
+                Log::info('Synced leveling subject update to official curriculum', [
+                    'code' => $levelingSubject->code,
+                    'name' => $validated['name']
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
                 'message' => 'Materia de nivelación actualizada exitosamente',
-                'leveling' => $levelingSubject->fresh()
+                'leveling' => $levelingSubject->fresh(),
+                'synced_to_curriculum' => $officialSubject ? true : false
             ]);
         } catch (\Exception $e) {
             Log::error('Error updating leveling subject', [

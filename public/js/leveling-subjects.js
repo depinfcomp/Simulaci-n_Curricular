@@ -1,6 +1,10 @@
 // Leveling Subjects Management JavaScript
 
 let deleteLevelingId = null;
+let deleteLevelingCode = null;
+let deleteLevelingName = null;
+
+// Storage constants are defined in leveling-subjects-sync.js
 
 // Create new leveling
 document.getElementById('createForm').addEventListener('submit', async function(e) {
@@ -125,6 +129,11 @@ document.getElementById('editForm').addEventListener('submit', async function(e)
         const result = await response.json();
         
         if (result.success) {
+            // Try to update simulation if this subject exists
+            if (result.leveling) {
+                updateSimulationFromLeveling(result.leveling);
+            }
+            
             // Close modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('editModal'));
             modal.hide();
@@ -150,15 +159,20 @@ document.getElementById('editForm').addEventListener('submit', async function(e)
 });
 
 // Delete leveling - show confirmation
-function deleteLeveling(id, name) {
+function deleteLeveling(id, name, code) {
     // Check if it's a temporary subject
     if (String(id).startsWith('temp_')) {
-        const code = String(id).replace('temp_', '');
-        deleteTemporaryLeveling(code, name);
+        const subjectCode = String(id).replace('temp_', '');
+        deleteTemporaryLeveling(subjectCode, name);
         return;
     }
     
+    // For official subjects, mark as removed in localStorage (preview mode)
+    // Store the info for confirmation modal
     deleteLevelingId = id;
+    deleteLevelingCode = code;
+    deleteLevelingName = name;
+    
     document.getElementById('delete_name').textContent = name;
     
     const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
@@ -169,35 +183,28 @@ function deleteLeveling(id, name) {
 document.getElementById('confirmDelete').addEventListener('click', async function() {
     if (!deleteLevelingId) return;
     
-    try {
-        const response = await fetch(`/leveling-subjects/${deleteLevelingId}`, {
-            method: 'DELETE',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                'Accept': 'application/json'
-            }
-        });
-        
-        const result = await response.json();
-        
-        // Close delete modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
-        modal.hide();
-        
-        if (result.success) {
-            showSuccessModal('Materia eliminada', result.message);
-            
-            // Reload page after 2 seconds
-            setTimeout(() => {
-                window.location.reload();
-            }, 2000);
-        } else {
-            showErrorModal('Error', result.message || 'No se pudo eliminar la materia');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        showErrorModal('Error de conexión', 'No se pudo conectar con el servidor');
-    }
+    // Mark as removed in localStorage (preview mode)
+    markLevelingAsRemoved(deleteLevelingCode, deleteLevelingName);
+    
+    // Close delete modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
+    modal.hide();
+    
+    // Show info modal
+    showInfoModal(
+        'Materia marcada para eliminación',
+        `La materia "${deleteLevelingName}" ha sido marcada para eliminación. Los cambios serán aplicados cuando guardes la simulación.`
+    );
+    
+    // Reload page after 2 seconds to show preview
+    setTimeout(() => {
+        window.location.reload();
+    }, 2000);
+    
+    // Reset
+    deleteLevelingId = null;
+    deleteLevelingCode = null;
+    deleteLevelingName = null;
 });
 
 // Toggle active status
@@ -331,6 +338,126 @@ document.getElementById('createModal').addEventListener('hidden.bs.modal', funct
     document.getElementById('createForm').reset();
     clearErrors('create');
 });
+
+/**
+ * Mark a leveling subject as removed in localStorage (preview mode)
+ * This will be applied permanently when the user saves the simulation
+ */
+function markLevelingAsRemoved(code, name) {
+    try {
+        // Load current changes
+        const stored = localStorage.getItem(STORAGE_KEY);
+        let data = stored ? JSON.parse(stored) : {
+            changes: [],
+            timestamp: new Date().toISOString(),
+            curriculumId: CURRICULUM_ID
+        };
+        
+        // Check if already marked as removed
+        const existingIndex = data.changes.findIndex(c => 
+            c.type === 'removed' && c.subject_code === code
+        );
+        
+        if (existingIndex !== -1) {
+            // Already marked, do nothing
+            return;
+        }
+        
+        // Add removal change
+        data.changes.push({
+            type: 'removed',
+            subject_code: code,
+            subject_name: name,
+            old_value: null,
+            new_value: null,
+            timestamp: new Date().toISOString()
+        });
+        
+        data.timestamp = new Date().toISOString();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        
+        // Dispatch custom event for real-time sync
+        const removeEvent = new CustomEvent('levelingSubjectRemoved', {
+            detail: {
+                code: code,
+                name: name
+            }
+        });
+        window.dispatchEvent(removeEvent);
+        
+    } catch (error) {
+        console.error('Error marking leveling as removed:', error);
+    }
+}
+
+/**
+ * Update simulation localStorage when an official leveling subject is edited
+ * This enables bidirectional synchronization between /leveling-subjects and /simulation
+ */
+function updateSimulationFromLeveling(leveling) {
+    
+    try {
+        // First, try to update temporary changes in localStorage
+        const stored = localStorage.getItem(STORAGE_KEY);
+        let updatedLocalStorage = false;
+        
+        if (stored) {
+            const data = JSON.parse(stored);
+            
+            if (data.curriculumId === CURRICULUM_ID) {
+                let changes = data.changes || [];
+                
+                const changeIndex = changes.findIndex(c => 
+                    c.type === 'added' && 
+                    c.subject_code === leveling.code &&
+                    c.new_value?.type === 'nivelacion'
+                );
+                
+                if (changeIndex !== -1) {
+                    changes[changeIndex].new_value = {
+                        ...changes[changeIndex].new_value,
+                        name: leveling.name,
+                        credits: parseInt(leveling.credits) || 0,
+                        classroomHours: parseInt(leveling.classroom_hours) || 0,
+                        studentHours: parseInt(leveling.student_hours) || 0,
+                        description: leveling.description || '',
+                        semester: changes[changeIndex].new_value.semester,
+                        prerequisites: changes[changeIndex].new_value.prerequisites || [],
+                        type: 'nivelacion',
+                        isRequired: changes[changeIndex].new_value.isRequired
+                    };
+                    
+                    changes[changeIndex].subject_name = leveling.name;
+                    changes[changeIndex].timestamp = new Date().toISOString();
+                    
+                    data.changes = changes;
+                    data.timestamp = new Date().toISOString();
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                    
+                    updatedLocalStorage = true;
+                }
+            }
+        }
+        
+        // Dispatch custom event to update simulation view in real-time
+        const updateEvent = new CustomEvent('levelingSubjectUpdated', {
+            detail: {
+                code: leveling.code,
+                name: leveling.name,
+                credits: parseInt(leveling.credits) || 0,
+                classroomHours: parseInt(leveling.classroom_hours) || 0,
+                studentHours: parseInt(leveling.student_hours) || 0,
+                description: leveling.description || '',
+                updatedLocalStorage: updatedLocalStorage
+            }
+        });
+        
+        window.dispatchEvent(updateEvent);
+        
+    } catch (error) {
+        console.error('Error al actualizar simulación desde nivelación:', error);
+    }
+}
 
 document.getElementById('editModal').addEventListener('hidden.bs.modal', function() {
     document.getElementById('editForm').reset();

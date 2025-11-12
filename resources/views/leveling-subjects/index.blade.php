@@ -155,7 +155,7 @@
                                                     </button>
                                                     <button type="button" 
                                                             class="btn btn-sm btn-outline-danger"
-                                                            onclick="deleteLeveling({{ $leveling->id }}, '{{ $leveling->name }}')"
+                                                            onclick="deleteLeveling({{ $leveling->id }}, '{{ $leveling->name }}', '{{ $leveling->code }}')"
                                                             title="Eliminar">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
@@ -331,6 +331,6 @@
 @endpush
 
 @push('scripts')
-    <script src="{{ asset('js/leveling-subjects.js') }}?v={{ time() }}"></script>
     <script src="{{ asset('js/leveling-subjects-sync.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/leveling-subjects.js') }}?v={{ time() }}"></script>
 @endpush

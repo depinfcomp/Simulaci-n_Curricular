@@ -30,21 +30,21 @@ function loadTemporaryChanges() {
 }
 
 /**
- * Apply green borders to temporary leveling subjects in the table
+ * Apply styles to leveling subjects based on their state in localStorage
  */
 function highlightTemporarySubjects() {
     const changes = loadTemporaryChanges();
     if (!changes || changes.length === 0) return;
     
-    // Filter only 'added' changes of type 'nivelacion'
-    // The data is stored in new_value, not data
+    // Filter added leveling subjects
     const addedLevelingSubjects = changes.filter(change => 
         change.type === 'added' && 
         change.new_value && 
         change.new_value.type === 'nivelacion'
     );
     
-    if (addedLevelingSubjects.length === 0) return;
+    // Filter removed subjects
+    const removedSubjects = changes.filter(change => change.type === 'removed');
     
     // Get all table rows and track which codes exist
     const tableRows = document.querySelectorAll('tbody tr:not(.temporary-row)');
@@ -57,13 +57,24 @@ function highlightTemporarySubjects() {
         const code = codeCell.textContent.trim();
         existingCodes.add(code);
         
+        // Check if this code is marked as removed
+        const isRemoved = removedSubjects.some(change => 
+            change.subject_code === code
+        );
+        
+        if (isRemoved) {
+            // Apply removal preview styling
+            applyRemovedStyleToRow(row);
+            return;
+        }
+        
         // Check if this code matches any temporary subject
         const isTemporary = addedLevelingSubjects.some(change => 
             change.subject_code === code
         );
         
         if (isTemporary) {
-            // Apply temporary styling (same as simulation cards)
+            // Apply temporary styling (green border)
             row.classList.add('temporary-subject');
         }
     });
@@ -83,6 +94,60 @@ function highlightTemporarySubjects() {
     if (addedLevelingSubjects.length > 0) {
         showTemporaryNotification(addedLevelingSubjects.length);
     }
+}
+
+/**
+ * Apply removal preview style to a table row
+ * Style: Black border, transparent, red strikethrough on code/name
+ */
+function applyRemovedStyleToRow(row) {
+    // Overall row styling: transparent with black border
+    row.style.opacity = '0.6';
+    row.style.backgroundColor = '#f8f9fa';
+    row.style.borderLeft = '4px solid #000000';
+    row.style.border = '2px solid #000000';
+    
+    // Strike through code and name cells in RED
+    const codeCell = row.querySelector('td:first-child');
+    const nameCell = row.querySelector('td:nth-child(2)');
+    
+    if (codeCell) {
+        const codeStrong = codeCell.querySelector('strong');
+        if (codeStrong) {
+            codeStrong.style.textDecoration = 'line-through';
+            codeStrong.style.color = '#dc3545';
+            codeStrong.style.fontWeight = 'bold';
+        }
+        
+        // Add removed badge
+        if (!codeCell.querySelector('.removed-badge')) {
+            const badge = document.createElement('span');
+            badge.className = 'badge bg-danger removed-badge ms-2';
+            badge.textContent = 'ELIMINADA';
+            badge.style.fontSize = '10px';
+            codeCell.appendChild(badge);
+        }
+    }
+    
+    if (nameCell) {
+        nameCell.style.textDecoration = 'line-through';
+        nameCell.style.color = '#dc3545';
+    }
+    
+    // Gray out other cells (credits, hours, etc)
+    const otherCells = row.querySelectorAll('td:not(:first-child):not(:nth-child(2)):not(:last-child)');
+    otherCells.forEach(cell => {
+        cell.style.color = '#6c757d';
+        cell.style.opacity = '0.7';
+    });
+    
+    // Disable action buttons
+    const buttons = row.querySelectorAll('.btn');
+    buttons.forEach(btn => {
+        btn.disabled = true;
+        btn.style.pointerEvents = 'none';
+        btn.style.opacity = '0.4';
+    });
 }
 
 /**
@@ -338,6 +403,24 @@ window.addEventListener('storage', function(e) {
 });
 
 /**
+ * Listen for real-time removal events from simulation
+ * This updates the table immediately without page refresh
+ */
+window.addEventListener('levelingSubjectRemoved', function(e) {
+    const { code, name } = e.detail;
+    
+    // Find the row in the table
+    const tableRows = document.querySelectorAll('tbody tr:not(.temporary-row)');
+    tableRows.forEach(row => {
+        const codeCell = row.querySelector('td:first-child strong');
+        if (codeCell && codeCell.textContent.trim() === code) {
+            // Apply removal preview styling in real-time
+            applyRemovedStyleToRow(row);
+        }
+    });
+});
+
+/**
  * Initialize on page load
  */
 document.addEventListener('DOMContentLoaded', function() {
@@ -345,24 +428,64 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Recheck every 2 seconds for changes (in case storage event doesn't fire)
     setInterval(function() {
-        const currentHighlights = document.querySelectorAll('.temporary-subject').length;
         const changes = loadTemporaryChanges();
-        const expectedHighlights = changes ? 
-            changes.filter(c => c.type === 'added' && c.new_value?.type === 'nivelacion').length : 0;
+        if (!changes) return;
         
-        // If counts don't match, re-highlight
-        if (currentHighlights !== expectedHighlights) {
+        // Count current highlights
+        const currentAddedHighlights = document.querySelectorAll('.temporary-subject').length;
+        const currentRemovedHighlights = document.querySelectorAll('tbody tr[style*="border: 2px solid rgb(0, 0, 0)"]').length;
+        
+        // Count expected highlights
+        const expectedAdded = changes.filter(c => 
+            c.type === 'added' && c.new_value?.type === 'nivelacion'
+        ).length;
+        
+        const expectedRemoved = changes.filter(c => c.type === 'removed').length;
+        
+        // If counts don't match, re-apply all styles
+        if (currentAddedHighlights !== expectedAdded || currentRemovedHighlights !== expectedRemoved) {
+            // Remove all existing styles
             document.querySelectorAll('.temporary-subject').forEach(row => {
                 row.classList.remove('temporary-subject');
             });
+            
+            // Remove all removal styles
+            document.querySelectorAll('tbody tr').forEach(row => {
+                // Reset removal styles
+                row.style.opacity = '';
+                row.style.backgroundColor = '';
+                row.style.borderLeft = '';
+                row.style.border = '';
+                
+                // Reset cell styles
+                row.querySelectorAll('td').forEach(cell => {
+                    cell.style.textDecoration = '';
+                    cell.style.color = '';
+                    cell.style.opacity = '';
+                });
+                
+                // Re-enable buttons
+                row.querySelectorAll('.btn').forEach(btn => {
+                    btn.disabled = false;
+                    btn.style.pointerEvents = '';
+                    btn.style.opacity = '';
+                });
+                
+                // Remove badges
+                const badge = row.querySelector('.removed-badge');
+                if (badge) badge.remove();
+            });
+            
             // Remove temporary rows
             document.querySelectorAll('.temporary-row').forEach(row => {
                 row.remove();
             });
+            
             // Remove notification
             const notification = document.getElementById('temporary-notification');
             if (notification) notification.remove();
             
+            // Reapply all highlights (both added and removed)
             highlightTemporarySubjects();
         }
     }, 2000);

@@ -525,11 +525,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     break;
                     
                 case 'removed':
-                    // Hide the card
+                    // Apply removal preview style
                     if (card) {
-                        card.style.opacity = '0.5';
-                        card.style.pointerEvents = 'none';
-                        card.setAttribute('data-removed', 'true');
+                        applyRemovedStyle(card);
                     }
                     break;
                     
@@ -1093,6 +1091,123 @@ document.addEventListener('DOMContentLoaded', function() {
             'Cancelar'
         );
     };
+    
+    /**
+     * Discard temporary changes without reloading the page
+     * Removes visual indicators and restores original state
+     */
+    window.discardChanges = function() {
+        // Check if there are changes to discard
+        const meaningfulChanges = simulationChanges.filter(c => c.type !== 'display_order');
+        
+        if (meaningfulChanges.length === 0) {
+            showAlertModal('No hay cambios temporales para descartar.', 'info', 'Sin Cambios');
+            return;
+        }
+        
+        showConfirmModal(
+            `¿Desea descartar ${meaningfulChanges.length} cambio(s) temporal(es)?<br><br>` +
+            '<div class="text-start">' +
+            '<small class="text-muted">' +
+            'Esto eliminará:<br>' +
+            `• ${simulationChanges.filter(c => c.type === 'added').length} materia(s) agregada(s)<br>` +
+            `• ${simulationChanges.filter(c => c.type === 'removed').length} materia(s) marcada(s) para eliminar<br>` +
+            `• ${simulationChanges.filter(c => c.type === 'semester').length} cambio(s) de semestre<br>` +
+            `• ${simulationChanges.filter(c => c.type === 'prerequisites').length} cambio(s) de prerrequisitos<br>` +
+            '</small>' +
+            '</div><br>' +
+            '<strong>Los cambios se descartarán sin recargar la página.</strong>',
+            function() {
+                discardChangesWithoutReload();
+            },
+            'warning',
+            'Descartar Cambios Temporales',
+            '<i class="fas fa-times-circle me-2"></i>Sí, descartar',
+            'Cancelar'
+        );
+    };
+    
+    /**
+     * Actually discard the changes without page reload
+     */
+    function discardChangesWithoutReload() {
+        const changesCopy = [...simulationChanges];
+        
+        // Process each change in reverse to undo them
+        changesCopy.forEach(change => {
+            const card = document.querySelector(`[data-subject-id="${change.subject_code}"]`);
+            
+            switch(change.type) {
+                case 'added':
+                    // Remove added subjects
+                    if (card) {
+                        card.remove();
+                    }
+                    break;
+                    
+                case 'removed':
+                    // Restore removed subjects (remove visual mark)
+                    if (card) {
+                        card.style.opacity = '1';
+                        card.style.pointerEvents = 'auto';
+                        card.dataset.removed = 'false';
+                        card.classList.remove('removed-subject');
+                    }
+                    break;
+                    
+                case 'semester':
+                    // Move back to original semester
+                    if (card && originalCurriculum[change.subject_code]) {
+                        const originalSemester = originalCurriculum[change.subject_code].semester;
+                        const targetColumn = document.querySelector(`[data-semester="${originalSemester}"] .subject-list`);
+                        if (targetColumn) {
+                            targetColumn.appendChild(card);
+                            card.classList.remove('moved-subject');
+                            
+                            // Update semester badge
+                            const semesterBadge = card.querySelector('.semester-badge');
+                            if (semesterBadge) {
+                                semesterBadge.textContent = `Semestre ${originalSemester}`;
+                            }
+                        }
+                    }
+                    break;
+                    
+                case 'prerequisites':
+                    // Restore original prerequisites
+                    if (card && originalCurriculum[change.subject_code]) {
+                        const originalPrereqs = originalCurriculum[change.subject_code].prerequisites || [];
+                        card.dataset.prerequisites = originalPrereqs.join(',');
+                        card.classList.remove('prereqs-changed');
+                    }
+                    break;
+            }
+        });
+        
+        // Clear changes array
+        simulationChanges = [];
+        
+        // Clear from localStorage
+        clearStoredChanges();
+        
+        // Update status display
+        updateSimulationStatus();
+        
+        // Recalculate credits
+        initializeTotalCredits();
+        updateCreditsDisplay();
+        
+        // Update relationships
+        updateUnlocksRelationships();
+        
+        // Show success message
+        showAlertModal(
+            'Todos los cambios temporales han sido descartados exitosamente.<br><br>' +
+            '<small class="text-muted">La simulación ha vuelto a su estado original.</small>',
+            'success',
+            'Cambios Descartados'
+        );
+    }
     
     // Reset using original order from materias.txt
     function resetToOriginalOrder() {
@@ -2318,25 +2433,28 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        // Remove subject from DOM
+        // Find subject card
         const card = document.querySelector(`[data-subject-id="${subjectId}"]`);
         if (card) {
-            // Add visual feedback
-            card.style.opacity = '0.5';
-            card.style.border = '2px solid red';
+            const subjectName = card.querySelector('.subject-name')?.textContent || subjectId;
+            const subjectType = card.dataset.type;
             
-            // Register as deleted change
-            simulationChanges.push({
-                type: 'deleted',
-                subjectId: subjectId,
-                subjectName: card.querySelector('.subject-name').textContent,
-                semester: card.closest('.semester-column').dataset.semester,
-                timestamp: new Date().toISOString()
-            });
+            // Apply removal preview style
+            applyRemovedStyle(card);
             
-            // Mark card as deleted
-            card.dataset.deleted = 'true';
-            card.style.textDecoration = 'line-through';
+            // Register as removed change (parameters: subjectId, changeType, newValue, oldValue)
+            recordSimulationChange(subjectId, 'removed', null, null);
+            
+            // If it's a leveling subject, dispatch event for real-time sync
+            if (subjectType === 'nivelacion' || isLevelingSubject(subjectId, subjectType)) {
+                const removeEvent = new CustomEvent('levelingSubjectRemoved', {
+                    detail: {
+                        code: subjectId,
+                        name: subjectName
+                    }
+                });
+                window.dispatchEvent(removeEvent);
+            }
             
             // Update simulation status
             updateSimulationStatus();
@@ -4074,4 +4192,190 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
 
     // Initialize simulation when page loads
     initializeSimulation();
+    
+    // ============================================
+    // BIDIRECTIONAL SYNC: Listen for changes from other sources
+    // ============================================
+    
+    /**
+     * Listen for custom events from leveling-subjects module
+     * This enables real-time synchronization when editing from /leveling-subjects
+     */
+    window.addEventListener('levelingSubjectUpdated', function(e) {
+        const { code, name, credits, classroomHours, studentHours, description, updatedLocalStorage } = e.detail;
+        
+        // Find the card in the DOM (works for both official and temporary subjects)
+        const card = document.querySelector(`[data-subject-id="${code}"]`);
+        
+        if (card) {
+            // Update name
+            const nameElement = card.querySelector('.subject-name');
+            if (nameElement) {
+                nameElement.textContent = name;
+            }
+            
+            // Update title/description
+            card.title = description || name;
+            
+            // Update credits and hours (info-values in header)
+            const infoValues = card.querySelectorAll('.subject-card-header .info-value');
+            if (infoValues.length >= 3) {
+                infoValues[0].textContent = credits;
+                infoValues[1].textContent = classroomHours;
+                infoValues[2].textContent = studentHours;
+            }
+            
+            // Recalculate credits display
+            updateCreditsDisplay();
+        }
+        
+        // If localStorage was updated, also reload the changes array
+        if (updatedLocalStorage) {
+            const updatedChanges = loadChangesFromStorage();
+            if (updatedChanges) {
+                simulationChanges = updatedChanges;
+            }
+        }
+    });
+    
+    /**
+     * Listen for leveling subject removal events
+     * This enables real-time removal preview when deleting from /leveling-subjects
+     */
+    window.addEventListener('levelingSubjectRemoved', function(e) {
+        const { code, name } = e.detail;
+        
+        // Find the card in the DOM
+        const card = document.querySelector(`[data-subject-id="${code}"]`);
+        
+        if (card) {
+            // Apply removal preview styles
+            applyRemovedStyle(card);
+            
+            // Add to simulationChanges array
+            const existingIndex = simulationChanges.findIndex(c => 
+                c.type === 'removed' && c.subject_code === code
+            );
+            
+            if (existingIndex === -1) {
+                simulationChanges.push({
+                    type: 'removed',
+                    subject_code: code,
+                    subject_name: name,
+                    old_value: null,
+                    new_value: null,
+                    timestamp: new Date().toISOString()
+                });
+            }
+            
+            // Update simulation status
+            updateSimulationStatus();
+        }
+    });
+    
+    /**
+     * Listen for localStorage changes from other tabs (cross-tab sync)
+     * This enables synchronization across different browser tabs
+     */
+    window.addEventListener('storage', function(e) {
+        if (e.key === STORAGE_KEY) {
+            // Reload changes and update the simulation view
+            const updatedChanges = loadChangesFromStorage();
+            if (!updatedChanges) return;
+            
+            simulationChanges = updatedChanges;
+            
+            // Update only the affected cards (don't reload the whole page)
+            updatedChanges.forEach(change => {
+                const card = document.querySelector(`[data-subject-id="${change.subject_code}"]`);
+                
+                if (change.type === 'added' && card) {
+                    // Update card content with new data
+                    const data = change.new_value;
+                    if (data) {
+                        updateCardFromData(card, data);
+                    }
+                }
+            });
+            
+            // Update simulation status display
+            updateSimulationStatus();
+        }
+    });
+    
+    /**
+     * Update a subject card with new data from localStorage
+     */
+    function updateCardFromData(card, data) {
+        // Update name
+        const nameElement = card.querySelector('.subject-name');
+        if (nameElement && data.name) {
+            nameElement.textContent = data.name;
+        }
+        
+        // Update title/description
+        if (data.description) {
+            card.title = data.description;
+        }
+        
+        // Update credits (first info-value in header)
+        const infoValues = card.querySelectorAll('.subject-card-header .info-value');
+        if (infoValues.length >= 3) {
+            if (data.credits !== undefined) {
+                infoValues[0].textContent = data.credits;
+            }
+            if (data.classroomHours !== undefined) {
+                infoValues[1].textContent = data.classroomHours;
+            }
+            if (data.studentHours !== undefined) {
+                infoValues[2].textContent = data.studentHours;
+            }
+        }
+        
+        // Recalculate credits display
+        updateCreditsDisplay();
+    }
+    
+    /**
+     * Apply removal preview style to a subject card
+     * This shows the user that the subject is marked for deletion
+     */
+    function applyRemovedStyle(card) {
+        // Set opacity and disable interactions
+        card.style.opacity = '0.5';
+        card.style.pointerEvents = 'none';
+        card.setAttribute('data-removed', 'true');
+        
+        // Add red border
+        card.style.border = '2px solid #dc3545';
+        card.style.boxShadow = '0 0 10px rgba(220, 53, 69, 0.3)';
+        
+        // Strike through the name
+        const nameElement = card.querySelector('.subject-name');
+        if (nameElement) {
+            nameElement.style.textDecoration = 'line-through';
+            nameElement.style.color = '#dc3545';
+        }
+        
+        // Add removed badge if not exists
+        if (!card.querySelector('.removed-badge')) {
+            const badge = document.createElement('div');
+            badge.className = 'removed-badge';
+            badge.style.cssText = `
+                position: absolute;
+                top: 5px;
+                right: 5px;
+                background: #dc3545;
+                color: white;
+                padding: 2px 8px;
+                border-radius: 3px;
+                font-size: 10px;
+                font-weight: bold;
+                z-index: 10;
+            `;
+            badge.textContent = 'ELIMINADA';
+            card.style.position = 'relative';
+            card.appendChild(badge);
+        }
+    }
 });
