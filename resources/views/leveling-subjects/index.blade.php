@@ -324,17 +324,13 @@
     </div>
 </div>
 
-<style>
-.bg-pink {
-    background-color: #ff69b4 !important;
-}
-.text-pink {
-    color: #ff69b4 !important;
-}
-</style>
-
 @endsection
+
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('css/leveling-subjects.css') }}?v={{ time() }}">
+@endpush
 
 @push('scripts')
     <script src="{{ asset('js/leveling-subjects.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/leveling-subjects-sync.js') }}?v={{ time() }}"></script>
 @endpush

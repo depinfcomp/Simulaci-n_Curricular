@@ -52,6 +52,13 @@ document.getElementById('createForm').addEventListener('submit', async function(
 
 // Edit leveling
 async function editLeveling(id) {
+    // Check if it's a temporary subject
+    if (String(id).startsWith('temp_')) {
+        const code = String(id).replace('temp_', '');
+        editTemporaryLeveling(code);
+        return;
+    }
+    
     try {
         const response = await fetch(`/leveling-subjects/${id}`, {
             headers: {
@@ -144,6 +151,13 @@ document.getElementById('editForm').addEventListener('submit', async function(e)
 
 // Delete leveling - show confirmation
 function deleteLeveling(id, name) {
+    // Check if it's a temporary subject
+    if (String(id).startsWith('temp_')) {
+        const code = String(id).replace('temp_', '');
+        deleteTemporaryLeveling(code, name);
+        return;
+    }
+    
     deleteLevelingId = id;
     document.getElementById('delete_name').textContent = name;
     
