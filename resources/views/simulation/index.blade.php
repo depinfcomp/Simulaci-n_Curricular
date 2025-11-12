@@ -449,23 +449,25 @@
         }
 
         .drag-placeholder {
-            height: 100px;
-            margin: 8px 0;
+            width: 100px;
+            height: 90px;
+            margin: 1px;
             background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
             border: 2px dashed #2196f3;
-            border-radius: 8px;
+            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: #1976d2;
-            font-weight: 500;
+            font-weight: 600;
             transition: all 0.2s ease;
             box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
         }
 
         .drag-placeholder::before {
             content: "Soltar aquí";
-            font-size: 14px;
+            font-size: 10px;
+            text-align: center;
             animation: pulse 1.5s ease infinite;
         }
 

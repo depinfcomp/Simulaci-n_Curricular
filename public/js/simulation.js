@@ -533,12 +533,46 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                 case 'semester':
                     // Move card to new semester
-                    if (card && change.new_value) {
+                    if (card && change.new_value && change.old_value) {
                         const newSemester = change.new_value;
-                        const semesterColumn = document.querySelector(`[data-semester="${newSemester}"] .subject-list`);
-                        if (semesterColumn) {
-                            semesterColumn.appendChild(card);
-                            card.classList.add('added-subject'); // Mark as changed
+                        const oldSemester = change.old_value;
+                        
+                        const newSemesterColumn = document.querySelector(`[data-semester="${newSemester}"] .subject-list`);
+                        const oldSemesterColumn = document.querySelector(`[data-semester="${oldSemester}"] .subject-list`);
+                        
+                        if (newSemesterColumn) {
+                            // Move card to new location
+                            newSemesterColumn.appendChild(card);
+                            card.classList.add('moved-subject'); // Mark as moved to different semester
+                            
+                            // Create ghost copy in original location
+                            if (oldSemesterColumn) {
+                                const subjectCode = change.subject_code;
+                                
+                                // Remove any existing ghost for this subject
+                                const existingGhost = oldSemesterColumn.querySelector(`[data-ghost-of="${subjectCode}"]`);
+                                if (existingGhost) {
+                                    existingGhost.remove();
+                                }
+                                
+                                // Clone the card to create a ghost
+                                const ghostCard = card.cloneNode(true);
+                                ghostCard.classList.add('moved-ghost');
+                                ghostCard.classList.remove('moved-subject'); // Remove blue style from ghost
+                                ghostCard.dataset.ghostOf = subjectCode; // Mark as ghost
+                                ghostCard.draggable = false; // Can't drag the ghost
+                                
+                                // Make the semester badge semi-transparent
+                                const ghostBadge = ghostCard.querySelector('.semester-badge');
+                                if (ghostBadge) {
+                                    ghostBadge.style.opacity = '0.3';
+                                    // Keep original semester number in ghost
+                                    ghostBadge.textContent = `Semestre ${oldSemester}`;
+                                }
+                                
+                                // Insert the ghost in old location
+                                oldSemesterColumn.appendChild(ghostCard);
+                            }
                         }
                     }
                     break;
@@ -548,6 +582,41 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (card) {
                         card.classList.add('added-subject'); // Mark as changed
                         card.dataset.prerequisites = change.new_value;
+                    }
+                    break;
+                    
+                case 'edit':
+                    // Subject was edited (name, credits, hours, etc.)
+                    if (card && change.new_value) {
+                        const data = change.new_value;
+                        
+                        // Update card UI with edited values
+                        if (data.name) {
+                            const nameElement = card.querySelector('.subject-name');
+                            if (nameElement) nameElement.textContent = data.name;
+                        }
+                        
+                        if (data.credits) {
+                            const creditsElement = card.querySelector('.subject-card-header .info-box:nth-child(1) .info-value');
+                            if (creditsElement) creditsElement.textContent = data.credits;
+                        }
+                        
+                        if (data.classroom_hours !== undefined) {
+                            const classroomElement = card.querySelector('.subject-card-header .info-box:nth-child(2) .info-value');
+                            if (classroomElement) classroomElement.textContent = data.classroom_hours;
+                        }
+                        
+                        if (data.student_hours !== undefined) {
+                            const studentElement = card.querySelector('.subject-card-header .info-box:nth-child(3) .info-value');
+                            if (studentElement) studentElement.textContent = data.student_hours;
+                        }
+                        
+                        if (data.description !== undefined) {
+                            card.title = data.description;
+                        }
+                        
+                        // Mark as edited
+                        card.classList.add('edited-subject');
                     }
                     break;
             }
@@ -889,9 +958,27 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Move subject to new semester
     function moveSubjectToSemester(card, newColumn, newSemester) {
+        console.log('=== moveSubjectToSemester CALLED ===');
+        console.log('Card:', card.dataset.subjectId);
+        console.log('New Semester:', newSemester);
+        
+        // Get the original column (before moving)
+        const oldColumn = card.closest('.semester-column');
+        console.log('Old Column:', oldColumn ? oldColumn.dataset.semester : 'null');
+        
+        // Get the original semester from the column data attribute (more reliable than badge)
+        const oldSemester = oldColumn ? parseInt(oldColumn.dataset.semester) : null;
+        console.log('Old Semester (from column):', oldSemester);
+        
+        // Save original position BEFORE moving the card
+        const oldSubjectList = oldColumn ? oldColumn.querySelector('.subject-list') : null;
+        const originalPosition = oldSubjectList ? Array.from(oldSubjectList.children).indexOf(card) : -1;
+        console.log('Original Position:', originalPosition);
+        
         const subjectList = newColumn.querySelector('.subject-list');
         const targetCard = window.tempMoveTargetCard;
         
+        // Move the actual card to new location FIRST
         if (targetCard && targetCard !== card) {
             // Insert before the target card
             subjectList.insertBefore(card, targetCard);
@@ -899,6 +986,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Append to end
             subjectList.appendChild(card);
         }
+        
+        console.log('Card moved to new location');
         
         // Clean up temp variable
         delete window.tempMoveTargetCard;
@@ -909,9 +998,79 @@ document.addEventListener('DOMContentLoaded', function() {
             semesterBadge.textContent = `Semestre ${newSemester}`;
         }
         
+        // Add visual indicator for moved subject (blue style)
+        card.classList.add('moved-subject');
+        console.log('Added moved-subject class');
+        
+        // Create a ghost copy in the original location (AFTER moving the card)
+        if (oldColumn && oldColumn !== newColumn && oldSemester && oldSubjectList) {
+            const subjectCode = card.dataset.subjectId;
+            
+            console.log('=== CREATING GHOST ===');
+            console.log('Subject Code:', subjectCode);
+            console.log('Original Position:', originalPosition);
+            console.log('Old Column !== New Column:', oldColumn !== newColumn);
+            
+            // Remove any existing ghost for this subject in the old location
+            const existingGhost = oldColumn.querySelector(`[data-ghost-of="${subjectCode}"]`);
+            if (existingGhost) {
+                console.log('Removing existing ghost');
+                existingGhost.remove();
+            }
+            
+            // Clone the card to create a ghost (clone from the moved card)
+            const ghostCard = card.cloneNode(true);
+            
+            // Remove all IDs to avoid conflicts
+            ghostCard.removeAttribute('id');
+            ghostCard.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+            
+            // Add ghost styling
+            ghostCard.classList.add('moved-ghost');
+            ghostCard.classList.remove('moved-subject'); // Remove the blue style from ghost
+            ghostCard.classList.remove('dragging'); // Remove any drag state
+            
+            // Mark as ghost
+            ghostCard.dataset.ghostOf = subjectCode;
+            
+            // Disable drag and drop on ghost
+            ghostCard.draggable = false;
+            ghostCard.removeAttribute('draggable');
+            
+            // Remove all event listeners by replacing with clone (this removes attached listeners)
+            const cleanGhost = ghostCard.cloneNode(true);
+            
+            // Restore original semester badge in ghost
+            const ghostBadge = cleanGhost.querySelector('.semester-badge');
+            if (ghostBadge) {
+                ghostBadge.textContent = `Semestre ${oldSemester}`;
+                ghostBadge.style.opacity = '0.3';
+            }
+            
+            // Insert the ghost at the original position
+            if (originalPosition >= 0 && originalPosition < oldSubjectList.children.length) {
+                oldSubjectList.insertBefore(cleanGhost, oldSubjectList.children[originalPosition]);
+                console.log('✅ Ghost inserted at position:', originalPosition);
+            } else {
+                // If position not found, append to end
+                oldSubjectList.appendChild(cleanGhost);
+                console.log('✅ Ghost appended to end');
+            }
+            
+            console.log('=== GHOST CREATED SUCCESSFULLY ===');
+        } else {
+            console.log('❌ Ghost NOT created. Conditions:');
+            console.log('  oldColumn:', !!oldColumn);
+            console.log('  oldColumn !== newColumn:', oldColumn !== newColumn);
+            console.log('  oldSemester:', oldSemester);
+            console.log('  oldSubjectList:', !!oldSubjectList);
+        }
+        
         // Recalculate display_order for the new semester WITHOUT tracking
         // (moving between semesters is already tracked as 'semester' change)
         recalculateDisplayOrder(newSemester, false);
+        
+        console.log('=== moveSubjectToSemester COMPLETED ===');
     }
     
     // Recalculate display_order for all subjects in a semester
@@ -1920,10 +2079,16 @@ document.addEventListener('DOMContentLoaded', function() {
                             const subjectList = originalColumn?.querySelector('.subject-list');
                             if (subjectList) {
                                 subjectList.appendChild(card);
-                                card.classList.remove('moved');
+                                card.classList.remove('moved-subject');
                                 const semesterBadge = card.querySelector('.semester-badge');
                                 if (semesterBadge) {
                                     semesterBadge.textContent = `Semestre ${change.old_value}`;
+                                }
+                                
+                                // Remove the ghost copy
+                                const ghost = document.querySelector(`[data-ghost-of="${change.subject_code}"]`);
+                                if (ghost) {
+                                    ghost.remove();
                                 }
                             }
                         }
@@ -2262,7 +2427,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const subjectId = card.dataset.subjectId;
         const subjectName = card.querySelector('.subject-name').textContent;
         
-        // Create context menu
+        // Create context menu with initial positioning
         const menuHtml = `
             <div id="subjectContextMenu" class="context-menu" style="position: fixed; top: ${event.clientY}px; left: ${event.clientX}px; z-index: 9999;">
                 <div class="list-group shadow-lg" style="min-width: 200px;">
@@ -2286,6 +2451,37 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         
         document.body.insertAdjacentHTML('beforeend', menuHtml);
+        
+        // Adjust position if menu would overflow screen edges
+        const menu = document.getElementById('subjectContextMenu');
+        const menuRect = menu.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        let left = event.clientX;
+        let top = event.clientY;
+        
+        // Check if menu overflows right edge - flip to left
+        if (left + menuRect.width > viewportWidth) {
+            left = event.clientX - menuRect.width;
+            // Ensure it doesn't go off the left edge either
+            if (left < 0) {
+                left = 0;
+            }
+        }
+        
+        // Check if menu overflows bottom edge - flip to top
+        if (top + menuRect.height > viewportHeight) {
+            top = event.clientY - menuRect.height;
+            // Ensure it doesn't go off the top edge either
+            if (top < 0) {
+                top = 0;
+            }
+        }
+        
+        // Apply adjusted position
+        menu.style.left = `${left}px`;
+        menu.style.top = `${top}px`;
         
         // Close menu when clicking outside
         setTimeout(() => {
@@ -4425,6 +4621,9 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                 infoValues[2].textContent = studentHours;
             }
             
+            // Add visual indicator for edited leveling subject
+            card.classList.add('edited-subject');
+            
             // Recalculate credits display
             updateCreditsDisplay();
         }
@@ -4436,6 +4635,9 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                 simulationChanges = updatedChanges;
             }
         }
+        
+        // Update simulation status to reflect the change
+        updateSimulationStatus();
     });
     
     /**
