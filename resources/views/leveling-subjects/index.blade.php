@@ -123,7 +123,7 @@
                                 </thead>
                                 <tbody>
                                     @foreach($levelingSubjects as $leveling)
-                                        <tr>
+                                        <tr data-leveling-code="{{ $leveling->code }}" data-leveling-id="{{ $leveling->id }}">
                                             <td class="text-center">
                                                 <strong>{{ $leveling->code }}</strong>
                                                 @if($leveling->is_in_official_curriculum)
@@ -132,19 +132,19 @@
                                                     </span>
                                                 @endif
                                             </td>
-                                            <td>
+                                            <td class="leveling-name-cell">
                                                 <div>
-                                                    {{ $leveling->name }}
+                                                    <span class="leveling-name">{{ $leveling->name }}</span>
                                                     @if($leveling->description)
-                                                        <br><small class="text-muted">{{ Str::limit($leveling->description, 60) }}</small>
+                                                        <br><small class="text-muted leveling-description">{{ Str::limit($leveling->description, 60) }}</small>
                                                     @endif
                                                 </div>
                                             </td>
                                             <td class="text-center">
-                                                <span class="badge bg-info">{{ $leveling->credits }}</span>
+                                                <span class="badge bg-info leveling-credits">{{ $leveling->credits }}</span>
                                             </td>
-                                            <td class="text-center">{{ $leveling->classroom_hours }}h</td>
-                                            <td class="text-center">{{ $leveling->student_hours }}h</td>
+                                            <td class="text-center leveling-classroom-hours">{{ $leveling->classroom_hours }}h</td>
+                                            <td class="text-center leveling-student-hours">{{ $leveling->student_hours }}h</td>
                                             <td class="text-center">
                                                 <div class="btn-group" role="group">
                                                     <button type="button" 

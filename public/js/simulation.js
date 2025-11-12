@@ -958,22 +958,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Move subject to new semester
     function moveSubjectToSemester(card, newColumn, newSemester) {
-        console.log('=== moveSubjectToSemester CALLED ===');
-        console.log('Card:', card.dataset.subjectId);
-        console.log('New Semester:', newSemester);
-        
         // Get the original column (before moving)
         const oldColumn = card.closest('.semester-column');
-        console.log('Old Column:', oldColumn ? oldColumn.dataset.semester : 'null');
         
         // Get the original semester from the column data attribute (more reliable than badge)
         const oldSemester = oldColumn ? parseInt(oldColumn.dataset.semester) : null;
-        console.log('Old Semester (from column):', oldSemester);
         
         // Save original position BEFORE moving the card
         const oldSubjectList = oldColumn ? oldColumn.querySelector('.subject-list') : null;
         const originalPosition = oldSubjectList ? Array.from(oldSubjectList.children).indexOf(card) : -1;
-        console.log('Original Position:', originalPosition);
         
         const subjectList = newColumn.querySelector('.subject-list');
         const targetCard = window.tempMoveTargetCard;
@@ -987,8 +980,6 @@ document.addEventListener('DOMContentLoaded', function() {
             subjectList.appendChild(card);
         }
         
-        console.log('Card moved to new location');
-        
         // Clean up temp variable
         delete window.tempMoveTargetCard;
         
@@ -1000,21 +991,14 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Add visual indicator for moved subject (blue style)
         card.classList.add('moved-subject');
-        console.log('Added moved-subject class');
         
         // Create a ghost copy in the original location (AFTER moving the card)
         if (oldColumn && oldColumn !== newColumn && oldSemester && oldSubjectList) {
             const subjectCode = card.dataset.subjectId;
             
-            console.log('=== CREATING GHOST ===');
-            console.log('Subject Code:', subjectCode);
-            console.log('Original Position:', originalPosition);
-            console.log('Old Column !== New Column:', oldColumn !== newColumn);
-            
             // Remove any existing ghost for this subject in the old location
             const existingGhost = oldColumn.querySelector(`[data-ghost-of="${subjectCode}"]`);
             if (existingGhost) {
-                console.log('Removing existing ghost');
                 existingGhost.remove();
             }
             
@@ -1050,27 +1034,15 @@ document.addEventListener('DOMContentLoaded', function() {
             // Insert the ghost at the original position
             if (originalPosition >= 0 && originalPosition < oldSubjectList.children.length) {
                 oldSubjectList.insertBefore(cleanGhost, oldSubjectList.children[originalPosition]);
-                console.log('✅ Ghost inserted at position:', originalPosition);
             } else {
                 // If position not found, append to end
                 oldSubjectList.appendChild(cleanGhost);
-                console.log('✅ Ghost appended to end');
             }
-            
-            console.log('=== GHOST CREATED SUCCESSFULLY ===');
-        } else {
-            console.log('❌ Ghost NOT created. Conditions:');
-            console.log('  oldColumn:', !!oldColumn);
-            console.log('  oldColumn !== newColumn:', oldColumn !== newColumn);
-            console.log('  oldSemester:', oldSemester);
-            console.log('  oldSubjectList:', !!oldSubjectList);
         }
         
         // Recalculate display_order for the new semester WITHOUT tracking
         // (moving between semesters is already tracked as 'semester' change)
         recalculateDisplayOrder(newSemester, false);
-        
-        console.log('=== moveSubjectToSemester COMPLETED ===');
     }
     
     // Recalculate display_order for all subjects in a semester
@@ -2100,13 +2072,19 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (card) {
                             card.dataset.prerequisites = change.old_value;
                         }
+                    } else if (change.type === 'edit') {
+                        // Remove edited styling
+                        const card = document.querySelector(`[data-subject-id="${change.subject_code}"]`);
+                        if (card) {
+                            card.classList.remove('edited-subject');
+                        }
                     }
                 });
                 
                 // Clear array
                 simulationChanges = [];
                 
-                // Clear from localStorage
+                // Clear from localStorage (this will trigger storage event in other tabs)
                 clearStoredChanges();
                 
                 updateSimulationStatus();
@@ -4681,6 +4659,8 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
      */
     window.addEventListener('storage', function(e) {
         if (e.key === STORAGE_KEY) {
+            console.log('Storage change detected in simulation.js');
+            
             // Reload changes and update the simulation view
             const updatedChanges = loadChangesFromStorage();
             if (!updatedChanges) return;
@@ -4697,6 +4677,29 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                     if (data) {
                         updateCardFromData(card, data);
                     }
+                } else if (change.type === 'edit' && card) {
+                    console.log('Applying edit style to card:', change.subject_code);
+                    // Apply yellow styling for edits from leveling-subjects page
+                    card.classList.add('edited-subject');
+                    
+                    // Update card content if new_value exists
+                    if (change.new_value) {
+                        const nameEl = card.querySelector('.subject-name');
+                        const creditsEl = card.querySelector('.subject-credits');
+                        
+                        if (nameEl) nameEl.textContent = change.new_value.name;
+                        if (creditsEl) creditsEl.textContent = `${change.new_value.credits} créditos`;
+                        
+                        // Update tooltip/title if it exists
+                        const tooltipTitle = card.querySelector('[title]');
+                        if (tooltipTitle && change.new_value.name) {
+                            tooltipTitle.setAttribute('title', change.new_value.name);
+                        }
+                    }
+                } else if (change.type === 'removed' && card) {
+                    console.log('Applying removed style to card:', change.subject_code);
+                    // Apply red styling for deletions from leveling-subjects page
+                    applyRemovedStyle(card);
                 }
             });
             

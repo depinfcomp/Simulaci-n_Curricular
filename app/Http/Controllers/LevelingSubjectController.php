@@ -130,6 +130,66 @@ class LevelingSubjectController extends Controller
     }
 
     /**
+     * Update leveling subject by code (for simulation edits)
+     */
+    public function updateByCode(Request $request, $code)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'credits' => 'required|integer|min:1|max:20',
+            'classroom_hours' => 'nullable|integer|min:0|max:20',
+            'student_hours' => 'nullable|integer|min:0|max:30',
+            'description' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            // Find leveling subject by code
+            $levelingSubject = LevelingSubject::where('code', $code)->first();
+
+            if (!$levelingSubject) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Materia de nivelación no encontrada'
+                ], 404);
+            }
+
+            // Update the leveling subject
+            $levelingSubject->update($validated);
+
+            // Check if this subject also exists in the official curriculum (subjects table)
+            $officialSubject = \App\Models\Subject::where('code', $code)->first();
+            
+            if ($officialSubject) {
+                // Update the official subject as well to keep them in sync
+                $officialSubject->update([
+                    'name' => $validated['name'],
+                    'credits' => $validated['credits'],
+                    'classroom_hours' => $validated['classroom_hours'] ?? $officialSubject->classroom_hours,
+                    'student_hours' => $validated['student_hours'] ?? $officialSubject->student_hours,
+                    'description' => $validated['description'] ?? $officialSubject->description,
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Materia de nivelación actualizada exitosamente',
+                'leveling' => $levelingSubject->fresh()
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error updating leveling subject by code', [
+                'error' => $e->getMessage(),
+                'code' => $code,
+                'data' => $validated
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar la materia de nivelación: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Remove the specified leveling subject from storage.
      */
     public function destroy(LevelingSubject $levelingSubject)

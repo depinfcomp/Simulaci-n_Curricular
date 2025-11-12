@@ -109,6 +109,7 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         Route::post('/', [LevelingSubjectController::class, 'store'])->name('store');
         Route::get('/{levelingSubject}', [LevelingSubjectController::class, 'show'])->name('show');
         Route::put('/{levelingSubject}', [LevelingSubjectController::class, 'update'])->name('update');
+        Route::put('/update-by-code/{code}', [LevelingSubjectController::class, 'updateByCode'])->name('update-by-code');
         Route::delete('/{levelingSubject}', [LevelingSubjectController::class, 'destroy'])->name('destroy');
     });
 
