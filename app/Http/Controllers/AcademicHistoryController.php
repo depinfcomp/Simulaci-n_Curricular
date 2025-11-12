@@ -563,7 +563,6 @@ class AcademicHistoryController extends Controller
                     $data = [
                         'import_id' => $import->id,
                         'student_code' => $rowData[$mapping['student_code']] ?? null,
-                        'student_name' => $rowData[$mapping['student_name']] ?? null,
                         'subject_code' => $rowData[$mapping['subject_code']] ?? null,
                         'subject_name' => $rowData[$mapping['subject_name']] ?? null,
                         'grade' => $rowData[$mapping['grade'] ?? -1] ?? null,
@@ -667,12 +666,11 @@ class AcademicHistoryController extends Controller
             $histories = $import->histories()->get();
             
             // Create CSV content
-            $csv = "Código Estudiante,Nombre Estudiante,Código Materia,Nombre Materia,Nota,Créditos,Período,Estado\n";
+            $csv = "Código Estudiante,Código Materia,Nombre Materia,Nota,Créditos,Período,Estado\n";
             
             foreach ($histories as $history) {
                 $csv .= implode(',', [
                     $history->student_code,
-                    '"' . $history->student_name . '"',
                     $history->subject_code,
                     '"' . $history->subject_name . '"',
                     $history->grade,
