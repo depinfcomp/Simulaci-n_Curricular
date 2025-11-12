@@ -466,8 +466,25 @@ function generateStudentsTab(results) {
     }
 
     let html = `
+        <div class="mb-3">
+            <div class="input-group">
+                <span class="input-group-text">
+                    <i class="fas fa-search"></i>
+                </span>
+                <input type="text" class="form-control" id="studentSearchInput" 
+                       placeholder="Buscar por documento de estudiante..." 
+                       onkeyup="filterStudentTable()">
+                <button class="btn btn-outline-secondary" type="button" onclick="clearStudentSearch()">
+                    <i class="fas fa-times"></i> Limpiar
+                </button>
+            </div>
+            <small class="text-muted">
+                <i class="fas fa-info-circle me-1"></i>
+                Se encontraron <span id="studentCount">${results.student_details.length}</span> estudiantes
+            </small>
+        </div>
         <div class="table-responsive">
-            <table class="table table-striped">
+            <table class="table table-striped" id="studentsImpactTable">
                 <thead>
                     <tr>
                         <th>Estudiante</th>
@@ -478,6 +495,9 @@ function generateStudentsTab(results) {
                         <th>Nuevas</th>
                         <th>Perdidas</th>
                         <th>Explicación</th>
+                    </tr>
+                </thead>
+                <tbody id="studentsTableBody">
                     </tr>
                 </thead>
                 <tbody>
@@ -495,8 +515,8 @@ function generateStudentsTab(results) {
         html += `
             <tr>
                 <td>
-                    <strong>${escapeHtml(student.name || 'Sin nombre')}</strong><br>
-                    <small class="text-muted">${escapeHtml(student.email || 'Sin email')}</small>
+                    <strong>Documento: ${escapeHtml(student.document || 'Sin documento')}</strong><br>
+                    <small class="text-muted">ID: ${student.student_id || 'N/A'}</small>
                 </td>
                 <td>
                     <div class="progress" style="height: 20px;">
@@ -529,7 +549,7 @@ function generateStudentsTab(results) {
                 </td>
                 <td>
                     <button type="button" class="btn btn-sm btn-outline-info show-explanation-btn" 
-                            data-student-name="${escapeHtml(student.name || 'Sin nombre')}"
+                            data-student-document="${escapeHtml(student.document || 'Sin documento')}"
                             data-explanation="${encodeURIComponent(student.progress_explanation || 'Sin explicación disponible')}"
                             data-original-progress="${student.original_progress || 0}"
                             data-new-progress="${student.new_progress || 0}"
@@ -598,6 +618,52 @@ function generateSubjectsTab(results) {
     `;
 }
 
+// Filter student table by document
+function filterStudentTable() {
+    const input = document.getElementById('studentSearchInput');
+    if (!input) return;
+    
+    const filter = input.value.toLowerCase().trim();
+    const table = document.getElementById('studentsImpactTable');
+    if (!table) return;
+    
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    
+    const rows = tbody.getElementsByTagName('tr');
+    let visibleCount = 0;
+    
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const firstCell = row.getElementsByTagName('td')[0];
+        
+        if (firstCell) {
+            const textValue = firstCell.textContent || firstCell.innerText;
+            if (textValue.toLowerCase().indexOf(filter) > -1) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        }
+    }
+    
+    // Update visible count
+    const countSpan = document.getElementById('studentCount');
+    if (countSpan) {
+        countSpan.textContent = visibleCount;
+    }
+}
+
+// Clear student search
+function clearStudentSearch() {
+    const input = document.getElementById('studentSearchInput');
+    if (input) {
+        input.value = '';
+        filterStudentTable();
+    }
+}
+
 function exportImpactResults() {
     if (!currentImpactResults) {
         showErrorMessage('No hay resultados para exportar');
@@ -663,7 +729,7 @@ document.addEventListener('click', function(e) {
         const button = e.target.classList.contains('show-explanation-btn') ? 
                       e.target : e.target.closest('.show-explanation-btn');
         
-        const studentName = button.getAttribute('data-student-name') || 'Estudiante';
+        const studentDocument = button.getAttribute('data-student-document') || 'Sin documento';
         const explanation = decodeURIComponent(button.getAttribute('data-explanation') || '');
         const originalProgress = parseFloat(button.getAttribute('data-original-progress')) || 0;
         const newProgress = parseFloat(button.getAttribute('data-new-progress')) || 0;
@@ -674,7 +740,7 @@ document.addEventListener('click', function(e) {
         
         // Show the modal with all data
         showProgressExplanationDetailed(
-            studentName, 
+            studentDocument, 
             explanation, 
             originalProgress, 
             newProgress, 
@@ -686,9 +752,9 @@ document.addEventListener('click', function(e) {
     }
 });
 
-function showProgressExplanationDetailed(studentName, explanation, originalProgress, newProgress, progressChange, convalidatedCount, newSubjectsCount, lostCreditsCount) {
-    // Set student name
-    document.getElementById('student-name-title').textContent = `Estudiante: ${studentName}`;
+function showProgressExplanationDetailed(studentDocument, explanation, originalProgress, newProgress, progressChange, convalidatedCount, newSubjectsCount, lostCreditsCount) {
+    // Set student document
+    document.getElementById('student-name-title').textContent = `Documento: ${studentDocument}`;
     
     // Set progress badges
     document.getElementById('original-progress-badge').textContent = `${originalProgress}%`;

@@ -18,30 +18,11 @@ class StudentSeeder extends Seeder
         DB::table('students')->delete();
         DB::table('student_subject')->delete();
         
-        // Generate 100 students with realistic names
-        $firstNames = [
-            'Alejandro', 'Ana', 'Andrés', 'Beatriz', 'Carlos', 'Carmen', 'Daniel', 'Diana', 'Eduardo', 'Elena',
-            'Fernando', 'Gabriela', 'Guillermo', 'Isabel', 'Javier', 'Julia', 'Leonardo', 'Laura', 'Manuel', 'María',
-            'Miguel', 'Natalia', 'Óscar', 'Paola', 'Pedro', 'Patricia', 'Ricardo', 'Rosa', 'Sebastián', 'Sofía',
-            'Antonio', 'Camila', 'Diego', 'Fernanda', 'Gonzalo', 'Luisa', 'Mauricio', 'Mónica', 'Nicolás', 'Pilar',
-            'Rafael', 'Sandra', 'Tomás', 'Valeria', 'Víctor', 'Andrea', 'Cristian', 'Daniela', 'Esteban', 'Marcela'
-        ];
-        
-        $lastNames = [
-            'García', 'Rodríguez', 'González', 'Fernández', 'López', 'Martínez', 'Sánchez', 'Pérez', 'Gómez', 'Martín',
-            'Jiménez', 'Ruiz', 'Hernández', 'Díaz', 'Moreno', 'Álvarez', 'Muñoz', 'Romero', 'Alonso', 'Gutiérrez',
-            'Navarro', 'Torres', 'Domínguez', 'Vázquez', 'Ramos', 'Gil', 'Ramírez', 'Serrano', 'Blanco', 'Suárez',
-            'Molina', 'Morales', 'Ortega', 'Delgado', 'Castro', 'Ortiz', 'Rubio', 'Marín', 'Sanz', 'Iglesias',
-            'Medina', 'Garrido', 'Cortés', 'Castillo', 'Santos', 'Lozano', 'Guerrero', 'Cano', 'Prieto', 'Méndez'
-        ];
-        
+        // Generate 100 students with document numbers
         for ($i = 1; $i <= 100; $i++) {
-            $firstName = $firstNames[array_rand($firstNames)];
-            $lastName1 = $lastNames[array_rand($lastNames)];
-            $lastName2 = $lastNames[array_rand($lastNames)];
-            $name = "$firstName $lastName1 $lastName2";
+            $document = str_pad($i, 10, '0', STR_PAD_LEFT); // Document: 0000000001, 0000000002, etc.
             
-            $student = Student::create(['name' => $name]);
+            $student = Student::create(['document' => $document]);
             
             // Simulate different student progress levels
             $progressLevel = $this->getRandomProgressLevel();

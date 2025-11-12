@@ -1040,3 +1040,39 @@ body {
     border: 1px solid white;
     box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
+
+/* Subject cards edited during simulation */
+.subject-card.edited-subject {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%);
+    border-color: #ffc107;
+    border-width: 2px;
+    border-style: solid;
+    box-shadow: 0 2px 6px rgba(255, 193, 7, 0.3);
+}
+
+.subject-card.edited-subject:hover {
+    background: linear-gradient(135deg, #ffe69c 0%, #ffd966 100%);
+    border-color: #ffb302;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(255, 193, 7, 0.4);
+}
+
+/* Add an edit indicator */
+.subject-card.edited-subject::before {
+    content: '✎';
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 12px;
+    height: 12px;
+    background: #ffc107;
+    border-radius: 50%;
+    border: 1px solid white;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    color: white;
+    line-height: 1;
+}

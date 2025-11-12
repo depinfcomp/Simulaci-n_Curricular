@@ -30,7 +30,6 @@ return new class extends Migration
             $table->id();
             $table->foreignId('import_id')->constrained('academic_history_imports')->onDelete('cascade');
             $table->string('student_code')->index();
-            $table->string('student_name');
             $table->string('subject_code');
             $table->string('subject_name');
             $table->string('grade')->nullable();

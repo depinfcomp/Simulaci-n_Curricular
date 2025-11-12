@@ -50,8 +50,6 @@ class LevelingSubjectSeeder extends Seeder
                 'student_hours' => 5,
                 'description' => 'Cuarto nivel de nivelación de inglés',
             ],
-            
-            // Matemáticas básicas (para quienes lo necesiten)
             [
                 'code' => '1000001',
                 'name' => 'MATEMÁTICAS BÁSICAS',
@@ -60,8 +58,6 @@ class LevelingSubjectSeeder extends Seeder
                 'student_hours' => 8,
                 'description' => 'Nivelación en matemáticas básicas para estudiantes que lo requieran',
             ],
-            
-            // Lectoescritura (para quienes lo necesiten)
             [
                 'code' => '1000002',
                 'name' => 'LECTO-ESCRITURA',
@@ -70,49 +66,13 @@ class LevelingSubjectSeeder extends Seeder
                 'student_hours' => 8,
                 'description' => 'Nivelación en lectura y escritura para estudiantes que lo requieran',
             ],
-            
-            // Física básica (para quienes lo necesiten)
             [
-                'code' => '1000017',
-                'name' => 'FÍSICA: ELECTRICIDAD Y MAGNETISMO',
-                'credits' => 4,
-                'classroom_hours' => 4,
-                'student_hours' => 8,
-                'description' => 'Nivelación en física para estudiantes que lo requieran',
-            ],
-            
-            // Cátedra de inducción
-            [
-                'code' => '1000089',
-                'name' => 'Cátedra nacional de inducción y preparación para la vida universitaria',
-                'credits' => 2,
+                'code' => '1000074',
+                'name' => 'SUFICIENCIA EN LENGUA EXTRANJERA ',
+                'credits' => 12,
                 'classroom_hours' => 2,
                 'student_hours' => 4,
-                'description' => 'Cátedra de inducción para nuevos estudiantes',
-            ],
-            [
-                'code' => '1000089-A',
-                'name' => 'Cátedra nacional de inducción y preparación para la vida universitaria (Variante A)',
-                'credits' => 2,
-                'classroom_hours' => 2,
-                'student_hours' => 4,
-                'description' => 'Cátedra de inducción para nuevos estudiantes - Variante A',
-            ],
-            [
-                'code' => '1000089-T',
-                'name' => 'Cátedra nacional de inducción y preparación para la vida universitaria (Variante T)',
-                'credits' => 2,
-                'classroom_hours' => 2,
-                'student_hours' => 4,
-                'description' => 'Cátedra de inducción para nuevos estudiantes - Variante T',
-            ],
-            [
-                'code' => '1000089-O',
-                'name' => 'Cátedra nacional de inducción y preparación para la vida universitaria (Variante O)',
-                'credits' => 2,
-                'classroom_hours' => 2,
-                'student_hours' => 4,
-                'description' => 'Cátedra de inducción para nuevos estudiantes - Variante O',
+                'description' => 'Suficiencia en lengua extranjera',
             ],
         ];
 
@@ -126,8 +86,8 @@ class LevelingSubjectSeeder extends Seeder
             );
         }
 
-        $this->command->info('✅ ' . count($levelingSubjects) . ' materias de nivelación creadas exitosamente');
-        $this->command->info('📊 Total créditos disponibles: ' . collect($levelingSubjects)->sum('credits'));
-        $this->command->info('🎯 Mínimo requerido de nivelación: 12 créditos');
+        $this->command->info('' . count($levelingSubjects) . ' materias de nivelación creadas exitosamente');
+        $this->command->info('Total créditos disponibles: ' . collect($levelingSubjects)->sum('credits'));
+        $this->command->info('aMínimo requerido de nivelación: 12 créditos');
     }
 }

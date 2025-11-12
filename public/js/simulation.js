@@ -2266,6 +2266,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const menuHtml = `
             <div id="subjectContextMenu" class="context-menu" style="position: fixed; top: ${event.clientY}px; left: ${event.clientX}px; z-index: 9999;">
                 <div class="list-group shadow-lg" style="min-width: 200px;">
+                    <button type="button" class="list-group-item list-group-item-action" onclick="openEditSubjectModal('${subjectId}')">
+                        <i class="fas fa-edit me-2"></i>
+                        Editar Materia
+                    </button>
                     <button type="button" class="list-group-item list-group-item-action" onclick="editSubjectPrerequisites('${subjectId}')">
                         <i class="fas fa-link me-2"></i>
                         Editar Prerrequisitos
@@ -2333,6 +2337,202 @@ document.addEventListener('DOMContentLoaded', function() {
         if (card) {
             showPrerequisiteEditor(card);
         }
+    };
+    
+    // Open edit subject modal
+    window.openEditSubjectModal = function(subjectId) {
+        closeContextMenu();
+        const card = document.querySelector(`[data-subject-id="${subjectId}"]`);
+        if (!card) return;
+        
+        // Get current values from card
+        const subjectName = card.querySelector('.subject-name').textContent;
+        const subjectCode = subjectId;
+        const credits = parseInt(card.querySelector('.subject-card-header .info-box:nth-child(1) .info-value').textContent);
+        const classroomHours = parseInt(card.querySelector('.subject-card-header .info-box:nth-child(2) .info-value').textContent);
+        const studentHours = parseInt(card.querySelector('.subject-card-header .info-box:nth-child(3) .info-value').textContent);
+        const description = card.title || '';
+        
+        // Create modal HTML
+        const modalHtml = `
+            <div class="modal fade" id="editSubjectModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title">
+                                <i class="fas fa-edit me-2"></i>
+                                Editar Materia
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="editSubjectForm">
+                                <input type="hidden" id="edit_subject_code" value="${subjectCode}">
+                                
+                                <div class="mb-3">
+                                    <label for="edit_subject_name" class="form-label">
+                                        <i class="fas fa-book me-1"></i> Nombre de la Materia
+                                    </label>
+                                    <input type="text" class="form-control" id="edit_subject_name" 
+                                           value="${subjectName}" required>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="edit_subject_credits" class="form-label">
+                                                <i class="fas fa-certificate me-1"></i> Créditos
+                                            </label>
+                                            <input type="number" class="form-control" id="edit_subject_credits" 
+                                                   value="${credits}" min="1" max="20" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="edit_classroom_hours" class="form-label">
+                                                <i class="fas fa-chalkboard-teacher me-1"></i> Horas Presenciales
+                                            </label>
+                                            <input type="number" class="form-control" id="edit_classroom_hours" 
+                                                   value="${classroomHours}" min="0" max="20" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="edit_student_hours" class="form-label">
+                                                <i class="fas fa-user-clock me-1"></i> Horas Independientes
+                                            </label>
+                                            <input type="number" class="form-control" id="edit_student_hours" 
+                                                   value="${studentHours}" min="0" max="30" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="edit_subject_description" class="form-label">
+                                        <i class="fas fa-align-left me-1"></i> Descripción (opcional)
+                                    </label>
+                                    <textarea class="form-control" id="edit_subject_description" 
+                                              rows="3">${description}</textarea>
+                                </div>
+                                
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Nota:</strong> Estos cambios se guardarán temporalmente hasta que presiones "Guardar Malla".
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="fas fa-times me-1"></i> Cancelar
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="saveSubjectEdits()">
+                                <i class="fas fa-save me-1"></i> Guardar Cambios
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        const existingModal = document.getElementById('editSubjectModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Add modal to body
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('editSubjectModal'));
+        modal.show();
+        
+        // Clean up when modal is closed
+        document.getElementById('editSubjectModal').addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
+    };
+    
+    // Save subject edits
+    window.saveSubjectEdits = function() {
+        const subjectCode = document.getElementById('edit_subject_code').value;
+        const newName = document.getElementById('edit_subject_name').value.trim();
+        const newCredits = parseInt(document.getElementById('edit_subject_credits').value);
+        const newClassroomHours = parseInt(document.getElementById('edit_classroom_hours').value);
+        const newStudentHours = parseInt(document.getElementById('edit_student_hours').value);
+        const newDescription = document.getElementById('edit_subject_description').value.trim();
+        
+        // Validation
+        if (!newName) {
+            showAlertModal('El nombre de la materia es obligatorio.', 'error', 'Error de Validación');
+            return;
+        }
+        
+        if (newCredits < 1 || newCredits > 20) {
+            showAlertModal('Los créditos deben estar entre 1 y 20.', 'error', 'Error de Validación');
+            return;
+        }
+        
+        if (newClassroomHours < 0 || newClassroomHours > 20) {
+            showAlertModal('Las horas presenciales deben estar entre 0 y 20.', 'error', 'Error de Validación');
+            return;
+        }
+        
+        if (newStudentHours < 0 || newStudentHours > 30) {
+            showAlertModal('Las horas independientes deben estar entre 0 y 30.', 'error', 'Error de Validación');
+            return;
+        }
+        
+        // Get the card
+        const card = document.querySelector(`[data-subject-id="${subjectCode}"]`);
+        if (!card) {
+            showAlertModal('No se encontró la materia.', 'error', 'Error');
+            return;
+        }
+        
+        // Get old values for tracking changes
+        const oldName = card.querySelector('.subject-name').textContent;
+        const oldCredits = parseInt(card.querySelector('.subject-card-header .info-box:nth-child(1) .info-value').textContent);
+        const oldClassroomHours = parseInt(card.querySelector('.subject-card-header .info-box:nth-child(2) .info-value').textContent);
+        const oldStudentHours = parseInt(card.querySelector('.subject-card-header .info-box:nth-child(3) .info-value').textContent);
+        const oldDescription = card.title || '';
+        
+        // Update card UI
+        card.querySelector('.subject-name').textContent = newName;
+        card.querySelector('.subject-card-header .info-box:nth-child(1) .info-value').textContent = newCredits;
+        card.querySelector('.subject-card-header .info-box:nth-child(2) .info-value').textContent = newClassroomHours;
+        card.querySelector('.subject-card-header .info-box:nth-child(3) .info-value').textContent = newStudentHours;
+        card.title = newDescription;
+        
+        // Mark card as edited
+        card.classList.add('edited-subject');
+        
+        // Record changes
+        const changeData = {
+            name: newName !== oldName ? newName : oldName,
+            credits: newCredits !== oldCredits ? newCredits : oldCredits,
+            classroom_hours: newClassroomHours !== oldClassroomHours ? newClassroomHours : oldClassroomHours,
+            student_hours: newStudentHours !== oldStudentHours ? newStudentHours : oldStudentHours,
+            description: newDescription !== oldDescription ? newDescription : oldDescription
+        };
+        
+        recordSimulationChange(subjectCode, 'edit', changeData, {
+            name: oldName,
+            credits: oldCredits,
+            classroom_hours: oldClassroomHours,
+            student_hours: oldStudentHours,
+            description: oldDescription
+        });
+        
+        // Update credits display
+        updateCreditsDisplay();
+        updateSimulationStatus();
+        
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('editSubjectModal'));
+        modal.hide();
+        
+        showAlertModal('Materia editada correctamente. Los cambios se guardarán al presionar "Guardar Malla".', 'success', 'Materia Editada');
     };
     
     // Start delete subject process

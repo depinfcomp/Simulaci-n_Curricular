@@ -10,7 +10,6 @@ class Student extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name',
         'document',
         'progress_percentage',
         'average_grade',

@@ -72,7 +72,6 @@
                             @php
                                 $requiredFields = [
                                     'student_code' => ['label' => 'Código Estudiante', 'icon' => 'fa-user', 'required' => true],
-                                    'student_name' => ['label' => 'Nombre Estudiante', 'icon' => 'fa-user-tag', 'required' => true],
                                     'subject_code' => ['label' => 'Código Materia', 'icon' => 'fa-book', 'required' => true],
                                     'subject_name' => ['label' => 'Nombre Materia', 'icon' => 'fa-bookmark', 'required' => true],
                                     'grade' => ['label' => 'Nota', 'icon' => 'fa-star', 'required' => false],
@@ -243,7 +242,7 @@ async function saveMapping() {
 
 async function procesarImportacion() {
     // Validate required fields
-    const requiredFields = ['student_code', 'student_name', 'subject_code', 'subject_name'];
+    const requiredFields = ['student_code', 'subject_code', 'subject_name'];
     const missing = [];
     
     requiredFields.forEach(field => {

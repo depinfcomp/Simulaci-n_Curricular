@@ -55,7 +55,7 @@ class SimulationController extends Controller
                 
                 $impactAnalysis['details'][] = [
                     'student_id' => $student->id,
-                    'student_name' => $student->name,
+                    'student_document' => $student->document,
                     'current_semester' => $this->getCurrentSemester($student->progress_percentage),
                     'current_subjects' => $student->currentSubjects->pluck('subject_code')->toArray(),
                     'issues' => $impact['issues']

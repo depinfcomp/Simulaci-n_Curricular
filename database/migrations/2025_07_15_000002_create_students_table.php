@@ -13,8 +13,7 @@ return new class extends Migration
     {
         Schema::create('students', function (Blueprint $table) {
             $table->id()->comment('Auto-incrementable ID');
-            $table->string('name')->comment('Student full name');
-            $table->string('document', 20)->nullable()->unique()->comment('Student ID document number');
+            $table->string('document', 20)->unique()->comment('Student ID document number');
             
             // Academic metrics (calculated by StudentMetricsService)
             $table->integer('total_credits_taken')->default(0)->comment('Total credits attempted (all subjects)');

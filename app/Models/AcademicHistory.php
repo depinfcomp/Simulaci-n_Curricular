@@ -10,7 +10,6 @@ class AcademicHistory extends Model
     protected $fillable = [
         'import_id',
         'student_code',
-        'student_name',
         'subject_code',
         'subject_name',
         'grade',

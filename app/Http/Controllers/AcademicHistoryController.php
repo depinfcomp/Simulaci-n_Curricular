@@ -304,13 +304,6 @@ class AcademicHistoryController extends Controller
                 'student.*code',
                 'student.*id'
             ],
-            'student_name' => [
-                'nombre.*estudiante', 
-                'estudiante', 
-                'nombre.*completo',
-                'student.*name',
-                'full.*name'
-            ],
             'subject_code' => [
                 'cod_asignatura',  // Formato original del CSV
                 'codigo.*asignatura',
@@ -390,7 +383,7 @@ class AcademicHistoryController extends Controller
             
             $mapping = $import->column_mapping ?? [];
             
-            if (empty($mapping['student_code']) || empty($mapping['student_name']) || 
+            if (empty($mapping['student_code']) || 
                 empty($mapping['subject_code']) || empty($mapping['subject_name'])) {
                 throw new \Exception('Mapeo de columnas incompleto');
             }
@@ -420,7 +413,6 @@ class AcademicHistoryController extends Controller
                     
                     // Extract data using mapping
                     $studentCode = $rowData[$mapping['student_code']] ?? null;
-                    $studentName = $rowData[$mapping['student_name']] ?? null;
                     $subjectCode = $rowData[$mapping['subject_code']] ?? null;
                     $subjectName = $rowData[$mapping['subject_name']] ?? null;
                     
@@ -432,7 +424,6 @@ class AcademicHistoryController extends Controller
                     $data = [
                         'import_id' => $import->id,
                         'student_code' => $studentCode,
-                        'student_name' => $studentName,
                         'subject_code' => $subjectCode,
                         'subject_name' => $subjectName,
                         'grade' => isset($mapping['grade']) ? ($rowData[$mapping['grade']] ?? null) : null,
@@ -509,7 +500,6 @@ class AcademicHistoryController extends Controller
         $request->validate([
             'mapping' => 'required|array',
             'mapping.student_code' => 'required|integer',
-            'mapping.student_name' => 'required|integer',
             'mapping.subject_code' => 'required|integer',
             'mapping.subject_name' => 'required|integer',
         ]);

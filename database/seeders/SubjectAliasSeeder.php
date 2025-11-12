@@ -48,6 +48,6 @@ class SubjectAliasSeeder extends Seeder
             }
         }
         
-        $this->command->info("\n✅ Seeder completado: " . count($aliases) . " alias(es) procesados");
+        $this->command->info("\nSeeder completado: " . count($aliases) . " alias(es) procesados");
     }
 }
