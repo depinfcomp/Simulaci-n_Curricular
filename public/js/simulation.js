@@ -1542,6 +1542,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 <option value="-999,0">Solo impacto negativo (<0%)</option>
                                                 <option value="-999,-5">Impacto negativo fuerte (< -5%)</option>
                                                 <option value="5,999">Impacto positivo fuerte (> +5%)</option>
+                                                <option value="-0.1,0.1">Impactos no significativos (diferencia < ±0.1%)</option>
+                                                <option value="abs:0.1">Impactos significativos (diferencia > ±0.1%)</option>
                                             </select>
                                         </div>
                                         <div class="col-md-6">
@@ -1557,6 +1559,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 <option value="-5,0">Solo impacto negativo (<0)</option>
                                                 <option value="-5,-0.1">Impacto negativo fuerte (< -0.1)</option>
                                                 <option value="0.1,5">Impacto positivo fuerte (> +0.1)</option>
+                                                <option value="-0.01,0.01">Impactos no significativos (diferencia < ±0.01)</option>
+                                                <option value="abs:0.01">Impactos significativos (diferencia > ±0.01)</option>
                                             </select>
                                         </div>
                                     </div>
@@ -1757,15 +1761,29 @@ document.addEventListener('DOMContentLoaded', function() {
             // Check progress filter
             let matchesProgress = true;
             if (progressFilter !== 'all') {
-                const [min, max] = progressFilter.split(',').map(parseFloat);
-                matchesProgress = progressChange >= min && progressChange <= max;
+                if (progressFilter.startsWith('abs:')) {
+                    // Absolute value filter: abs:0.1 means |change| > 0.1
+                    const threshold = parseFloat(progressFilter.split(':')[1]);
+                    matchesProgress = Math.abs(progressChange) > threshold;
+                } else {
+                    // Range filter: min,max
+                    const [min, max] = progressFilter.split(',').map(parseFloat);
+                    matchesProgress = progressChange >= min && progressChange <= max;
+                }
             }
             
             // Check papa filter
             let matchesPapa = true;
             if (papaFilter !== 'all') {
-                const [min, max] = papaFilter.split(',').map(parseFloat);
-                matchesPapa = papaChange >= min && papaChange <= max;
+                if (papaFilter.startsWith('abs:')) {
+                    // Absolute value filter: abs:0.01 means |change| > 0.01
+                    const threshold = parseFloat(papaFilter.split(':')[1]);
+                    matchesPapa = Math.abs(papaChange) > threshold;
+                } else {
+                    // Range filter: min,max
+                    const [min, max] = papaFilter.split(',').map(parseFloat);
+                    matchesPapa = papaChange >= min && papaChange <= max;
+                }
             }
             
             // Show/hide based on all filters

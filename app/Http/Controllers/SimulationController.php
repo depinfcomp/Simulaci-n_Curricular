@@ -54,6 +54,8 @@ class SimulationController extends Controller
             'students_with_prerequisites_issues' => 0,
             'students_with_papa_impact' => 0,
             'students_with_progress_impact' => 0,
+            'students_with_insignificant_papa_impact' => 0,  // NEW: Non-significant PAPA changes
+            'students_with_insignificant_progress_impact' => 0,  // NEW: Non-significant progress changes
             'affected_percentage' => 0,
             'average_papa_change' => 0,
             'average_progress_change' => 0,
@@ -88,6 +90,9 @@ class SimulationController extends Controller
                     $impactAnalysis['students_with_papa_impact']++;
                     $studentsWithPapaImpact++;
                     $totalPapaChange += $impact['papa_change'];
+                } elseif (abs($impact['papa_change']) > 0.001) {
+                    // Non-significant but measurable PAPA change
+                    $impactAnalysis['students_with_insignificant_papa_impact']++;
                 }
                 
                 // Track progress impact
@@ -95,6 +100,9 @@ class SimulationController extends Controller
                     $impactAnalysis['students_with_progress_impact']++;
                     $studentsWithProgressImpact++;
                     $totalProgressChange += $impact['progress_change'];
+                } elseif (abs($impact['progress_change']) > 0.001) {
+                    // Non-significant but measurable progress change
+                    $impactAnalysis['students_with_insignificant_progress_impact']++;
                 }
                 
                 // Get current subjects with names - search in multiple places
