@@ -102,18 +102,33 @@ class CreditDistributionService
     /**
      * Calculate credit distribution for a student by document
      * 
+     * Uses pre-calculated fields from import: effective_credits, overflow_credits,
+     * actual_component_type, counts_for_percentage
+     * 
+     * IMPORTANT: Leveling subjects DON'T count towards degree (167 credits)
+     * 
      * @param string $studentDocument Student document number
      * @return array Distribution data
      */
     public function calculateDistribution(string $studentDocument): array
     {
-        // Get all approved subjects for the student from the new table
+        // Get all approved subjects for the student with pre-calculated distribution
+        // Include subjects with grade >= 3.0 OR status = 'passed' (for qualitative AP grades)
         $approvedSubjects = DB::table('student_subject')
             ->where('student_document', $studentDocument)
             ->where('status', 'passed')
-            ->where('grade', '>=', 3.0)
-            ->orderBy('id') // Order by insertion to maintain consistency
-            ->get(['subject_code', 'subject_credits', 'subject_type', 'grade']);
+            ->orderBy('id')
+            ->get([
+                'subject_code',
+                'subject_credits',
+                'subject_type',
+                'grade',
+                'effective_credits',
+                'overflow_credits',
+                'actual_component_type',
+                'counts_for_percentage',
+                'is_duplicate'
+            ]);
 
         // Initialize component usage counters
         $componentUsage = [
@@ -123,7 +138,9 @@ class CreditDistributionService
             'optional_fundamental' => 0,
             'free_elective' => 0,
             'thesis' => 0,
-            'leveling' => 0, // Leveling has no limit
+            'leveling' => 0,
+            'practice' => 0,
+            'na' => 0, // Credits that don't count
         ];
 
         // Track individual subject assignments
@@ -133,79 +150,44 @@ class CreditDistributionService
 
         foreach ($approvedSubjects as $record) {
             $subjectCode = $record->subject_code;
-            $credits = $record->subject_credits;
-            $subjectType = $record->subject_type;
+            $totalCredits = $record->subject_credits;
+            $effectiveCredits = $record->effective_credits ?? $totalCredits;
+            $overflowCredits = $record->overflow_credits ?? 0;
+            $actualComponent = $record->actual_component_type ?? $record->subject_type;
+            $countsForPercentage = $record->counts_for_percentage ?? true;
             
             // Map subject type to component
-            $originalComponent = $this->mapSubjectTypeToComponent($subjectType);
-            $isLeveling = $subjectType === 'nivelacion';
-
-            // Leveling subjects don't have limits and don't count toward degree
-            if ($isLeveling) {
-                $componentUsage['leveling'] += $credits;
-                $subjectDistributions[] = [
-                    'subject_code' => $subjectCode,
-                    'subject_name' => $this->getSubjectName($subjectCode),
-                    'credits' => $credits,
-                    'original_component' => $originalComponent,
-                    'assigned_component' => 'leveling',
-                    'credits_to_component' => $credits,
-                    'credits_to_free_elective' => 0,
-                    'credits_lost' => 0,
-                    'credits_counted' => 0, // Leveling doesn't count
-                    'counts_towards_degree' => false,
-                    'grade' => $record->grade,
-                ];
-                continue;
+            $originalComponent = $this->mapSubjectTypeToComponent($record->subject_type);
+            
+            // Update component usage based on actual assignment
+            if ($actualComponent && $actualComponent !== 'na') {
+                $componentUsage[$actualComponent] += $effectiveCredits;
             }
-
-            // Calculate how many credits can be assigned to original component
-            $componentLimit = $this->creditLimits[$originalComponent] ?? 0;
-            $componentUsed = $componentUsage[$originalComponent];
-            $availableInComponent = max(0, $componentLimit - $componentUsed);
-
-            $creditsToComponent = min($credits, $availableInComponent);
-            $remainingCredits = $credits - $creditsToComponent;
-
-            // Try to assign remaining credits to free_elective
-            $creditsToFreeElective = 0;
-            if ($remainingCredits > 0) {
-                $freeElectiveLimit = $this->creditLimits['free_elective'];
-                $freeElectiveUsed = $componentUsage['free_elective'];
-                $availableInFreeElective = max(0, $freeElectiveLimit - $freeElectiveUsed);
-
-                $creditsToFreeElective = min($remainingCredits, $availableInFreeElective);
-                $remainingCredits -= $creditsToFreeElective;
+            
+            // If there's overflow, it went to free_elective (if it counted)
+            if ($overflowCredits > 0 && $countsForPercentage) {
+                $componentUsage['free_elective'] += $overflowCredits;
             }
-
-            // Any remaining credits are lost
-            $creditsLost = $remainingCredits;
-
-            // Update component usage
-            $componentUsage[$originalComponent] += $creditsToComponent;
-            $componentUsage['free_elective'] += $creditsToFreeElective;
-
-            // Calculate total credits that count
-            $creditsCounted = $creditsToComponent + $creditsToFreeElective;
+            
+            // Calculate credits that count vs lost
+            $creditsCounted = $countsForPercentage ? ($effectiveCredits + $overflowCredits) : 0;
+            $creditsLost = $totalCredits - $creditsCounted;
+            
             $totalCreditsCounted += $creditsCounted;
             $totalCreditsLost += $creditsLost;
-
-            // Determine final assigned component
-            $assignedComponent = $creditsToComponent > 0 
-                ? $originalComponent 
-                : ($creditsToFreeElective > 0 ? 'free_elective' : 'none');
 
             $subjectDistributions[] = [
                 'subject_code' => $subjectCode,
                 'subject_name' => $this->getSubjectName($subjectCode),
-                'credits' => $credits,
+                'credits' => $totalCredits,
                 'original_component' => $originalComponent,
-                'assigned_component' => $assignedComponent,
-                'credits_to_component' => $creditsToComponent,
-                'credits_to_free_elective' => $creditsToFreeElective,
+                'assigned_component' => $actualComponent,
+                'credits_to_component' => $effectiveCredits,
+                'credits_to_free_elective' => $overflowCredits,
                 'credits_lost' => $creditsLost,
                 'credits_counted' => $creditsCounted,
-                'counts_towards_degree' => $creditsCounted > 0,
+                'counts_towards_degree' => $countsForPercentage,
+                'is_duplicate' => $record->is_duplicate ?? false,
                 'grade' => $record->grade,
             ];
         }

@@ -78,17 +78,18 @@ class StudentMetricsService
     /**
      * Calculate weighted average grade
      * Formula: Σ(grade × credits) / Σ(credits)
-     * Only includes passed subjects (grade >= 3.0)
+     * Only includes subjects with NUMERIC grades (excludes qualitative AP/RE)
+     * Includes ALL subjects with numeric grades, even nivelación
      * 
      * @param string $studentDocument Student document
      * @return float Average grade
      */
     private function calculateAverageGrade(string $studentDocument): float
     {
-        // Get all subjects with numeric grades from the new table
+        // Get all subjects with numeric grades (excludes AP/RE qualitative grades)
         $subjects = DB::table('student_subject')
             ->where('student_document', $studentDocument)
-            ->whereNotNull('grade')
+            ->whereNotNull('grade')  // Only subjects with numeric grades
             ->where('grade', '>', 0)
             ->get(['grade', 'subject_credits']);
 

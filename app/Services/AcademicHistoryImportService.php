@@ -20,6 +20,7 @@ class AcademicHistoryImportService
     private $studentsCache = [];
     private $studentsByDocument = []; // Group records by document
     private $creditLimits = []; // Credit limits per component from simulation_config
+    private $currentPeriod = null; // Current academic period (subjects from this period are "cursando")
     private $randomNames = [
         'first_names' => [
             'Alejandro', 'Alejandra', 'Andrea', 'Andrés', 'Antonio', 'Carlos', 'Carmen', 'Carolina',
@@ -191,7 +192,7 @@ class AcademicHistoryImportService
     /**
      * Import academic history from CSV file
      */
-    public function importFromCSV(string $filePath, bool $dryRun = false): array
+    public function importFromCSV(string $filePath, bool $dryRun = false, ?string $currentPeriod = null): array
     {
         $startTime = microtime(true);
         
@@ -206,6 +207,21 @@ class AcademicHistoryImportService
 
         Log::info("Starting academic history import from: {$filePath}");
         Log::info("Mode: " . ($dryRun ? "DRY RUN" : "REAL IMPORT"));
+
+        // Auto-detect current period if not provided - BEFORE reading records
+        if (!$currentPeriod) {
+            $currentPeriod = $this->detectCurrentPeriodFromFile($filePath);
+            if ($currentPeriod) {
+                Log::info("Auto-detected current period: {$currentPeriod}");
+            }
+        }
+        
+        // Store current period for later use in processRow()
+        $this->currentPeriod = $currentPeriod;
+        
+        if ($currentPeriod) {
+            Log::info("Current period: {$currentPeriod} - subjects from this period will be marked as 'cursando'");
+        }
 
         // Phase 1: Read and group all records by document
         $this->studentsByDocument = $this->readAndGroupRecords($filePath);
@@ -243,6 +259,145 @@ class AcademicHistoryImportService
         Log::info("Academic records: {$this->stats['history']['created']} historical, {$this->stats['current']['created']} current");
 
         return $this->stats;
+    }
+
+    /**
+     * Detect current academic period by reading directly from CSV file
+     * This is done BEFORE processing rows to avoid grade assignment
+     */
+    private function detectCurrentPeriodFromFile(string $filePath): ?string
+    {
+        $handle = fopen($filePath, 'r');
+        if ($handle === false) {
+            return null;
+        }
+
+        // Skip to header
+        $header = null;
+        while (($row = fgetcsv($handle)) !== false) {
+            if (!$this->isEmptyRow($row)) {
+                $header = $row;
+                break;
+            }
+        }
+
+        if ($header === null) {
+            fclose($handle);
+            return null;
+        }
+
+        // Find period column index
+        $periodIndex = array_search('PERIODO_INSCRIPCION', $header);
+        if ($periodIndex === false) {
+            fclose($handle);
+            return null;
+        }
+
+        // Collect all periods
+        $periods = [];
+        while (($row = fgetcsv($handle)) !== false) {
+            if ($this->isEmptyRow($row)) {
+                continue;
+            }
+            
+            $period = trim($row[$periodIndex] ?? '');
+            if ($period && !in_array($period, $periods)) {
+                $periods[] = $period;
+            }
+        }
+
+        fclose($handle);
+
+        if (empty($periods)) {
+            return null;
+        }
+
+        // Sort periods in descending order (most recent first)
+        usort($periods, function($a, $b) {
+            // Extract year and semester from format: 2025-1S, 2024-2S, etc.
+            preg_match('/(\d{4})/', $a, $matchesA);
+            preg_match('/(\d{4})/', $b, $matchesB);
+            
+            $yearA = isset($matchesA[1]) ? (int)$matchesA[1] : 0;
+            $yearB = isset($matchesB[1]) ? (int)$matchesB[1] : 0;
+            
+            // Compare years first
+            if ($yearA !== $yearB) {
+                return $yearB - $yearA; // Descending order
+            }
+            
+            // Same year, compare semester (2 > 1)
+            preg_match('/[12]/', $a, $semA);
+            preg_match('/[12]/', $b, $semB);
+            
+            $semesterA = isset($semA[0]) ? (int)$semA[0] : 0;
+            $semesterB = isset($semB[0]) ? (int)$semB[0] : 0;
+            
+            return $semesterB - $semesterA; // Descending order
+        });
+
+        // Return the most recent period
+        $detectedPeriod = $periods[0];
+        Log::info("Detected periods from CSV: " . implode(', ', array_slice($periods, 0, 5)) . "...");
+        
+        return $detectedPeriod;
+    }
+
+    /**
+     * Detect current academic period by finding the most recent period in the data
+     * Periods are sorted in descending order (2025-1S > 2024-2S > 2024-1S, etc.)
+     */
+    private function detectCurrentPeriod(array $studentsByDocument): ?string
+    {
+        $periods = [];
+        
+        // Collect all unique periods from all student records
+        foreach ($studentsByDocument as $studentRecords) {
+            foreach ($studentRecords as $record) {
+                $period = $record['periodo_inscripcion'] ?? null;
+                if ($period && !in_array($period, $periods)) {
+                    $periods[] = $period;
+                }
+            }
+        }
+        
+        if (empty($periods)) {
+            return null;
+        }
+        
+        // Sort periods in descending order (most recent first)
+        usort($periods, function($a, $b) {
+            // Extract year and semester from format: 2025-1S, 2024-2S, etc.
+            // Format can be: YYYY-1S, YYYY-2S, YYYY-1, YYYY-2, etc.
+            
+            // Extract year (first 4 digits)
+            preg_match('/(\d{4})/', $a, $matchesA);
+            preg_match('/(\d{4})/', $b, $matchesB);
+            
+            $yearA = isset($matchesA[1]) ? (int)$matchesA[1] : 0;
+            $yearB = isset($matchesB[1]) ? (int)$matchesB[1] : 0;
+            
+            // Compare years first
+            if ($yearA !== $yearB) {
+                return $yearB - $yearA; // Descending order
+            }
+            
+            // Same year, compare semester (2 > 1)
+            // Extract semester number (look for 1 or 2 after the year)
+            preg_match('/[12]/', $a, $semA);
+            preg_match('/[12]/', $b, $semB);
+            
+            $semesterA = isset($semA[0]) ? (int)$semA[0] : 0;
+            $semesterB = isset($semB[0]) ? (int)$semB[0] : 0;
+            
+            return $semesterB - $semesterA; // Descending order
+        });
+        
+        // Return the most recent period (first after sorting)
+        $detectedPeriod = $periods[0];
+        Log::info("Detected periods: " . implode(', ', array_slice($periods, 0, 5)) . "...");
+        
+        return $detectedPeriod;
     }
 
     /**
@@ -315,18 +470,36 @@ class AcademicHistoryImportService
             // Get or create student with case-insensitive document lookup
             $student = $this->getOrCreateStudentWithRandomName($documento);
             
-            // Process all subjects for this student
+            // First pass: collect all historical records with their subject info
+            $historicalRecordsToProcess = [];
+            
             foreach ($studentRecords as $record) {
                 if ($record['is_current']) {
                     // This is a current subject (no grade)
                     $this->createCurrentSubject($student, $record);
                 } else {
-                    // This is historical data (has grade)
-                    // Dummy array to maintain compatibility with signature
-                    $dummyArray = [];
-                    $this->createHistoricalRecordWithCreditDistribution($student, $record, $dummyArray);
+                    // Collect for credit distribution
+                    $subjectInfo = $this->getSubjectInfo($record['subject_code']);
+                    
+                    // If subject not found, create a placeholder for free elective
+                    if (!$subjectInfo) {
+                        $subjectInfo = [
+                            'name' => $record['raw_data']['asignatura'] ?? 'Materia no definida',
+                            'credits' => (int)($record['raw_data']['creditos'] ?? 3),
+                            'type' => 'libre_eleccion',
+                            'source' => 'undefined'
+                        ];
+                        Log::warning("Subject {$record['subject_code']} not found in system - treating as free elective");
+                    }
+                    
+                    $historicalRecordsToProcess[] = array_merge($record, [
+                        'subject_info' => $subjectInfo
+                    ]);
                 }
             }
+            
+            // Second pass: distribute credits intelligently
+            $this->distributeCreditsAndCreateRecords($student, $historicalRecordsToProcess);
             
             // After all records processed, calculate and save student metrics using StudentMetricsService
             $metricsService = app(StudentMetricsService::class);
@@ -503,50 +676,65 @@ class AcademicHistoryImportService
             Log::info("Alias resolved: {$originalCode} -> {$codAsignatura}");
         }
         
+        // IMPORTANT: Subjects NOT found are NOT errors
+        // They will be imported as FREE ELECTIVE automatically
         if (!$isValid) {
-            $this->invalidSubjectCodes[] = $codAsignatura;
-            $this->stats['subjects']['invalid']++;
-            
-            // Track failed record with error reason
-            $this->failedRecords[] = [
-                'documento' => $documento,
-                'cod_asignatura' => $codAsignatura,
-                'asignatura' => $asignaturaNombre,
-                'periodo' => $periodoInscripcion,
-                'nota_numerica' => $notaNumerica,
-                'nota_alfabetica' => $notaAlfabeticaRaw,
-                'creditos' => $creditos,
-                'error' => 'Código de asignatura no encontrado en la base de datos (ni en asignaturas regulares ni en electivas)'
-            ];
-            
-            return null; // Skip this record
+            Log::info("Subject {$codAsignatura} not found in database - will be imported as free elective");
+            // Do NOT add to invalidSubjectCodes
+            // Do NOT add to failedRecords
+            // Continue normal processing
         }
 
         $this->stats['subjects']['valid']++;
 
         // Determine if this is historical (has grade) or current (no grade)
-        // Handle both numeric grade and alphabetic grade (AP = passed, RE = failed)
+        // IMPORTANT: Alphabetic grades (AP/APROBADA, RE/REPROBADA) should NOT set numeric grade
+        // Only actual numeric scores should be stored in the grade field
+        
+        // CHECK IF THIS IS FROM CURRENT PERIOD - if so, force as "cursando" regardless of grades
+        $isCurrentPeriod = false;
+        if ($this->currentPeriod && $periodoInscripcion === $this->currentPeriod) {
+            $isCurrentPeriod = true;
+            Log::info("Subject {$codAsignatura} for student {$documento} is from current period {$periodoInscripcion} - marking as 'cursando'");
+        }
+        
         $hasGrade = false;
         $grade = null;
         
-        if (!empty($notaNumerica) && is_numeric($notaNumerica)) {
-            $hasGrade = true;
-            $grade = (float) $notaNumerica;
-        } elseif (!empty($notaAlfabetica)) {
-            // If only alphabetic grade, infer numeric value
-            if (strtoupper($notaAlfabetica) === 'AP') {
+        if ($isCurrentPeriod) {
+            // Force as current subject - NO GRADE
+            $hasGrade = false;
+            $grade = null;
+            $notaAlfabeticaRaw = null; // Clear alphabetic grade too
+        } else {
+            // Normal processing for historical subjects
+            if (!empty($notaNumerica) && is_numeric($notaNumerica)) {
                 $hasGrade = true;
-                $grade = 3.0; // Minimum passing grade
-            } elseif (strtoupper($notaAlfabetica) === 'RE') {
-                $hasGrade = true;
-                $grade = 0.0; // Failed
+                $grade = (float) $notaNumerica;
             }
+            // Do NOT convert alphabetic grades to numeric values
+            // AP/RE should remain as alphabetic_grade only, grade should be NULL
         }
 
-        // Determine status based on grade
+        // Determine status based on grade or alphabetic grade
         $status = 'enrolled'; // default
-        if ($hasGrade) {
+        
+        if ($isCurrentPeriod) {
+            // Current period subjects are always 'enrolled' (cursando)
+            $status = 'enrolled';
+        } elseif ($hasGrade) {
             $status = $grade >= 3.0 ? 'passed' : 'failed';
+        } elseif (!empty($notaAlfabeticaRaw)) {
+            // If only alphabetic grade, determine status but don't assign numeric grade
+            if (strtoupper($notaAlfabeticaRaw) === 'AP' || strtoupper($notaAlfabeticaRaw) === 'APROBADA') {
+                $hasGrade = true; // Mark as having evaluation (not current)
+                $status = 'passed';
+                // grade remains NULL - qualitative evaluation
+            } elseif (strtoupper($notaAlfabeticaRaw) === 'RE' || strtoupper($notaAlfabeticaRaw) === 'REPROBADA') {
+                $hasGrade = true;
+                $status = 'failed';
+                // grade remains NULL - qualitative evaluation
+            }
         }
 
         // Track successful record (will be enhanced with credit distribution later)
@@ -683,6 +871,212 @@ class AcademicHistoryImportService
     }
 
     /**
+     * Distribute credits intelligently across components with overflow handling
+     * This is the core logic that implements the credit distribution rules
+     */
+    private function distributeCreditsAndCreateRecords(Student $student, array $historicalRecords): void
+    {
+        // Initialize credit trackers per component
+        $creditUsed = [
+            'fundamental_required' => 0,
+            'professional_required' => 0,
+            'optional_fundamental' => 0,
+            'optional_professional' => 0,
+            'free_elective' => 0,
+            'thesis' => 0,
+            'practice' => 0,
+            'leveling' => 0,
+        ];
+        
+        // Track which subject codes we've already seen (for duplicate detection)
+        $seenSubjectCodes = [];
+        
+        foreach ($historicalRecords as $record) {
+            $subjectCode = $record['subject_code'];
+            $subjectInfo = $record['subject_info'];
+            $totalCredits = $subjectInfo['credits'];
+            $originalComponent = $this->subjectTypes[$subjectCode] ?? $this->mapSubjectTypeToComponent($subjectInfo['type']);
+            
+            // Check if this is a duplicate
+            $isDuplicate = isset($seenSubjectCodes[$subjectCode]);
+            $seenSubjectCodes[$subjectCode] = ($seenSubjectCodes[$subjectCode] ?? 0) + 1;
+            
+            // Determine credit distribution
+            $effectiveCredits = 0;      // Credits that count for the original component
+            $overflowCredits = 0;       // Credits that overflow to free elective
+            $actualComponent = null;    // Final component assignment
+            $countsForPercentage = true; // Whether it counts for progress percentage
+            $assignmentNotes = '';
+            
+            // IMPORTANT: Leveling subjects DON'T count towards degree (167 credits)
+            // They can count for PAPA if they have numeric grade, but not for progress
+            if ($originalComponent === 'leveling') {
+                $countsForPercentage = false;
+                $effectiveCredits = $totalCredits;
+                $overflowCredits = 0;
+                $actualComponent = 'leveling';
+                $creditUsed['leveling'] += $totalCredits;
+                $assignmentNotes = "Nivelación - no cuenta para avance de 167 créditos";
+                
+                $this->createAcademicHistoryRecord($student, $record, $subjectInfo, [
+                    'effective_credits' => $effectiveCredits,
+                    'overflow_credits' => $overflowCredits,
+                    'actual_component_type' => $actualComponent,
+                    'is_duplicate' => $isDuplicate,
+                    'counts_for_percentage' => $countsForPercentage,
+                    'assignment_notes' => $assignmentNotes
+                ]);
+                
+                continue; // Skip normal distribution logic for leveling
+            }
+            
+            // If subject not found in system or marked as undefined, treat as free elective
+            if (!isset($subjectInfo['source']) || $subjectInfo['source'] === 'undefined' || $subjectInfo['source'] === null) {
+                $originalComponent = 'free_elective';
+                Log::info("Subject {$subjectCode} not found in system - assigning to free_elective");
+            }
+            
+            // Calculate remaining space in original component
+            $componentLimit = $this->creditLimits[$originalComponent] ?? 0;
+            $componentUsed = $creditUsed[$originalComponent] ?? 0;
+            $componentRemaining = max(0, $componentLimit - $componentUsed);
+            
+            if ($componentRemaining >= $totalCredits) {
+                // All credits fit in original component
+                $effectiveCredits = $totalCredits;
+                $overflowCredits = 0;
+                $actualComponent = $originalComponent;
+                $creditUsed[$originalComponent] += $totalCredits;
+                $assignmentNotes = "Todos los {$totalCredits} créditos asignados a {$originalComponent}";
+                
+            } elseif ($componentRemaining > 0) {
+                // Partial fit: some go to original, rest to free elective
+                $effectiveCredits = $componentRemaining;
+                $overflowCredits = $totalCredits - $componentRemaining;
+                $actualComponent = $originalComponent;
+                $creditUsed[$originalComponent] += $effectiveCredits;
+                
+                // Try to place overflow in free elective
+                $freeElectiveLimit = $this->creditLimits['free_elective'] ?? 36;
+                $freeElectiveUsed = $creditUsed['free_elective'] ?? 0;
+                $freeElectiveRemaining = max(0, $freeElectiveLimit - $freeElectiveUsed);
+                
+                if ($freeElectiveRemaining >= $overflowCredits) {
+                    $creditUsed['free_elective'] += $overflowCredits;
+                    $assignmentNotes = "{$effectiveCredits} créditos a {$originalComponent}, {$overflowCredits} a libre_eleccion";
+                } else {
+                    // Free elective also full - mark as N/A
+                    $countsForPercentage = false;
+                    $actualComponent = 'na';
+                    $assignmentNotes = "{$effectiveCredits} créditos a {$originalComponent}, {$overflowCredits} exceden límite (N/A)";
+                }
+                
+            } else {
+                // Original component full, try free elective
+                $freeElectiveLimit = $this->creditLimits['free_elective'] ?? 36;
+                $freeElectiveUsed = $creditUsed['free_elective'] ?? 0;
+                $freeElectiveRemaining = max(0, $freeElectiveLimit - $freeElectiveUsed);
+                
+                if ($freeElectiveRemaining >= $totalCredits) {
+                    // All fits in free elective
+                    $effectiveCredits = $totalCredits;
+                    $overflowCredits = 0;
+                    $actualComponent = 'free_elective';
+                    $creditUsed['free_elective'] += $totalCredits;
+                    $assignmentNotes = "Componente {$originalComponent} lleno, {$totalCredits} créditos a libre_eleccion";
+                    
+                } elseif ($freeElectiveRemaining > 0) {
+                    // Partial fit in free elective
+                    $effectiveCredits = $freeElectiveRemaining;
+                    $overflowCredits = $totalCredits - $freeElectiveRemaining;
+                    $actualComponent = 'na';
+                    $countsForPercentage = false;
+                    $creditUsed['free_elective'] += $effectiveCredits;
+                    $assignmentNotes = "{$effectiveCredits} créditos a libre_eleccion, {$overflowCredits} exceden límite (N/A)";
+                    
+                } else {
+                    // Everything is full - mark as N/A
+                    $effectiveCredits = 0;
+                    $overflowCredits = $totalCredits;
+                    $actualComponent = 'na';
+                    $countsForPercentage = false;
+                    $assignmentNotes = "Todos los componentes llenos - {$totalCredits} créditos no cuentan para porcentaje (N/A)";
+                }
+            }
+            
+            // Create the academic history record
+            $this->createAcademicHistoryRecord($student, $record, $subjectInfo, [
+                'effective_credits' => $effectiveCredits,
+                'overflow_credits' => $overflowCredits,
+                'actual_component_type' => $actualComponent,
+                'is_duplicate' => $isDuplicate,
+                'counts_for_percentage' => $countsForPercentage,
+                'assignment_notes' => $assignmentNotes,
+            ]);
+            
+            Log::info("Student {$student->document} - Subject {$subjectCode}: {$assignmentNotes}");
+        }
+        
+        // Log final credit distribution
+        Log::info("Student {$student->document} final credit distribution: " . json_encode($creditUsed));
+    }
+    
+    /**
+     * Create academic history record with credit distribution info
+     */
+    private function createAcademicHistoryRecord(Student $student, array $record, array $subjectInfo, array $creditDistribution): void
+    {
+        $subjectCode = $record['subject_code'];
+        
+        // Check if record already exists
+        $existing = DB::table('student_subject')
+            ->where('student_document', $student->document)
+            ->where('subject_code', $subjectCode)
+            ->first();
+
+        if ($existing) {
+            // Update only if new grade is better
+            if ($record['grade'] > $existing->grade) {
+                DB::table('student_subject')
+                    ->where('student_document', $student->document)
+                    ->where('subject_code', $subjectCode)
+                    ->update([
+                        'grade' => $record['grade'],
+                        'alphabetic_grade' => $record['alphabetic_grade'] ?? null,
+                        'status' => $record['status'],
+                        'period' => $record['period'] ?? null,
+                        'updated_at' => now(),
+                    ]);
+            }
+            $this->stats['duplicates']++;
+            return;
+        }
+
+        // Insert the record with credit distribution
+        DB::table('student_subject')->insert([
+            'student_document' => $student->document,
+            'subject_code' => $subjectCode,
+            'subject_name' => $subjectInfo['name'],
+            'subject_credits' => $subjectInfo['credits'],
+            'subject_type' => $subjectInfo['type'],
+            'grade' => $record['grade'],
+            'alphabetic_grade' => $record['alphabetic_grade'] ?? null,
+            'status' => $record['status'],
+            'period' => $record['period'] ?? null,
+            'effective_credits' => $creditDistribution['effective_credits'],
+            'overflow_credits' => $creditDistribution['overflow_credits'],
+            'actual_component_type' => $creditDistribution['actual_component_type'],
+            'is_duplicate' => $creditDistribution['is_duplicate'],
+            'counts_for_percentage' => $creditDistribution['counts_for_percentage'],
+            'assignment_notes' => $creditDistribution['assignment_notes'],
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->stats['history']['created']++;
+    }
+
+    /**
      * Get subject information (name, credits, type) from database
      */
     private function getSubjectInfo(string $subjectCode): ?array
@@ -694,6 +1088,7 @@ class AcademicHistoryImportService
                 'name' => $subject->name,
                 'credits' => $subject->credits,
                 'type' => $subject->type,
+                'source' => 'Subject',
             ];
         }
         
@@ -704,6 +1099,18 @@ class AcademicHistoryImportService
                 'name' => $elective->name,
                 'credits' => $elective->credits,
                 'type' => $elective->elective_type,
+                'source' => 'ElectiveSubject',
+            ];
+        }
+        
+        // Try leveling subjects
+        $leveling = LevelingSubject::where('code', $subjectCode)->first();
+        if ($leveling) {
+            return [
+                'name' => $leveling->name,
+                'credits' => $leveling->credits,
+                'type' => 'nivelacion',
+                'source' => 'LevelingSubject',
             ];
         }
         
@@ -717,6 +1124,7 @@ class AcademicHistoryImportService
             return $this->getSubjectInfo($alias->subject_code);
         }
         
+        // Subject not found in any source - will be treated as free elective
         return null;
     }
 

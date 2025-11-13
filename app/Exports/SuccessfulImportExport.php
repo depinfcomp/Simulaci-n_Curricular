@@ -11,7 +11,6 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-use App\Services\CreditDistributionService;
 
 class SuccessfulImportExport implements 
     FromCollection, 
@@ -23,14 +22,11 @@ class SuccessfulImportExport implements
 {
     protected $successfulRecords;
     protected $importDate;
-    protected $creditService;
-    protected $distributionCache = [];
 
     public function __construct(array $successfulRecords, string $importDate)
     {
         $this->successfulRecords = $successfulRecords;
         $this->importDate = $importDate;
-        $this->creditService = app(CreditDistributionService::class);
     }
 
     public function collection()
@@ -58,37 +54,21 @@ class SuccessfulImportExport implements
                 'alphabetic_grade',
                 'status',
                 'period',
+                'effective_credits',
+                'overflow_credits',
+                'actual_component_type',
+                'is_duplicate',
+                'counts_for_percentage',
+                'assignment_notes',
                 'created_at'
             )
             ->orderBy('student_document')
             ->orderBy('subject_code')
             ->get();
         
-        // Pre-calculate distributions for all students
-        foreach ($documents as $document) {
-            try {
-                $this->distributionCache[$document] = $this->creditService->calculateDistribution($document);
-            } catch (\Exception $e) {
-                Log::warning("Error calculating distribution for {$document}: " . $e->getMessage());
-                $this->distributionCache[$document] = null;
-            }
-        }
-        
-        // Enrich records with student and distribution data
+        // Enrich records with student data (no need for distribution service anymore)
         $enrichedRecords = $studentSubjects->map(function ($record) use ($students) {
             $student = $students->get($record->student_document);
-            $distribution = $this->distributionCache[$record->student_document] ?? null;
-            
-            // Find the subject in the distribution
-            $subjectDist = null;
-            if ($distribution && isset($distribution['subject_distributions'])) {
-                foreach ($distribution['subject_distributions'] as $dist) {
-                    if ($dist['subject_code'] === $record->subject_code) {
-                        $subjectDist = $dist;
-                        break;
-                    }
-                }
-            }
             
             return (object) [
                 'student_document' => $record->student_document,
@@ -105,9 +85,13 @@ class SuccessfulImportExport implements
                 'alphabetic_grade' => $record->alphabetic_grade,
                 'status' => $record->status,
                 'period' => $record->period,
-                'counts_towards_degree' => $subjectDist ? $subjectDist['counts_towards_degree'] : false,
-                'assigned_component' => $subjectDist ? $subjectDist['assigned_component'] : 'N/A',
-                'credits_counted' => $subjectDist ? $subjectDist['credits_counted'] : 0,
+                // New fields from credit distribution
+                'effective_credits' => $record->effective_credits ?? 0,
+                'overflow_credits' => $record->overflow_credits ?? 0,
+                'actual_component_type' => $record->actual_component_type ?? 'N/A',
+                'is_duplicate' => $record->is_duplicate ?? false,
+                'counts_for_percentage' => $record->counts_for_percentage ?? true,
+                'assignment_notes' => $record->assignment_notes ?? '',
                 'created_at' => $record->created_at,
             ];
         });
@@ -126,15 +110,18 @@ class SuccessfulImportExport implements
             'Créditos Cursados',
             'Código Asignatura',
             'Nombre Asignatura',
-            'Créditos Asignatura',
+            'Créditos Totales',
             'Tipo Materia',
             'Nota Numérica',
             'Nota Alfabética',
             'Estado',
             'Periodo',
-            'Cuenta para Grado',
+            'Créditos Efectivos',
+            'Créditos Overflow',
             'Componente Asignado',
-            'Créditos Contados',
+            'Es Duplicado',
+            'Cuenta para %',
+            'Notas de Asignación',
             'Fecha Importación',
         ];
     }
@@ -148,7 +135,8 @@ class SuccessfulImportExport implements
             default => $record->status,
         };
         
-        $countsText = $record->counts_towards_degree ? 'Sí' : 'No';
+        $countsText = $record->counts_for_percentage ? 'Sí' : 'No';
+        $duplicateText = $record->is_duplicate ? 'Sí' : 'No';
         
         return [
             $record->student_document,
@@ -165,9 +153,12 @@ class SuccessfulImportExport implements
             $record->alphabetic_grade ?? '',
             $statusText,
             $record->period ?? '',
+            $record->effective_credits,
+            $record->overflow_credits,
+            $this->formatComponent($record->actual_component_type),
+            $duplicateText,
             $countsText,
-            $this->formatComponent($record->assigned_component),
-            $record->credits_counted,
+            $record->assignment_notes ?? '',
             date('Y-m-d H:i:s', strtotime($record->created_at)),
         ];
     }
@@ -196,16 +187,19 @@ class SuccessfulImportExport implements
             'F' => 18, // Créditos Cursados
             'G' => 18, // Código Asignatura
             'H' => 40, // Nombre Asignatura
-            'I' => 18, // Créditos Asignatura
-            'J' => 20, // Tipo
-            'K' => 12, // Nota
+            'I' => 18, // Créditos Totales
+            'J' => 25, // Tipo
+            'K' => 12, // Nota Numérica
             'L' => 12, // Nota Alfabética
             'M' => 12, // Estado
             'N' => 12, // Periodo
-            'O' => 18, // Cuenta para Grado
-            'P' => 25, // Componente
-            'Q' => 18, // Créditos Contados
-            'R' => 20, // Fecha
+            'O' => 18, // Créditos Efectivos
+            'P' => 18, // Créditos Overflow
+            'Q' => 30, // Componente Asignado
+            'R' => 12, // Es Duplicado
+            'S' => 12, // Cuenta para %
+            'T' => 50, // Notas de Asignación
+            'U' => 20, // Fecha
         ];
     }
 
@@ -237,7 +231,9 @@ class SuccessfulImportExport implements
             'optional_fundamental' => 'Fundamental Optativa',
             'free_elective' => 'Libre Elección',
             'thesis' => 'Trabajo de Grado',
+            'practice' => 'Práctica',
             'leveling' => 'Nivelación',
+            'na' => 'N/A (No cuenta para %)',
         ];
         
         return $components[$component] ?? $component;

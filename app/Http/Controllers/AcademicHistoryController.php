@@ -47,11 +47,13 @@ class AcademicHistoryController extends Controller
     public function upload(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|mimes:csv|max:51200' // Solo CSV, 50MB max
+            'file' => 'required|file|mimes:csv|max:51200', // Solo CSV, 50MB max
+            'current_period' => 'nullable|string' // Opcional - se detecta automáticamente si no se proporciona
         ]);
 
         try {
             $file = $request->file('file');
+            $currentPeriod = $request->input('current_period'); // null si no se proporciona
             $filename = time() . '_' . $file->getClientOriginalName();
             
             // Store file
@@ -70,8 +72,8 @@ class AcademicHistoryController extends Controller
                 'imported_by' => auth()->id()
             ]);
 
-            // Use the same service as docker.sh setup
-            $result = $this->importService->importFromCSV($fullPath, false);
+            // Use the same service as docker.sh setup - PASS current_period
+            $result = $this->importService->importFromCSV($fullPath, false, $currentPeriod);
 
             // Calculate correct statistics
             $totalRecords = $result['history']['created'] + $result['current']['created'] + $result['subjects']['invalid'];
@@ -658,35 +660,77 @@ class AcademicHistoryController extends Controller
     }
 
     /**
-     * Export import data to Excel
+     * Export import data to CSV (original format from database)
      */
     public function export(AcademicHistoryImport $import)
     {
         try {
-            $histories = $import->histories()->get();
+            Log::info("Exporting original CSV for import ID: {$import->id}");
+            
+            // Get date range for this import
+            $importDate = $import->created_at;
+            $importEndDate = $import->updated_at;
+            
+            Log::info("Import date range: {$importDate} to {$importEndDate}");
+            
+            // Get students imported in this batch
+            $students = DB::table('students')
+                ->whereBetween('updated_at', [$importDate, $importEndDate])
+                ->pluck('document');
+            
+            Log::info("Found " . $students->count() . " students");
+            
+            if ($students->isEmpty()) {
+                return redirect()->back()->with('info', 'No hay datos para exportar');
+            }
+            
+            // Get all subject records for these students created during import
+            $records = DB::table('student_subject')
+                ->whereIn('student_document', $students)
+                ->whereBetween('created_at', [$importDate, $importEndDate])
+                ->select(
+                    'student_document',
+                    'subject_code',
+                    'subject_name',
+                    'grade',
+                    'subject_credits',
+                    'period',
+                    'status'
+                )
+                ->get();
+            
+            Log::info("Found " . $records->count() . " records");
+            
+            if ($records->isEmpty()) {
+                return redirect()->back()->with('info', 'No hay registros para exportar');
+            }
             
             // Create CSV content
             $csv = "Código Estudiante,Código Materia,Nombre Materia,Nota,Créditos,Período,Estado\n";
             
-            foreach ($histories as $history) {
+            foreach ($records as $record) {
                 $csv .= implode(',', [
-                    $history->student_code,
-                    $history->subject_code,
-                    '"' . $history->subject_name . '"',
-                    $history->grade,
-                    $history->credits,
-                    $history->period,
-                    $history->status
+                    $record->student_document,
+                    $record->subject_code,
+                    '"' . str_replace('"', '""', $record->subject_name) . '"',
+                    $record->grade ?? '',
+                    $record->subject_credits ?? '',
+                    $record->period ?? '',
+                    $record->status ?? ''
                 ]) . "\n";
             }
             
-            $filename = 'export_' . $import->original_filename . '.csv';
+            $filename = 'export_' . pathinfo($import->original_filename, PATHINFO_FILENAME) . '_' . now()->format('Y-m-d_His') . '.csv';
+            
+            Log::info("Exporting CSV: {$filename}");
             
             return response($csv)
-                ->header('Content-Type', 'text/csv')
+                ->header('Content-Type', 'text/csv; charset=utf-8')
                 ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
                 
         } catch (\Exception $e) {
+            Log::error('Error exporting CSV: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
             return redirect()->back()->with('error', 'Error al exportar: ' . $e->getMessage());
         }
     }
@@ -697,21 +741,109 @@ class AcademicHistoryController extends Controller
     public function exportSuccessful(AcademicHistoryImport $import)
     {
         try {
-            // Get import summary to get list of processed documents
-            $summary = $import->import_summary;
+            Log::info("Exporting successful records for import ID: {$import->id}");
             
-            if (!$summary || !isset($summary['successful_records'])) {
-                return redirect()->back()->with('error', 'No hay datos de registros exitosos para exportar');
-            }
-
-            $successfulRecords = $summary['successful_records'];
+            // Get date range for this import
+            $importDate = $import->created_at;
+            $importEndDate = $import->updated_at;
             
-            if (empty($successfulRecords)) {
+            Log::info("Import date range: {$importDate} to {$importEndDate}");
+            
+            // Get students imported in this batch
+            $students = DB::table('students')
+                ->whereBetween('updated_at', [$importDate, $importEndDate])
+                ->get();
+            
+            Log::info("Found " . $students->count() . " students in date range");
+            
+            if ($students->isEmpty()) {
+                Log::warning("No students found for this import");
                 return redirect()->back()->with('info', 'No hay registros exitosos en esta importación');
             }
             
+            // Create a map of student data
+            $studentMap = [];
+            foreach ($students as $student) {
+                $studentMap[$student->document] = [
+                    'name' => $student->name,
+                    'average' => $student->average ?? 0,
+                    'progress_percentage' => $student->progress_percentage ?? 0,
+                    'approved_credits' => $student->approved_credits ?? 0,
+                    'enrolled_credits' => $student->enrolled_credits ?? 0
+                ];
+            }
+            
+            // Get all their subject records with ALL new fields
+            $records = DB::table('student_subject')
+                ->whereIn('student_document', array_keys($studentMap))
+                ->whereBetween('created_at', [$importDate, $importEndDate])
+                ->select(
+                    'student_document',
+                    'subject_code',
+                    'subject_name',
+                    'subject_credits',
+                    'subject_type',
+                    'grade',
+                    'alphabetic_grade',
+                    'status',
+                    'period',
+                    'effective_credits',
+                    'overflow_credits',
+                    'actual_component_type',
+                    'is_duplicate',
+                    'counts_for_percentage',
+                    'assignment_notes',
+                    'created_at'
+                )
+                ->get();
+            
+            Log::info("Found " . $records->count() . " successful records");
+            
+            if ($records->isEmpty()) {
+                Log::warning("No records found for export");
+                return redirect()->back()->with('info', 'No hay registros exitosos en esta importación');
+            }
+            
+            // Map records to export format
+            $successfulRecords = $records->map(function($record) use ($studentMap) {
+                $studentData = $studentMap[$record->student_document] ?? [
+                    'name' => 'Desconocido',
+                    'average' => 0,
+                    'progress_percentage' => 0,
+                    'approved_credits' => 0,
+                    'enrolled_credits' => 0
+                ];
+                
+                return [
+                    'documento' => $record->student_document,
+                    'nombre_estudiante' => $studentData['name'],
+                    'promedio' => $studentData['average'],
+                    'progreso_porcentaje' => $studentData['progress_percentage'],
+                    'creditos_aprobados' => $studentData['approved_credits'],
+                    'creditos_cursados' => $studentData['enrolled_credits'],
+                    'cod_asignatura' => $record->subject_code,
+                    'asignatura' => $record->subject_name,
+                    'creditos_asignatura' => $record->subject_credits,
+                    'tipo_materia' => $record->subject_type,
+                    'nota' => $record->grade,
+                    'nota_alfabetica' => $record->alphabetic_grade,
+                    'status' => $record->status,
+                    'periodo' => $record->period,
+                    'effective_credits' => $record->effective_credits ?? $record->subject_credits,
+                    'overflow_credits' => $record->overflow_credits ?? 0,
+                    'actual_component_type' => $record->actual_component_type ?? $record->subject_type,
+                    'is_duplicate' => $record->is_duplicate ?? false,
+                    'counts_for_percentage' => $record->counts_for_percentage ?? true,
+                    'assignment_notes' => $record->assignment_notes ?? '',
+                    'fecha_importacion' => $record->created_at,
+                    'is_current' => $record->status === 'enrolled'
+                ];
+            })->toArray();
+            
             // Use Excel export class
             $filename = 'exitosos_' . pathinfo($import->original_filename, PATHINFO_FILENAME) . '_' . now()->format('Y-m-d_His') . '.xlsx';
+            
+            Log::info("Starting Excel export: {$filename}");
             
             return Excel::download(
                 new \App\Exports\SuccessfulImportExport($successfulRecords, $import->created_at->format('Y-m-d H:i:s')),

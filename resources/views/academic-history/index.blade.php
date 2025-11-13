@@ -301,6 +301,11 @@
                         </small>
                     </div>
 
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-magic me-2"></i>
+                        <strong>Detección Automática:</strong> El sistema detectará automáticamente el periodo más reciente del archivo. Eliminará cualquier nota del periodo actual no finalizado, se recomienda hacer uso del aplicativo en periodo académico.
+                    </div>
+
                     <div id="uploadProgress" style="display: none;">
                         <div class="progress mb-2">
                             <div class="progress-bar progress-bar-striped progress-bar-animated" 

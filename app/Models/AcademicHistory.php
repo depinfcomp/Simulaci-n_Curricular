@@ -15,6 +15,12 @@ class AcademicHistory extends Model
         'grade',
         'numeric_grade',
         'credits',
+        'effective_credits',
+        'overflow_credits',
+        'actual_component_type',
+        'is_duplicate',
+        'counts_for_percentage',
+        'assignment_notes',
         'period',
         'status',
         'notes',
@@ -26,8 +32,12 @@ class AcademicHistory extends Model
     protected $casts = [
         'numeric_grade' => 'decimal:1',
         'credits' => 'integer',
+        'effective_credits' => 'integer',
+        'overflow_credits' => 'integer',
         'credits_counted' => 'integer',
         'counts_towards_degree' => 'boolean',
+        'is_duplicate' => 'boolean',
+        'counts_for_percentage' => 'boolean',
     ];
 
     public function import(): BelongsTo
