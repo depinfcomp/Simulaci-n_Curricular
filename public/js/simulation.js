@@ -1507,9 +1507,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             ` : ''}
                             
                             ${data.details.length > 0 ? `
-                                <!-- Search Bar -->
+                                <!-- Search and Filters Bar -->
                                 <div class="mb-3">
-                                    <div class="input-group">
+                                    <!-- Search Input -->
+                                    <div class="input-group mb-2">
                                         <span class="input-group-text">
                                             <i class="fas fa-search"></i>
                                         </span>
@@ -1518,13 +1519,55 @@ document.addEventListener('DOMContentLoaded', function() {
                                             class="form-control" 
                                             id="studentSearchInput" 
                                             placeholder="Buscar estudiante por código (documento)..."
-                                            oninput="filterStudents(this.value)"
+                                            oninput="applyFilters()"
                                         >
-                                        <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('studentSearchInput').value = ''; filterStudents('');">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="clearAllFilters();" title="Limpiar búsqueda y filtros">
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </div>
-                                    <small class="text-muted d-block mt-1" id="searchResultCount"></small>
+                                    
+                                    <!-- Filter Options -->
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-md-6">
+                                            <label class="form-label small mb-1 fw-bold">
+                                                <i class="fas fa-filter me-1"></i>Filtro por Cambio en Avance
+                                            </label>
+                                            <select class="form-select form-select-sm" id="progressFilter" onchange="applyFilters()">
+                                                <option value="all" selected>Todos los estudiantes</option>
+                                                <option value="-5,5">±5% (-5% a +5%)</option>
+                                                <option value="-10,10">±10% (-10% a +10%)</option>
+                                                <option value="-15,15">±15% (-15% a +15%)</option>
+                                                <option value="-20,20">±20% (-20% a +20%)</option>
+                                                <option value="0,999">Solo impacto positivo (>0%)</option>
+                                                <option value="-999,0">Solo impacto negativo (<0%)</option>
+                                                <option value="-999,-5">Impacto negativo fuerte (< -5%)</option>
+                                                <option value="5,999">Impacto positivo fuerte (> +5%)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small mb-1 fw-bold">
+                                                <i class="fas fa-filter me-1"></i>Filtro por Cambio en PAPA
+                                            </label>
+                                            <select class="form-select form-select-sm" id="papaFilter" onchange="applyFilters()">
+                                                <option value="all" selected>Todos los estudiantes</option>
+                                                <option value="-0.1,0.1">±0.1 puntos</option>
+                                                <option value="-0.2,0.2">±0.2 puntos</option>
+                                                <option value="-0.5,0.5">±0.5 puntos</option>
+                                                <option value="0,5">Solo impacto positivo (>0)</option>
+                                                <option value="-5,0">Solo impacto negativo (<0)</option>
+                                                <option value="-5,-0.1">Impacto negativo fuerte (< -0.1)</option>
+                                                <option value="0.1,5">Impacto positivo fuerte (> +0.1)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Result Count -->
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted" id="searchResultCount"></small>
+                                        <button class="btn btn-sm btn-outline-primary" onclick="clearAllFilters();" title="Restablecer todos los filtros">
+                                            <i class="fas fa-redo-alt me-1"></i>Limpiar Filtros
+                                        </button>
+                                    </div>
                                 </div>
                                 
                                 <h6 class="mb-3">
@@ -1535,7 +1578,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                     ${data.details.map((detail, index) => `
                                         <div class="accordion-item mb-2 border rounded">
                                             <h2 class="accordion-header">
-                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${index}">
+                                                <button 
+                                                    class="accordion-button collapsed" 
+                                                    type="button" 
+                                                    data-bs-toggle="collapse" 
+                                                    data-bs-target="#collapse${index}"
+                                                    data-progress-change="${detail.progress_change}"
+                                                    data-papa-change="${detail.papa_change}"
+                                                >
                                                     <div class="d-flex align-items-center w-100">
                                                         <span class="fw-bold">Estudiante: ${detail.student_document}</span>
                                                         <span class="ms-3 badge bg-secondary">Semestre ${detail.current_semester}</span>
@@ -1675,14 +1725,115 @@ document.addEventListener('DOMContentLoaded', function() {
         
         modal.show();
         
-        // Initialize search result count after modal is shown
+        // Initialize filters after modal is shown
         setTimeout(() => {
-            filterStudents('');
+            applyFilters();
         }, 100);
     }
     
     /**
-     * Filter students in the impact analysis modal by document number
+     * Apply all filters (search + progress + papa) to students
+     */
+    window.applyFilters = function() {
+        const searchTerm = document.getElementById('studentSearchInput')?.value || '';
+        const progressFilter = document.getElementById('progressFilter')?.value || 'all';
+        const papaFilter = document.getElementById('papaFilter')?.value || 'all';
+        
+        const accordionItems = document.querySelectorAll('#studentsAccordion .accordion-item');
+        const searchLower = searchTerm.toLowerCase().trim();
+        let visibleCount = 0;
+        
+        accordionItems.forEach(item => {
+            const button = item.querySelector('.accordion-button');
+            const studentDocument = button.textContent;
+            
+            // Get student data from data attributes (we'll add these)
+            const progressChange = parseFloat(button.getAttribute('data-progress-change') || 0);
+            const papaChange = parseFloat(button.getAttribute('data-papa-change') || 0);
+            
+            // Check search filter
+            const matchesSearch = searchLower === '' || studentDocument.toLowerCase().includes(searchLower);
+            
+            // Check progress filter
+            let matchesProgress = true;
+            if (progressFilter !== 'all') {
+                const [min, max] = progressFilter.split(',').map(parseFloat);
+                matchesProgress = progressChange >= min && progressChange <= max;
+            }
+            
+            // Check papa filter
+            let matchesPapa = true;
+            if (papaFilter !== 'all') {
+                const [min, max] = papaFilter.split(',').map(parseFloat);
+                matchesPapa = papaChange >= min && papaChange <= max;
+            }
+            
+            // Show/hide based on all filters
+            if (matchesSearch && matchesProgress && matchesPapa) {
+                item.style.display = '';
+                visibleCount++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+        
+        // Update result count
+        updateResultCount(visibleCount, accordionItems.length, searchLower, progressFilter, papaFilter);
+    }
+    
+    /**
+     * Update the result count message based on active filters
+     */
+    function updateResultCount(visibleCount, totalCount, searchTerm, progressFilter, papaFilter) {
+        const resultCountElement = document.getElementById('searchResultCount');
+        if (!resultCountElement) return;
+        
+        const hasFilters = searchTerm !== '' || progressFilter !== 'all' || papaFilter !== 'all';
+        
+        if (!hasFilters) {
+            resultCountElement.textContent = `Mostrando todos los ${totalCount} estudiantes afectados`;
+            resultCountElement.classList.remove('text-danger', 'text-warning');
+            resultCountElement.classList.add('text-muted');
+        } else {
+            let filterDescription = [];
+            if (searchTerm !== '') filterDescription.push('búsqueda');
+            if (progressFilter !== 'all') filterDescription.push('filtro de avance');
+            if (papaFilter !== 'all') filterDescription.push('filtro de PAPA');
+            
+            resultCountElement.textContent = `Mostrando ${visibleCount} de ${totalCount} estudiantes (${filterDescription.join(', ')})`;
+            
+            if (visibleCount === 0) {
+                resultCountElement.textContent += ' - No se encontraron coincidencias';
+                resultCountElement.classList.add('text-danger');
+                resultCountElement.classList.remove('text-warning', 'text-muted');
+            } else if (visibleCount < totalCount * 0.1) {
+                resultCountElement.classList.add('text-warning');
+                resultCountElement.classList.remove('text-danger', 'text-muted');
+            } else {
+                resultCountElement.classList.remove('text-danger', 'text-warning');
+                resultCountElement.classList.add('text-muted');
+            }
+        }
+    }
+    
+    /**
+     * Clear all filters and search
+     */
+    window.clearAllFilters = function() {
+        const searchInput = document.getElementById('studentSearchInput');
+        const progressFilter = document.getElementById('progressFilter');
+        const papaFilter = document.getElementById('papaFilter');
+        
+        if (searchInput) searchInput.value = '';
+        if (progressFilter) progressFilter.value = 'all';
+        if (papaFilter) papaFilter.value = 'all';
+        
+        applyFilters();
+    }
+    
+    /**
+     * Legacy function for backward compatibility
+     * @deprecated Use applyFilters() instead
      */
     window.filterStudents = function(searchTerm) {
         const accordionItems = document.querySelectorAll('#studentsAccordion .accordion-item');
@@ -3019,6 +3170,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update simulation status
             updateSimulationStatus();
             
+            // Run automatic impact analysis
+            setTimeout(() => {
+                analyzeImpact();
+            }, 300);
+            updateSimulationStatus();
+            
             showSuccessMessage(`Materia marcada para eliminación. Recuerda guardar los cambios.`);
         }
     };
@@ -3882,6 +4039,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Show success message
         showSuccessMessage(`Materia "${name}" (${code}) agregada exitosamente al semestre ${semester}`);
+        
+        // Run automatic impact analysis
+        setTimeout(() => {
+            analyzeImpact();
+        }, 300);
         
         console.log(`New subject added: ${code} - ${name}, Prerequisites: [${prerequisiteArray.join(', ')}]`);
     };

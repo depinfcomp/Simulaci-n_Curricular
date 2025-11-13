@@ -35,6 +35,9 @@ class SimulationController extends Controller
     {
         $changes = $request->input('changes', []);
         
+        // Debug: Log received changes
+        \Log::info('Analyzing impact with changes:', ['changes' => $changes]);
+        
         // Get all students with their current progress and current subjects
         $students = Student::with([
             'subjects' => function($query) {
@@ -231,23 +234,108 @@ class SimulationController extends Controller
         $allSubjects = Subject::with('prerequisites', 'requiredFor')->get()->keyBy('code');
         $studentCurrentSemester = $this->getCurrentSemester($student->progress_percentage);
         
+        // Check if there are any 'added' or 'removed' changes that affect career credits
+        $hasCareerCreditsChange = false;
+        foreach ($changes as $change) {
+            if ($change['type'] === 'added') {
+                $addedType = $change['new_value']['type'] ?? 'profesional';
+                if ($addedType !== 'nivelacion') {
+                    $hasCareerCreditsChange = true;
+                    break;
+                }
+            } elseif ($change['type'] === 'removed') {
+                $subjectCode = $change['subject_code'];
+                if (isset($allSubjects[$subjectCode])) {
+                    $removedSubject = $allSubjects[$subjectCode];
+                    if ($removedSubject->type !== 'nivelacion') {
+                        $hasCareerCreditsChange = true;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // If there are career credit changes, recalculate progress for this student
+        if ($hasCareerCreditsChange) {
+            $impact['has_impact'] = true;
+            
+            // Current career credits (total in the curriculum, excluding leveling)
+            $currentCareerCredits = $allSubjects->where('type', '!=', 'nivelacion')->sum('credits');
+            
+            // Student's passed credits (from DB, already calculated correctly)
+            // We can derive this from the current_progress
+            $studentPassedCredits = ($impact['current_progress'] / 100) * $currentCareerCredits;
+            
+            // Projected career credits = current + added - removed (only non-leveling)
+            $projectedCareerCredits = $currentCareerCredits;
+            $projectedPassedCredits = $studentPassedCredits;
+            
+            // Apply all changes
+            foreach ($changes as $change) {
+                if ($change['type'] === 'added') {
+                    $addedType = $change['new_value']['type'] ?? 'profesional';
+                    $addedCredits = intval($change['new_value']['credits'] ?? 0);
+                    if ($addedType !== 'nivelacion') {
+                        // Adding a subject: total credits increase, passed credits stay the same
+                        $projectedCareerCredits += $addedCredits;
+                    }
+                } elseif ($change['type'] === 'removed') {
+                    $subjectCode = $change['subject_code'];
+                    if (isset($allSubjects[$subjectCode])) {
+                        $removedSubject = $allSubjects[$subjectCode];
+                        if ($removedSubject->type !== 'nivelacion') {
+                            $removedCredits = $removedSubject->credits ?? 0;
+                            // Removing a subject: total credits decrease
+                            $projectedCareerCredits -= $removedCredits;
+                            
+                            // If student passed this subject, their passed credits also decrease
+                            if (isset($passedSubjects[$subjectCode])) {
+                                $projectedPassedCredits -= $removedCredits;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Calculate projected progress: passed / projected_total
+            if ($projectedCareerCredits > 0) {
+                $projectedProgress = ($projectedPassedCredits / $projectedCareerCredits) * 100;
+                
+                $impact['projected_progress'] = round($projectedProgress, 2);
+                $impact['progress_change'] = round($projectedProgress - $impact['current_progress'], 2);
+                
+                // Debug info
+                \Log::info("Progress calculation for student {$student->document}", [
+                    'current_progress_from_db' => $impact['current_progress'],
+                    'student_passed_credits' => round($studentPassedCredits, 2),
+                    'current_career_credits' => $currentCareerCredits,
+                    'projected_passed_credits' => round($projectedPassedCredits, 2),
+                    'projected_career_credits' => $projectedCareerCredits,
+                    'projected_progress' => $impact['projected_progress'],
+                    'progress_change' => $impact['progress_change']
+                ]);
+            }
+        }
+        
         // Track subjects affected by changes
         $affectedSubjectCodes = [];
         
         foreach ($changes as $change) {
             $subjectCode = $change['subject_code'];
             
-            if (!isset($allSubjects[$subjectCode])) {
+            // For 'added' changes, the subject won't exist in $allSubjects yet
+            // For 'removed' and other changes, the subject should exist
+            if (!isset($allSubjects[$subjectCode]) && $change['type'] !== 'added') {
                 continue;
             }
             
-            $subject = $allSubjects[$subjectCode];
+            $subject = isset($allSubjects[$subjectCode]) ? $allSubjects[$subjectCode] : null;
             
             // Check if student has taken this subject
-            $studentHasSubject = isset($passedSubjects[$subjectCode]);
+            $studentHasSubject = $subject ? isset($passedSubjects[$subjectCode]) : false;
             $studentTakingSubject = isset($currentSubjects[$subjectCode]);
             
-            if ($change['type'] === 'semester') {
+            if ($change['type'] === 'semester' && $subject) {
                 $newSemester = intval($change['new_value']);
                 $oldSemester = intval($change['old_value']);
                 
@@ -291,7 +379,7 @@ class SimulationController extends Controller
                 }
             }
             
-            if ($change['type'] === 'prerequisites') {
+            if ($change['type'] === 'prerequisites' && $subject) {
                 $newPrereqs = explode(',', $change['new_value']);
                 $oldPrereqs = explode(',', $change['old_value']);
                 $newPrereqs = array_map('trim', array_filter($newPrereqs));
@@ -354,8 +442,37 @@ class SimulationController extends Controller
                 }
             }
             
+            // Handle subject additions - add descriptive message
+            if ($change['type'] === 'added') {
+                $addedType = isset($change['new_value']['type']) ? $change['new_value']['type'] : 'profesional';
+                $addedCredits = isset($change['new_value']['credits']) ? intval($change['new_value']['credits']) : 0;
+                $subjectName = isset($change['new_value']['name']) ? $change['new_value']['name'] : $subjectCode;
+                
+                if ($addedType !== 'nivelacion') {
+                    $impact['issues'][] = "✨ Nueva materia: {$subjectName} ({$addedCredits} créditos) agregada a la malla.";
+                } else {
+                    $impact['issues'][] = "✨ Nueva materia de nivelación: {$subjectName} ({$addedCredits} créditos) agregada.";
+                }
+            }
+            
+            // Handle subject removals - add descriptive message
+            if ($change['type'] === 'removed' && $subject) {
+                $removedType = $subject->type ?? 'profesional';
+                $removedCredits = $subject->credits ?? 0;
+                
+                if ($removedType !== 'nivelacion') {
+                    if ($studentHasSubject) {
+                        $impact['issues'][] = "⚠️ Materia eliminada: Ya aprobó {$subject->name} ({$removedCredits} créditos) que será eliminada de la malla.";
+                    } else {
+                        $impact['issues'][] = "🗑️ Materia eliminada: {$subject->name} ({$removedCredits} créditos) removida de la malla.";
+                    }
+                } else {
+                    $impact['issues'][] = "🗑️ Materia de nivelación eliminada: {$subject->name}.";
+                }
+            }
+            
             // Track if this change affects subjects the student has taken
-            if ($studentHasSubject) {
+            if ($studentHasSubject && $subject) {
                 $affectedSubjectCodes[] = $subjectCode;
             }
         }
@@ -369,13 +486,18 @@ class SimulationController extends Controller
             // Get student's current distribution
             $currentDistribution = $this->creditService->calculateDistribution($student->document);
             
-            // Projected values (for now, same as current - can be enhanced later)
-            $impact['projected_papa'] = $impact['current_papa'];
-            $impact['projected_progress'] = $impact['current_progress'];
+            // Only set projected values if they weren't already calculated
+            // (e.g., by 'added' or 'removed' handlers)
+            if ($impact['projected_papa'] === 0) {
+                $impact['projected_papa'] = $impact['current_papa'];
+            }
+            if ($impact['projected_progress'] === 0 && $impact['current_progress'] > 0) {
+                $impact['projected_progress'] = $impact['current_progress'];
+            }
             
             // Calculate changes
-            $impact['papa_change'] = $impact['projected_papa'] - $impact['current_papa'];
-            $impact['progress_change'] = $impact['projected_progress'] - $impact['current_progress'];
+            $impact['papa_change'] = round($impact['projected_papa'] - $impact['current_papa'], 2);
+            $impact['progress_change'] = round($impact['projected_progress'] - $impact['current_progress'], 2);
             
             // Add credit impact details
             $impact['credit_impact'] = [
