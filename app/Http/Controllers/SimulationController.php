@@ -293,13 +293,13 @@ class SimulationController extends Controller
                         $removedSubject = $allSubjects[$subjectCode];
                         if ($removedSubject->type !== 'nivelacion') {
                             $removedCredits = $removedSubject->credits ?? 0;
-                            // Removing a subject: total credits decrease
+                            // Removing a subject: total credits decrease, but passed credits stay
+                            // Students keep their approved credits in their academic history
                             $projectedCareerCredits -= $removedCredits;
                             
-                            // If student passed this subject, their passed credits also decrease
-                            if (isset($passedSubjects[$subjectCode])) {
-                                $projectedPassedCredits -= $removedCredits;
-                            }
+                            // NOTE: We do NOT decrease projectedPassedCredits
+                            // Students who passed this subject keep their credits
+                            // The university cannot remove credits from their academic record
                         }
                     }
                 }
@@ -470,12 +470,12 @@ class SimulationController extends Controller
                 
                 if ($removedType !== 'nivelacion') {
                     if ($studentHasSubject) {
-                        $impact['issues'][] = "⚠️ Materia eliminada: Ya aprobó {$subject->name} ({$removedCredits} créditos) que será eliminada de la malla.";
+                        $impact['issues'][] = "✅ Ya aprobó {$subject->name} ({$removedCredits} créditos) que será eliminada. Sus créditos permanecen en su historial académico, aumentando su porcentaje de avance.";
                     } else {
-                        $impact['issues'][] = "🗑️ Materia eliminada: {$subject->name} ({$removedCredits} créditos) removida de la malla.";
+                        $impact['issues'][] = "� Materia {$subject->name} ({$removedCredits} créditos) eliminada de la malla. Al reducir créditos totales, su porcentaje de avance aumenta.";
                     }
                 } else {
-                    $impact['issues'][] = "🗑️ Materia de nivelación eliminada: {$subject->name}.";
+                    $impact['issues'][] = "🗑️ Materia de nivelación {$subject->name} eliminada (no afecta avance de carrera).";
                 }
             }
             

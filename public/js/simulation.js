@@ -1528,7 +1528,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     
                                     <!-- Filter Options -->
                                     <div class="row g-2 mb-2">
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <label class="form-label small mb-1 fw-bold">
                                                 <i class="fas fa-filter me-1"></i>Filtro por Cambio en Avance
                                             </label>
@@ -1546,7 +1546,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 <option value="abs:0.1">Impactos significativos (diferencia > ±0.1%)</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <label class="form-label small mb-1 fw-bold">
                                                 <i class="fas fa-filter me-1"></i>Filtro por Cambio en PAPA
                                             </label>
@@ -1561,6 +1561,15 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 <option value="0.1,5">Impacto positivo fuerte (> +0.1)</option>
                                                 <option value="-0.01,0.01">Impactos no significativos (diferencia < ±0.01)</option>
                                                 <option value="abs:0.01">Impactos significativos (diferencia > ±0.01)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small mb-1 fw-bold">
+                                                <i class="fas fa-filter me-1"></i>Filtro por Tipo de Impacto
+                                            </label>
+                                            <select class="form-select form-select-sm" id="impactTypeFilter" onchange="applyFilters()">
+                                                <option value="all" selected>Todos los impactos</option>
+                                                <option value="delay">Solo con retrasos</option>
                                             </select>
                                         </div>
                                     </div>
@@ -1589,6 +1598,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                                     data-bs-target="#collapse${index}"
                                                     data-progress-change="${detail.progress_change}"
                                                     data-papa-change="${detail.papa_change}"
+                                                    data-has-delay="${detail.has_delay || false}"
+                                                    data-has-prerequisites="${detail.has_prerequisite_issues || false}"
+                                                    data-has-gaps="${detail.has_gaps || false}"
                                                 >
                                                     <div class="d-flex align-items-center w-100">
                                                         <span class="fw-bold">Estudiante: ${detail.student_document}</span>
@@ -1742,6 +1754,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const searchTerm = document.getElementById('studentSearchInput')?.value || '';
         const progressFilter = document.getElementById('progressFilter')?.value || 'all';
         const papaFilter = document.getElementById('papaFilter')?.value || 'all';
+        const impactTypeFilter = document.getElementById('impactTypeFilter')?.value || 'all';
         
         const accordionItems = document.querySelectorAll('#studentsAccordion .accordion-item');
         const searchLower = searchTerm.toLowerCase().trim();
@@ -1751,9 +1764,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const button = item.querySelector('.accordion-button');
             const studentDocument = button.textContent;
             
-            // Get student data from data attributes (we'll add these)
+            // Get student data from data attributes
             const progressChange = parseFloat(button.getAttribute('data-progress-change') || 0);
             const papaChange = parseFloat(button.getAttribute('data-papa-change') || 0);
+            const hasDelay = button.getAttribute('data-has-delay') === 'true';
+            const hasPrerequisites = button.getAttribute('data-has-prerequisites') === 'true';
+            const hasGaps = button.getAttribute('data-has-gaps') === 'true';
             
             // Check search filter
             const matchesSearch = searchLower === '' || studentDocument.toLowerCase().includes(searchLower);
@@ -1786,8 +1802,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
+            // Check impact type filter
+            let matchesImpactType = true;
+            if (impactTypeFilter !== 'all') {
+                switch (impactTypeFilter) {
+                    case 'delay':
+                        matchesImpactType = hasDelay;
+                        break;
+                    case 'prerequisites':
+                        matchesImpactType = hasPrerequisites;
+                        break;
+                    case 'gaps':
+                        matchesImpactType = hasGaps;
+                        break;
+                    case 'any_issue':
+                        matchesImpactType = hasDelay || hasPrerequisites || hasGaps;
+                        break;
+                }
+            }
+            
             // Show/hide based on all filters
-            if (matchesSearch && matchesProgress && matchesPapa) {
+            if (matchesSearch && matchesProgress && matchesPapa && matchesImpactType) {
                 item.style.display = '';
                 visibleCount++;
             } else {
@@ -1796,17 +1831,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         // Update result count
-        updateResultCount(visibleCount, accordionItems.length, searchLower, progressFilter, papaFilter);
+        updateResultCount(visibleCount, accordionItems.length, searchLower, progressFilter, papaFilter, impactTypeFilter);
     }
     
     /**
      * Update the result count message based on active filters
      */
-    function updateResultCount(visibleCount, totalCount, searchTerm, progressFilter, papaFilter) {
+    function updateResultCount(visibleCount, totalCount, searchTerm, progressFilter, papaFilter, impactTypeFilter) {
         const resultCountElement = document.getElementById('searchResultCount');
         if (!resultCountElement) return;
         
-        const hasFilters = searchTerm !== '' || progressFilter !== 'all' || papaFilter !== 'all';
+        const hasFilters = searchTerm !== '' || progressFilter !== 'all' || papaFilter !== 'all' || impactTypeFilter !== 'all';
         
         if (!hasFilters) {
             resultCountElement.textContent = `Mostrando todos los ${totalCount} estudiantes afectados`;
@@ -1817,6 +1852,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (searchTerm !== '') filterDescription.push('búsqueda');
             if (progressFilter !== 'all') filterDescription.push('filtro de avance');
             if (papaFilter !== 'all') filterDescription.push('filtro de PAPA');
+            if (impactTypeFilter !== 'all') filterDescription.push('filtro de tipo de impacto');
             
             resultCountElement.textContent = `Mostrando ${visibleCount} de ${totalCount} estudiantes (${filterDescription.join(', ')})`;
             
@@ -1841,10 +1877,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const searchInput = document.getElementById('studentSearchInput');
         const progressFilter = document.getElementById('progressFilter');
         const papaFilter = document.getElementById('papaFilter');
+        const impactTypeFilter = document.getElementById('impactTypeFilter');
         
         if (searchInput) searchInput.value = '';
         if (progressFilter) progressFilter.value = 'all';
         if (papaFilter) papaFilter.value = 'all';
+        if (impactTypeFilter) impactTypeFilter.value = 'all';
         
         applyFilters();
     }
@@ -2075,7 +2113,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                             Materias Eliminadas (${changesByType.removed.length})
                                         </h6>
                                         <div class="alert alert-danger">
-                                            <strong>⚠️ Atención:</strong> Estas materias serán eliminadas de la malla permanentemente.
+                                            <strong>Atención:</strong> Estas materias serán eliminadas de la malla permanentemente.
                                         </div>
                                         <div class="table-responsive">
                                             <table class="table table-sm table-hover">
@@ -3103,7 +3141,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                             
                             <div class="mt-3">
-                                <p class="fw-bold text-danger mb-2">⚠️ Se sugiere tener precaución</p>
+                                <p class="fw-bold text-danger mb-2">Se sugiere tener precaución</p>
                                 <ul class="small text-muted mb-0">
                                     <li>Al guardar la malla, será redirigido al apartado de <strong>Convalidación</strong></li>
                                     <li>Allí podrá <strong>mitigar el impacto</strong> en los estudiantes afectados</li>
@@ -3334,7 +3372,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="modal-body">
                             <div class="mb-3">
                                 <input type="text" class="form-control" id="editPrerequisiteSearch" 
-                                       placeholder="🔍 Buscar por código o nombre de materia..." 
+                                       placeholder="Buscar por código o nombre de materia..." 
                                        onkeyup="filterEditPrerequisiteOptions()">
                             </div>
                             <div style="max-height: 400px; overflow-y: auto;" id="editPrerequisiteList">
@@ -3487,7 +3525,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="modal-body">
                             <div class="mb-3">
                                 <input type="text" class="form-control" id="movePrerequisiteSearch" 
-                                       placeholder="🔍 Buscar por código o nombre de materia..." 
+                                       placeholder="Buscar por código o nombre de materia..." 
                                        onkeyup="filterMovePrerequisiteOptions()">
                             </div>
                             <div style="max-height: 400px; overflow-y: auto;" id="movePrerequisiteList">
@@ -3815,7 +3853,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="modal-body">
                             <div class="mb-3">
                                 <input type="text" class="form-control" id="prerequisiteSearch" 
-                                       placeholder="🔍 Buscar por código o nombre de materia..." 
+                                       placeholder="Buscar por código o nombre de materia..." 
                                        onkeyup="filterPrerequisiteOptions()">
                             </div>
                             <div style="max-height: 400px; overflow-y: auto;" id="prerequisiteList">
@@ -4544,7 +4582,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (hasAddedSubjects || hasRemovedSubjects) {
             // Show info message and redirect to convalidation
-            const message = `⚠️ CONVALIDACIÓN REQUERIDA
+            const message = `CONVALIDACIÓN REQUERIDA
 
 Has ${hasAddedSubjects ? 'agregado' : ''} ${hasAddedSubjects && hasRemovedSubjects ? 'y' : ''} ${hasRemovedSubjects ? 'eliminado' : ''} materias.
 
@@ -4850,7 +4888,7 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                 
                 // Show confirmation modal
                 showConfirmModal(
-                    `¿Estás seguro que deseas eliminar la versión "${versionName}"?\n\n⚠️ ADVERTENCIA: Esta acción NO se puede deshacer.\n\nSe eliminará permanentemente esta versión del historial.`,
+                    `¿Estás seguro que deseas eliminar la versión "${versionName}"?\n\nADVERTENCIA: Esta acción NO se puede deshacer.\n\nSe eliminará permanentemente esta versión del historial.`,
                     function() {
                         // Send delete request
                         fetch(`/simulation/versions/${versionId}`, {
@@ -4902,7 +4940,7 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
             
             // If no modals are visible but body is marked as modal-open, clean up
             if (visibleModals.length === 0) {
-                console.log('⚠️ Detected stuck modal state, cleaning up...');
+                console.log('Detected stuck modal state, cleaning up...');
                 
                 // Clean body
                 document.body.classList.remove('modal-open');
@@ -4921,7 +4959,7 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                 // Remove backdrops
                 document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
                 
-                console.log('✅ Scroll fixed automatically');
+                console.log('Scroll fixed automatically');
             }
         }
     });
