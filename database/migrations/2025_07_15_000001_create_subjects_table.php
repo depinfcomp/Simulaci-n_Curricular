@@ -15,6 +15,7 @@ return new class extends Migration
             $table->string('code', 10)->primary()->comment('Subject code - Primary key');
             $table->string('name')->comment('Subject name');
             $table->integer('semester')->comment('Semester number (1-10)');
+            $table->integer('display_order')->default(0)->comment('Display order within semester');
             $table->integer('credits')->comment('Academic credits');
             $table->integer('classroom_hours')->default(0)->comment('Classroom hours per week');
             $table->integer('student_hours')->default(0)->comment('Student independent work hours per week');
@@ -24,6 +25,9 @@ return new class extends Migration
             $table->boolean('is_required')->default(true)->comment('True for required subjects, false for elective');
             $table->boolean('is_leveling')->default(false)->comment('True for leveling subjects (e.g., English), false for career credits');
             $table->timestamps();
+            
+            // Indexes
+            $table->index(['semester', 'display_order']);
         });
     }
 

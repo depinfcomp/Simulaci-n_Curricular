@@ -33,17 +33,71 @@
                 
                 <div class="collapse navbar-collapse" id="navbarNav">
                     <ul class="navbar-nav me-auto">
+                        <!-- Simulación -->
                         <li class="nav-item">
                             <a class="nav-link" href="{{ route('simulation.index') }}">
                                 <i class="fas fa-project-diagram me-1"></i>
                                 Simulación
                             </a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ route('convalidation.index') }}">
-                                <i class="fas fa-exchange-alt me-1"></i>
-                                Convalidaciones
+
+                        <!-- Gestión de Mallas -->
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="mallasDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-th-list me-1"></i>
+                                Gestión de Mallas
                             </a>
+                            <ul class="dropdown-menu" aria-labelledby="mallasDropdown">
+                                <li>
+                                    <a class="dropdown-item" href="{{ route('convalidation.index') }}">
+                                        <i class="fas fa-exchange-alt me-2"></i>
+                                        Convalidaciones
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="{{ route('elective-subjects.index') }}">
+                                        <i class="fas fa-book-open me-2"></i>
+                                        Materias Optativas
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="{{ route('leveling-subjects.index') }}">
+                                        <i class="fas fa-layer-group me-2"></i>
+                                        Materias de Nivelación
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="{{ route('subject-aliases.index') }}">
+                                        <i class="fas fa-code-branch me-2"></i>
+                                        Alias de Materias
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+
+                        <!-- Gestión de Estudiantes -->
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="estudiantesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-user-graduate me-1"></i>
+                                Importar
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="estudiantesDropdown">
+                                <li>
+                                    <a class="dropdown-item" href="{{ route('academic-history.index') }}">
+                                        <i class="fas fa-history me-2"></i>
+                                        Historias Académicas
+                                    </a>
+                                </li>
+                                <li>
+                                    <h6 class="dropdown-header">Importar Datos</h6>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="{{ route('import.index') }}">
+                                        <i class="fas fa-file-excel me-2"></i>
+                                        Importar Malla Curricular
+                                    </a>
+                                </li>
+                            </ul>
                         </li>
                     </ul>
                     

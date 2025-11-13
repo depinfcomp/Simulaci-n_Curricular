@@ -4,17 +4,11 @@
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <div>
-                    <h1 class="h3 mb-0">
-                        <i class="fas fa-exchange-alt me-2 text-primary"></i>
-                        Sistema de Convalidaciones
-                    </h1>
-                    <p class="text-muted mb-0">Gestiona convalidaciones de mallas curriculares externas</p>
-                </div>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">Gestión de Convalidaciones</h1>
                 <div>
                     <a href="{{ route('import.index') }}" class="btn btn-success me-2">
-                        <i class="fas fa-file-import me-2"></i>
+                        <i class="fas fa-file-excel me-2"></i>
                         Importar Malla desde Excel
                     </a>
                     <a href="{{ route('convalidation.create') }}" class="btn btn-primary">

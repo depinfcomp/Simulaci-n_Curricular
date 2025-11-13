@@ -13,15 +13,30 @@ return new class extends Migration
     {
         Schema::create('student_subject', function (Blueprint $table) {
             $table->id()->comment('Auto-incrementable ID');
-            $table->foreignId('student_id')->constrained()->onDelete('cascade')->comment('Foreign key to students table');
-            $table->string('subject_code', 10)->comment('Foreign key to subjects table');
-            $table->foreign('subject_code')->references('code')->on('subjects')->onDelete('cascade');
-            $table->decimal('grade', 3, 1)->nullable()->comment('Final grade (0.0 to 5.0)');
+            
+            // Documento del estudiante (en lugar de student_id)
+            $table->string('student_document', 50)->index()->comment('Student document number');
+            
+            // Información de la asignatura (desnormalizado para facilitar consultas)
+            $table->string('subject_code', 20)->index()->comment('Subject code');
+            $table->string('subject_name', 255)->comment('Subject name');
+            $table->integer('subject_credits')->comment('Subject credits');
+            $table->string('subject_type', 50)->comment('Subject type (fundamental, profesional, etc.)');
+            
+            // Información de calificación
+            $table->decimal('grade', 3, 2)->nullable()->comment('Numeric grade (0.00 to 5.00)');
+            $table->string('alphabetic_grade', 5)->nullable()->comment('Alphabetic grade (AP/RE)');
             $table->enum('status', ['enrolled', 'passed', 'failed', 'withdrawn'])->default('enrolled')->comment('Enrollment status');
+            
+            // Período académico
+            $table->string('period', 20)->nullable()->comment('Academic period');
+            
             $table->timestamps();
             
-            // Ensure a student can't be enrolled in the same subject twice
-            $table->unique(['student_id', 'subject_code']);
+            // Índices para búsquedas rápidas
+            $table->index(['student_document', 'subject_code']);
+            $table->index(['student_document', 'status']);
+            $table->index('subject_type');
         });
     }
 

@@ -120,21 +120,48 @@
 
         <!-- Curriculum Controls -->
         <div class="curriculum-controls mb-3">
-            <div class="row">
-                <div class="col-md-6">
-                    <button class="btn btn-success" onclick="addNewSubject()">
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <label class="form-label mb-1 small fw-bold">
+                        <i class="fas fa-code-branch me-1"></i>
+                        Versión de Malla:
+                    </label>
+                    <div class="dropdown w-100">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="versionDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span id="currentVersionText">Versión Actual (En Edición)</span>
+                        </button>
+                        <ul class="dropdown-menu w-100" id="versionDropdownMenu" aria-labelledby="versionDropdown">
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="loadCurriculumVersion('current'); return false;">
+                                    Versión Actual (En Edición)
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">Versiones Guardadas</h6></li>
+                            <!-- Las versiones se cargarán aquí dinámicamente -->
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-md-9 text-end">
+                    <button class="btn btn-success me-2" onclick="addNewSubject()">
                         <i class="fas fa-plus me-1"></i>
                         Agregar Materia
                     </button>
-                    <button class="btn btn-primary ms-2" onclick="showComponentCredits()">
-                        <i class="fas fa-chart-bar me-1"></i>
+                    <button class="btn btn-primary me-2" onclick="saveCurrentCurriculum()">
+                        <i class="fas fa-save me-1"></i>
+                        Guardar Malla
+                    </button>
+                    <button class="btn btn-info me-2" onclick="analyzeImpact()">
+                        <i class="fas fa-chart-line me-1"></i>
+                        Analizar Impacto
+                    </button>
+                    <button class="btn btn-secondary me-2" onclick="showComponentCredits()">
+                        <i class="fas fa-chart-pie me-1"></i>
                         Créditos por Componente
                     </button>
-                </div>
-                <div class="col-md-6 text-end">
-                    <button class="btn btn-info" onclick="exportModifiedCurriculum()">
-                        <i class="fas fa-download me-1"></i>
-                        Exportar Malla Modificada
+                    <button class="btn btn-warning" onclick="resetSimulation()">
+                        <i class="fas fa-undo me-1"></i>
+                        Reset
                     </button>
                 </div>
             </div>
@@ -143,7 +170,14 @@
         <!-- Curriculum Grid -->
         <div class="curriculum-grid">
             @php
-                $subjects = \App\Models\Subject::with(['prerequisites', 'requiredFor'])->orderBy('semester')->get();
+                $subjects = \App\Models\Subject::with(['prerequisites', 'requiredFor'])
+                    ->orderBy('semester')
+                    ->orderBy('display_order')
+                    ->get();
+                
+                // Also load all leveling subjects (no is_active column - all subjects are recognized)
+                $levelingSubjects = \App\Models\LevelingSubject::all();
+                
                 $subjectsBySemester = $subjects->groupBy('semester');
             @endphp
 
@@ -157,6 +191,7 @@
                                      draggable="true"
                                      data-subject-id="{{ $subject->code }}"
                                      data-type="{{ $subject->type }}"
+                                     data-display-order="{{ $subject->display_order }}"
                                      data-prerequisites="{{ $subject->prerequisites->pluck('code')->implode(',') }}"
                                      data-unlocks="{{ $subject->requiredFor->pluck('code')->implode(',') }}">
                                     
@@ -207,6 +242,9 @@
     <script src="{{ asset('js/simulation.js') }}?v={{ time() }}"></script>
     <script src="{{ asset('js/debug.js') }}?v={{ time() }}"></script>
     <script>
+        // Leveling subjects data for simulation
+        window.levelingSubjectsCodes = @json($levelingSubjects->pluck('code')->toArray());
+        
         // Debug: Check subject types and colors
         document.addEventListener('DOMContentLoaded', function() {
             console.log('=== COLOR DEBUG ===');
@@ -406,6 +444,114 @@
             0% { transform: scale(0.8); opacity: 0; }
             50% { transform: scale(1.2); }
             100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Drag & Drop Placeholder Styles */
+        .subject-card.dragging {
+            opacity: 0.5;
+            transform: scale(0.95);
+        }
+
+        .drag-placeholder {
+            width: 100px;
+            height: 90px;
+            margin: 1px;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            border: 2px dashed #2196f3;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1976d2;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+        }
+
+        .drag-placeholder::before {
+            content: "Soltar aquí";
+            font-size: 10px;
+            text-align: center;
+            animation: pulse 1.5s ease infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        .subject-card.drag-shift-up {
+            transform: translateY(-110px);
+            transition: transform 0.3s ease;
+        }
+
+        .subject-card.drag-shift-down {
+            transform: translateY(110px);
+            transition: transform 0.3s ease;
+        }
+
+        /* Version Dropdown Custom Styles */
+        #versionDropdownMenu .dropdown-item {
+            padding: 0 !important;
+        }
+
+        #versionDropdownMenu .dropdown-item > a {
+            padding: 0.5rem 1rem;
+            display: block;
+        }
+
+        #versionDropdownMenu .dropdown-item > a:hover {
+            background-color: #f8f9fa;
+        }
+
+        #versionDropdownMenu .btn-link {
+            padding: 0.5rem !important;
+            text-decoration: none;
+        }
+
+        #versionDropdownMenu .btn-link:hover {
+            background-color: #ffe0e0;
+            border-radius: 4px;
+        }
+
+        /* Context Menu Styles */
+        .context-menu {
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .context-menu .list-group-item {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .context-menu .list-group-item:hover:not(:disabled) {
+            background-color: #f8f9fa;
+            transform: translateX(5px);
+        }
+
+        .context-menu .list-group-item:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .context-menu .list-group-item-danger:not(:disabled) {
+            color: #dc3545;
+        }
+
+        .context-menu .list-group-item-danger:hover:not(:disabled) {
+            background-color: #f8d7da;
+            color: #721c24;
         }
     </style>
 @endpush

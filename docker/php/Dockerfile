@@ -27,6 +27,9 @@ RUN git config --global --add safe.directory /app
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs \
   && npm install -g npm@11.4.2
 
+# Copy custom PHP configuration
+COPY docker/php/local.ini /usr/local/etc/php/conf.d/local.ini
+
 # Create an entrypoint script to handle initialization
 COPY docker/php/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

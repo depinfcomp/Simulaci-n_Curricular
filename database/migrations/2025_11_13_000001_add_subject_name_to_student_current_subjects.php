@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->boolean('must_change_password')->default(false)->after('password')->comment('Force password change flag');
+        Schema::table('student_current_subjects', function (Blueprint $table) {
+            $table->string('subject_name', 255)->nullable()->after('subject_code')->comment('Subject name from import');
         });
     }
 
@@ -21,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('must_change_password');
+        Schema::table('student_current_subjects', function (Blueprint $table) {
+            $table->dropColumn('subject_name');
         });
     }
 };

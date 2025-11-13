@@ -416,7 +416,7 @@ class ConvalidationController extends Controller
                         
                     $results['student_details'][] = [
                         'student_id' => $student->id,
-                        'name' => $student->name,
+                        'document' => $student->document,
                         'original_progress' => round($impact['original_progress'] ?? 0, 1),
                         'new_progress' => round($impact['new_progress'] ?? 0, 1),
                         'progress_change' => round($impact['progress_change'] ?? 0, 1),
@@ -1463,7 +1463,7 @@ class ConvalidationController extends Controller
                 ],
                 'student_info' => [
                     'id' => $student->id,
-                    'name' => $student->name,
+                    'document' => $student->document,
                     'passed_subjects_count' => $passedSubjects->count()
                 ],
                 'passed_subjects' => $passedSubjects->map(function($subject) {

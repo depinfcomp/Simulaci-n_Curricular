@@ -5,6 +5,10 @@ use App\Http\Controllers\SimulationController;
 use App\Http\Controllers\SubjectOrderController;
 use App\Http\Controllers\ConvalidationController;
 use App\Http\Controllers\ImportCurriculumController;
+use App\Http\Controllers\AcademicHistoryController;
+use App\Http\Controllers\ElectiveSubjectController;
+use App\Http\Controllers\LevelingSubjectController;
+use App\Http\Controllers\SubjectAliasController;
 
 // Redirect root to login
 Route::get('/', function () {
@@ -20,6 +24,12 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
     
     Route::post('/simulation/analyze-impact', [SimulationController::class, 'analyzeImpact'])->name('simulation.analyzeImpact');
     Route::get('/simulation/original-order', [SubjectOrderController::class, 'getOriginalOrderJson'])->name('simulation.originalOrder');
+    
+    // Curriculum versions routes
+    Route::get('/simulation/versions', [SimulationController::class, 'getVersions'])->name('simulation.versions');
+    Route::post('/simulation/versions/save', [SimulationController::class, 'saveVersion'])->name('simulation.versions.save');
+    Route::get('/simulation/versions/{id}', [SimulationController::class, 'getVersion'])->name('simulation.versions.show');
+    Route::delete('/simulation/versions/{id}', [SimulationController::class, 'deleteVersion'])->name('simulation.versions.delete');
 
     // Convalidation routes
     Route::group(['prefix' => 'convalidation'], function () {
@@ -66,6 +76,50 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         Route::get('/{import}/status', [ImportCurriculumController::class, 'status'])->name('status');
         Route::get('/templates', [ImportCurriculumController::class, 'templates'])->name('templates');
         Route::post('/{import}/apply-template', [ImportCurriculumController::class, 'applyTemplate'])->name('apply-template');
+    });
+
+    // Academic History Import routes
+    Route::prefix('academic-history')->name('academic-history.')->group(function () {
+        Route::get('/', [AcademicHistoryController::class, 'index'])->name('index');
+        Route::post('/upload', [AcademicHistoryController::class, 'upload'])->name('upload');
+        Route::post('/clear-all', [AcademicHistoryController::class, 'clearAll'])->name('clear-all');
+        Route::get('/{import}/preview', [AcademicHistoryController::class, 'preview'])->name('preview');
+        Route::post('/{import}/mapping', [AcademicHistoryController::class, 'updateMapping'])->name('mapping');
+        Route::post('/{import}/process', [AcademicHistoryController::class, 'process'])->name('process');
+        Route::get('/{import}', [AcademicHistoryController::class, 'show'])->name('show');
+        Route::delete('/{import}', [AcademicHistoryController::class, 'destroy'])->name('destroy');
+        Route::get('/{import}/export', [AcademicHistoryController::class, 'export'])->name('export');
+        Route::get('/{import}/export-successful', [AcademicHistoryController::class, 'exportSuccessful'])->name('export-successful');
+        Route::get('/{import}/export-failed', [AcademicHistoryController::class, 'exportFailed'])->name('export-failed');
+    });
+
+    // Elective Subjects routes
+    Route::prefix('elective-subjects')->name('elective-subjects.')->group(function () {
+        Route::get('/', [ElectiveSubjectController::class, 'index'])->name('index');
+        Route::post('/', [ElectiveSubjectController::class, 'store'])->name('store');
+        Route::get('/{electiveSubject}', [ElectiveSubjectController::class, 'show'])->name('show');
+        Route::put('/{electiveSubject}', [ElectiveSubjectController::class, 'update'])->name('update');
+        Route::delete('/{electiveSubject}', [ElectiveSubjectController::class, 'destroy'])->name('destroy');
+        Route::post('/{electiveSubject}/toggle-status', [ElectiveSubjectController::class, 'toggleStatus'])->name('toggle-status');
+    });
+
+    // Leveling Subjects routes
+    Route::prefix('leveling-subjects')->name('leveling-subjects.')->group(function () {
+        Route::get('/', [LevelingSubjectController::class, 'index'])->name('index');
+        Route::post('/', [LevelingSubjectController::class, 'store'])->name('store');
+        Route::get('/{levelingSubject}', [LevelingSubjectController::class, 'show'])->name('show');
+        Route::put('/{levelingSubject}', [LevelingSubjectController::class, 'update'])->name('update');
+        Route::put('/update-by-code/{code}', [LevelingSubjectController::class, 'updateByCode'])->name('update-by-code');
+        Route::delete('/{levelingSubject}', [LevelingSubjectController::class, 'destroy'])->name('destroy');
+    });
+
+    // Subject Aliases routes
+    Route::prefix('subject-aliases')->name('subject-aliases.')->group(function () {
+        Route::get('/', [SubjectAliasController::class, 'index'])->name('index');
+        Route::post('/', [SubjectAliasController::class, 'store'])->name('store');
+        Route::delete('/{alias}', [SubjectAliasController::class, 'destroy'])->name('destroy');
+        Route::post('/bulk-import', [SubjectAliasController::class, 'bulkImport'])->name('bulk-import');
+        Route::get('/get-aliases', [SubjectAliasController::class, 'getAliases'])->name('get-aliases');
     });
 });
 

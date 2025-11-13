@@ -12,6 +12,7 @@ class StudentCurrentSubject extends Model
     protected $fillable = [
         'student_id',
         'subject_code',
+        'subject_name',
         'semester_period',
         'status',
         'partial_grade'

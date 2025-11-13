@@ -80,7 +80,7 @@ class SubjectSeeder extends Seeder
             // 8th semester
             ['code' => '4200914', 'name' => 'MODELOS DE GESTIÓN DE TECNOLOGÍAS DE LA INFORMACIÓN', 'semester' => 8, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
             ['code' => '4100562', 'name' => 'FORMULACIÓN Y EVALUACIÓN DE PROYECTOS INFORMÁTICOS', 'semester' => 8, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
-            ['code' => '4200911', 'name' => 'GERENCIA ESTRATÉGICA DEL TALENTO HUMANO', 'semester' => 8, 'credits' => 2, 'classroom_hours' => 2, 'student_hours' => 4, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
+            ['code' => '4200911', 'name' => 'GERENCIA ESTRATÉGICA DEL TALENTO HUMANO', 'semester' => 8, 'credits' => 2, 'classroom_hours' => 2, 'student_hours' => 4, 'type' => 'fundamental', 'is_required' => true, 'is_leveling' => false],
             ['code' => '4100560', 'name' => 'METODOLOGÍA DE LA INVESTIGACIÓN', 'semester' => 8, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
             ['code' => '4200918', 'name' => 'TENDENCIAS EN ADMINISTRACIÓN DE SISTEMAS INFORMÁTICOS', 'semester' => 8, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'profesional', 'is_required' => true, 'is_leveling' => false],
             ['code' => '#LIBRE-07', 'name' => 'LIBRE ELECCIÓN', 'semester' => 8, 'credits' => 3, 'classroom_hours' => 4, 'student_hours' => 5, 'type' => 'libre_eleccion', 'is_required' => false, 'is_leveling' => false],
@@ -101,22 +101,25 @@ class SubjectSeeder extends Seeder
 
         ];
 
-        foreach ($subjects as $subject) {
-            DB::table('subjects')->updateOrInsert(
-                ['code' => $subject['code']], // Condition to check for existing record
-                [
-                    'name' => $subject['name'],
-                    'semester' => $subject['semester'],
-                    'credits' => $subject['credits'],
-                    'classroom_hours' => $subject['classroom_hours'],
-                    'student_hours' => $subject['student_hours'],
-                    'type' => $subject['type'],
-                    'is_required' => $subject['is_required'],
-                    'is_leveling' => $subject['is_leveling'],
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]
-            );
+        // Delete all existing subjects first to ensure fresh insert with correct order
+        DB::table('subjects')->delete();
+
+        // Insert all subjects in order with display_order
+        foreach ($subjects as $index => $subject) {
+            DB::table('subjects')->insert([
+                'code' => $subject['code'],
+                'name' => $subject['name'],
+                'semester' => $subject['semester'],
+                'display_order' => $index + 1,
+                'credits' => $subject['credits'],
+                'classroom_hours' => $subject['classroom_hours'],
+                'student_hours' => $subject['student_hours'],
+                'type' => $subject['type'],
+                'is_required' => $subject['is_required'],
+                'is_leveling' => $subject['is_leveling'],
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
         }
     }
 }
