@@ -22,8 +22,8 @@ class Student extends Model
      */
     public function subjects()
     {
-        return $this->belongsToMany(Subject::class, 'student_subject', 'student_id', 'subject_code')
-                    ->withPivot(['grade', 'status'])
+        return $this->belongsToMany(Subject::class, 'student_subject', 'student_document', 'subject_code', 'document', 'code')
+                    ->withPivot(['grade', 'status', 'effective_credits', 'overflow_credits', 'actual_component_type', 'counts_for_percentage'])
                     ->withTimestamps();
     }
 

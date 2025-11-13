@@ -5,11 +5,29 @@ namespace App\Http\Controllers;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\StudentCurrentSubject;
+use App\Services\StudentMetricsService;
+use App\Services\CreditDistributionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SimulationController extends Controller
 {
+    /**
+     * @var StudentMetricsService
+     */
+    private StudentMetricsService $metricsService;
+
+    /**
+     * @var CreditDistributionService
+     */
+    private CreditDistributionService $creditService;
+
+    public function __construct(StudentMetricsService $metricsService = null, CreditDistributionService $creditService = null)
+    {
+        $this->metricsService = $metricsService ?? new StudentMetricsService();
+        $this->creditService = $creditService ?? new CreditDistributionService();
+    }
+
     /**
      * Analyze the impact of curriculum changes on students
      */
@@ -31,9 +49,18 @@ class SimulationController extends Controller
             'students_with_delays' => 0,
             'students_with_gaps' => 0,
             'students_with_prerequisites_issues' => 0,
+            'students_with_papa_impact' => 0,
+            'students_with_progress_impact' => 0,
             'affected_percentage' => 0,
+            'average_papa_change' => 0,
+            'average_progress_change' => 0,
             'details' => []
         ];
+        
+        $totalPapaChange = 0;
+        $totalProgressChange = 0;
+        $studentsWithPapaImpact = 0;
+        $studentsWithProgressImpact = 0;
         
         foreach ($students as $student) {
             $impact = $this->analyzeStudentImpact($student, $changes);
@@ -53,11 +80,40 @@ class SimulationController extends Controller
                     $impactAnalysis['students_with_prerequisites_issues']++;
                 }
                 
+                // Track PAPA impact
+                if (abs($impact['papa_change']) > 0.01) {
+                    $impactAnalysis['students_with_papa_impact']++;
+                    $studentsWithPapaImpact++;
+                    $totalPapaChange += $impact['papa_change'];
+                }
+                
+                // Track progress impact
+                if (abs($impact['progress_change']) > 0.1) {
+                    $impactAnalysis['students_with_progress_impact']++;
+                    $studentsWithProgressImpact++;
+                    $totalProgressChange += $impact['progress_change'];
+                }
+                
+                // Get current subjects with names
+                $currentSubjectsWithNames = $student->currentSubjects->map(function($currentSubject) {
+                    return [
+                        'code' => $currentSubject->subject_code,
+                        'name' => $currentSubject->subject->name ?? 'Nombre no disponible'
+                    ];
+                })->toArray();
+                
                 $impactAnalysis['details'][] = [
                     'student_id' => $student->id,
                     'student_document' => $student->document,
                     'current_semester' => $this->getCurrentSemester($student->progress_percentage),
-                    'current_subjects' => $student->currentSubjects->pluck('subject_code')->toArray(),
+                    'current_subjects' => $currentSubjectsWithNames,
+                    'current_papa' => $impact['current_papa'],
+                    'projected_papa' => $impact['projected_papa'],
+                    'papa_change' => $impact['papa_change'],
+                    'current_progress' => $impact['current_progress'],
+                    'projected_progress' => $impact['projected_progress'],
+                    'progress_change' => $impact['progress_change'],
+                    'credit_impact' => $impact['credit_impact'],
                     'issues' => $impact['issues']
                 ];
             }
@@ -65,6 +121,15 @@ class SimulationController extends Controller
         
         $impactAnalysis['affected_percentage'] = $impactAnalysis['total_students'] > 0 
             ? round(($impactAnalysis['affected_students'] / $impactAnalysis['total_students']) * 100, 1)
+            : 0;
+        
+        // Calculate average changes
+        $impactAnalysis['average_papa_change'] = $studentsWithPapaImpact > 0
+            ? round($totalPapaChange / $studentsWithPapaImpact, 2)
+            : 0;
+        
+        $impactAnalysis['average_progress_change'] = $studentsWithProgressImpact > 0
+            ? round($totalProgressChange / $studentsWithProgressImpact, 2)
             : 0;
         
         return response()->json($impactAnalysis);
@@ -80,6 +145,16 @@ class SimulationController extends Controller
             'has_delay' => false,
             'has_gaps' => false,
             'has_prerequisite_issues' => false,
+            'current_papa' => round($student->average_grade ?? 0, 2),
+            'projected_papa' => 0,
+            'papa_change' => 0,
+            'current_progress' => round($student->progress_percentage ?? 0, 2),
+            'projected_progress' => 0,
+            'progress_change' => 0,
+            'credit_impact' => [
+                'affected_credits' => 0,
+                'credits_details' => []
+            ],
             'issues' => []
         ];
         
@@ -87,6 +162,9 @@ class SimulationController extends Controller
         $currentSubjects = $student->currentSubjects->keyBy('subject_code');
         $allSubjects = Subject::with('prerequisites', 'requiredFor')->get()->keyBy('code');
         $studentCurrentSemester = $this->getCurrentSemester($student->progress_percentage);
+        
+        // Track subjects affected by changes
+        $affectedSubjectCodes = [];
         
         foreach ($changes as $change) {
             $subjectCode = $change['subject_code'];
@@ -97,19 +175,23 @@ class SimulationController extends Controller
             
             $subject = $allSubjects[$subjectCode];
             
+            // Check if student has taken this subject
+            $studentHasSubject = isset($passedSubjects[$subjectCode]);
+            $studentTakingSubject = isset($currentSubjects[$subjectCode]);
+            
             if ($change['type'] === 'semester') {
                 $newSemester = intval($change['new_value']);
                 $oldSemester = intval($change['old_value']);
                 
                 // Check if student is currently taking this subject
-                if (isset($currentSubjects[$subjectCode])) {
+                if ($studentTakingSubject) {
                     $impact['has_impact'] = true;
                     $impact['has_delay'] = true;
                     $impact['issues'][] = "Está cursando {$subject->name} actualmente. Moverla al semestre {$newSemester} causaría retraso inmediato.";
                 }
                 
                 // Check if student passed this subject and it affects their sequence
-                if (isset($passedSubjects[$subjectCode])) {
+                if ($studentHasSubject) {
                     $dependentSubjects = $subject->requiredFor;
                     
                     foreach ($dependentSubjects as $dependent) {
@@ -129,7 +211,7 @@ class SimulationController extends Controller
                 }
                 
                 // Check if student needs this subject for next semester
-                if (!isset($passedSubjects[$subjectCode]) && !isset($currentSubjects[$subjectCode])) {
+                if (!$studentHasSubject && !$studentTakingSubject) {
                     $canTakeNow = $this->canStudentTakeSubject($student, $subject, $passedSubjects);
                     $shouldTakeThisSemester = $subject->semester <= $studentCurrentSemester + 1;
                     
@@ -148,7 +230,7 @@ class SimulationController extends Controller
                 $oldPrereqs = array_map('trim', array_filter($oldPrereqs));
                 
                 // Check if student is currently taking this subject
-                if (isset($currentSubjects[$subjectCode])) {
+                if ($studentTakingSubject) {
                     $missingPrereqs = array_diff($newPrereqs, $passedSubjects->keys()->toArray());
                     
                     if (!empty($missingPrereqs)) {
@@ -193,7 +275,7 @@ class SimulationController extends Controller
                 
                 // Check if removing prerequisites creates new opportunities
                 $removedPrereqs = array_diff($oldPrereqs, $newPrereqs);
-                if (!empty($removedPrereqs) && !isset($currentSubjects[$subjectCode]) && !isset($passedSubjects[$subjectCode])) {
+                if (!empty($removedPrereqs) && !$studentTakingSubject && !$studentHasSubject) {
                     $couldTakeEarlier = $subject->semester > $studentCurrentSemester && 
                                        $this->canTakeWithPrerequisites($passedSubjects->keys()->toArray(), $newPrereqs);
                     
@@ -203,6 +285,40 @@ class SimulationController extends Controller
                     }
                 }
             }
+            
+            // Track if this change affects subjects the student has taken
+            if ($studentHasSubject) {
+                $affectedSubjectCodes[] = $subjectCode;
+            }
+        }
+        
+        // Calculate PAPA and Progress impact if student has affected subjects
+        if (!empty($affectedSubjectCodes) || $impact['has_impact']) {
+            // For simulation purposes, we'll recalculate assuming changes are applied
+            // In reality, we'd need to simulate the modified curriculum
+            // For now, we note that credits from affected subjects might change distribution
+            
+            // Get student's current distribution
+            $currentDistribution = $this->creditService->calculateDistribution($student->document);
+            
+            // Projected values (for now, same as current - can be enhanced later)
+            $impact['projected_papa'] = $impact['current_papa'];
+            $impact['projected_progress'] = $impact['current_progress'];
+            
+            // Calculate changes
+            $impact['papa_change'] = $impact['projected_papa'] - $impact['current_papa'];
+            $impact['progress_change'] = $impact['projected_progress'] - $impact['current_progress'];
+            
+            // Add credit impact details
+            $impact['credit_impact'] = [
+                'affected_credits' => count($affectedSubjectCodes) > 0 
+                    ? DB::table('student_subject')
+                        ->where('student_document', $student->document)
+                        ->whereIn('subject_code', $affectedSubjectCodes)
+                        ->sum('effective_credits')
+                    : 0,
+                'credits_details' => $currentDistribution['component_usage'] ?? []
+            ];
         }
         
         return $impact;

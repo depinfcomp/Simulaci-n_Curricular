@@ -151,7 +151,11 @@
                         <i class="fas fa-save me-1"></i>
                         Guardar Malla
                     </button>
-                    <button class="btn btn-info me-2" onclick="showComponentCredits()">
+                    <button class="btn btn-info me-2" onclick="analyzeImpact()">
+                        <i class="fas fa-chart-line me-1"></i>
+                        Analizar Impacto
+                    </button>
+                    <button class="btn btn-secondary me-2" onclick="showComponentCredits()">
                         <i class="fas fa-chart-pie me-1"></i>
                         Créditos por Componente
                     </button>

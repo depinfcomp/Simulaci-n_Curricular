@@ -580,7 +580,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 case 'prerequisites':
                     // Update prerequisites display
                     if (card) {
-                        card.classList.add('added-subject'); // Mark as changed
+                        card.classList.add('modified'); // Mark with yellow border
                         card.dataset.prerequisites = change.new_value;
                     }
                     break;
@@ -1310,6 +1310,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const originalPrereqs = originalCurriculum[change.subject_code].prerequisites || [];
                         card.dataset.prerequisites = originalPrereqs.join(',');
                         card.classList.remove('prereqs-changed');
+                        card.classList.remove('modified'); // Remove modified visual marker
                     }
                     break;
             }
@@ -1415,88 +1416,231 @@ document.addEventListener('DOMContentLoaded', function() {
     function showImpactAnalysis(data) {
         const modalHtml = `
             <div class="modal fade" id="impactModal" tabindex="-1">
-                <div class="modal-dialog modal-lg">
+                <div class="modal-dialog modal-xl">
                     <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Análisis de Impacto</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title">
+                                <i class="fas fa-chart-line me-2"></i>
+                                Análisis de Impacto en Estudiantes
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <div class="row mb-3">
-                                <div class="col-md-3">
-                                    <div class="card text-center">
+                            <!-- Summary Cards -->
+                            <div class="row mb-4">
+                                <div class="col-md-2">
+                                    <div class="card text-center border-0 shadow-sm">
                                         <div class="card-body">
-                                            <h5 class="card-title">${data.total_students}</h5>
-                                            <p class="card-text">Total estudiantes</p>
+                                            <h5 class="card-title text-primary fw-bold">${data.total_students}</h5>
+                                            <p class="card-text small text-muted">Total Estudiantes</p>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-3">
-                                    <div class="card text-center">
+                                <div class="col-md-2">
+                                    <div class="card text-center border-0 shadow-sm">
                                         <div class="card-body">
-                                            <h5 class="card-title text-warning">${data.affected_students}</h5>
-                                            <p class="card-text">Estudiantes afectados</p>
+                                            <h5 class="card-title text-warning fw-bold">${data.affected_students}</h5>
+                                            <p class="card-text small text-muted">Estudiantes Afectados</p>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-3">
-                                    <div class="card text-center">
+                                <div class="col-md-2">
+                                    <div class="card text-center border-0 shadow-sm">
                                         <div class="card-body">
-                                            <h5 class="card-title text-danger">${data.students_with_delays}</h5>
-                                            <p class="card-text">Con retrasos</p>
+                                            <h5 class="card-title text-info fw-bold">${data.affected_percentage}%</h5>
+                                            <p class="card-text small text-muted">% Afectados</p>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-3">
-                                    <div class="card text-center">
+                                <div class="col-md-2">
+                                    <div class="card text-center border-0 shadow-sm">
                                         <div class="card-body">
-                                            <h5 class="card-title text-info">${data.affected_percentage}%</h5>
-                                            <p class="card-text">Porcentaje afectado</p>
+                                            <h5 class="card-title ${data.students_with_papa_impact > 0 ? 'text-danger' : 'text-success'} fw-bold">${data.students_with_papa_impact}</h5>
+                                            <p class="card-text small text-muted">Con Impacto PAPA</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="card text-center border-0 shadow-sm">
+                                        <div class="card-body">
+                                            <h5 class="card-title ${data.students_with_progress_impact > 0 ? 'text-danger' : 'text-success'} fw-bold">${data.students_with_progress_impact}</h5>
+                                            <p class="card-text small text-muted">Con Impacto Avance</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="card text-center border-0 shadow-sm">
+                                        <div class="card-body">
+                                            <h5 class="card-title text-danger fw-bold">${data.students_with_delays}</h5>
+                                            <p class="card-text small text-muted">Con Retrasos</p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Average Changes -->
+                            ${(data.average_papa_change !== 0 || data.average_progress_change !== 0) ? `
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <div class="alert ${data.average_papa_change > 0 ? 'alert-success' : data.average_papa_change < 0 ? 'alert-danger' : 'alert-info'} mb-0">
+                                            <h6 class="alert-heading">
+                                                <i class="fas fa-graduation-cap me-2"></i>
+                                                Cambio Promedio PAPA
+                                            </h6>
+                                            <p class="mb-0">
+                                                <strong>${data.average_papa_change > 0 ? '+' : ''}${data.average_papa_change.toFixed(2)}</strong> puntos
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="alert ${data.average_progress_change > 0 ? 'alert-success' : data.average_progress_change < 0 ? 'alert-danger' : 'alert-info'} mb-0">
+                                            <h6 class="alert-heading">
+                                                <i class="fas fa-chart-line me-2"></i>
+                                                Cambio Promedio Avance
+                                            </h6>
+                                            <p class="mb-0">
+                                                <strong>${data.average_progress_change > 0 ? '+' : ''}${data.average_progress_change.toFixed(2)}%</strong>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
                             
                             ${data.details.length > 0 ? `
-                                <h6>Detalles de estudiantes afectados:</h6>
+                                <!-- Search Bar -->
+                                <div class="mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fas fa-search"></i>
+                                        </span>
+                                        <input 
+                                            type="text" 
+                                            class="form-control" 
+                                            id="studentSearchInput" 
+                                            placeholder="Buscar estudiante por código (documento)..."
+                                            oninput="filterStudents(this.value)"
+                                        >
+                                        <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('studentSearchInput').value = ''; filterStudents('');">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted d-block mt-1" id="searchResultCount"></small>
+                                </div>
+                                
+                                <h6 class="mb-3">
+                                    <i class="fas fa-users me-2"></i>
+                                    Detalles de Estudiantes Afectados
+                                </h6>
                                 <div class="accordion" id="studentsAccordion">
                                     ${data.details.map((detail, index) => `
-                                        <div class="accordion-item">
+                                        <div class="accordion-item mb-2 border rounded">
                                             <h2 class="accordion-header">
                                                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${index}">
-                                                    ${detail.student_name} (ID: ${detail.student_id}) - Semestre ${detail.current_semester}
-                                                    <span class="badge bg-info ms-2">${detail.current_subjects.length} materias cursando</span>
+                                                    <div class="d-flex align-items-center w-100">
+                                                        <span class="fw-bold">Estudiante: ${detail.student_document}</span>
+                                                        <span class="ms-3 badge bg-secondary">Semestre ${detail.current_semester}</span>
+                                                        ${detail.current_subjects.length > 0 ? `<span class="ms-2 badge bg-info">${detail.current_subjects.length} cursando</span>` : ''}
+                                                        ${Math.abs(detail.papa_change) > 0.01 ? `<span class="ms-2 badge ${detail.papa_change > 0 ? 'bg-success' : 'bg-danger'}">PAPA ${detail.papa_change > 0 ? '+' : ''}${detail.papa_change.toFixed(2)}</span>` : ''}
+                                                        ${Math.abs(detail.progress_change) > 0.1 ? `<span class="ms-2 badge ${detail.progress_change > 0 ? 'bg-success' : 'bg-danger'}">Avance ${detail.progress_change > 0 ? '+' : ''}${detail.progress_change.toFixed(2)}%</span>` : ''}
+                                                    </div>
                                                 </button>
                                             </h2>
                                             <div id="collapse${index}" class="accordion-collapse collapse" data-bs-parent="#studentsAccordion">
                                                 <div class="accordion-body">
                                                     <div class="row">
-                                                        <div class="col-md-6">
-                                                            <h6>Materias actuales:</h6>
+                                                        <!-- Academic Metrics -->
+                                                        <div class="col-md-6 mb-3">
+                                                            <h6 class="fw-bold mb-3">
+                                                                <i class="fas fa-chart-bar me-2"></i>
+                                                                Métricas Académicas
+                                                            </h6>
+                                                            <table class="table table-sm table-bordered">
+                                                                <thead class="table-light">
+                                                                    <tr>
+                                                                        <th>Métrica</th>
+                                                                        <th>Actual</th>
+                                                                        <th>Proyectado</th>
+                                                                        <th>Cambio</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    <tr>
+                                                                        <td>PAPA</td>
+                                                                        <td>${detail.current_papa.toFixed(2)}</td>
+                                                                        <td>${detail.projected_papa.toFixed(2)}</td>
+                                                                        <td class="${detail.papa_change > 0 ? 'text-success' : detail.papa_change < 0 ? 'text-danger' : 'text-muted'}">
+                                                                            ${detail.papa_change > 0 ? '+' : ''}${detail.papa_change.toFixed(2)}
+                                                                        </td>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <td>Avance %</td>
+                                                                        <td>${detail.current_progress.toFixed(2)}%</td>
+                                                                        <td>${detail.projected_progress.toFixed(2)}%</td>
+                                                                        <td class="${detail.progress_change > 0 ? 'text-success' : detail.progress_change < 0 ? 'text-danger' : 'text-muted'}">
+                                                                            ${detail.progress_change > 0 ? '+' : ''}${detail.progress_change.toFixed(2)}%
+                                                                        </td>
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+
+                                                        <!-- Current Subjects -->
+                                                        ${detail.current_subjects.length > 0 ? `
+                                                        <div class="col-md-6 mb-3">
+                                                            <h6 class="fw-bold mb-3">
+                                                                <i class="fas fa-book me-2"></i>
+                                                                Materias Actuales
+                                                            </h6>
                                                             <ul class="list-group list-group-flush">
                                                                 ${detail.current_subjects.map(subject => `
-                                                                    <li class="list-group-item">${subject}</li>
+                                                                    <li class="list-group-item px-0 py-1 small">
+                                                                        <span class="badge bg-primary me-2">${subject.code}</span>
+                                                                        ${subject.name}
+                                                                    </li>
                                                                 `).join('')}
                                                             </ul>
                                                         </div>
-                                                        <div class="col-md-6">
-                                                            <h6>Problemas identificados:</h6>
-                                                            <ul class="list-group list-group-flush">
+                                                        ` : ''}
+
+                                                        <!-- Credit Impact -->
+                                                        ${detail.credit_impact && detail.credit_impact.affected_credits > 0 ? `
+                                                        <div class="col-md-6 mb-3">
+                                                            <h6 class="fw-bold mb-3">
+                                                                <i class="fas fa-coins me-2"></i>
+                                                                Impacto en Créditos
+                                                            </h6>
+                                                            <div class="alert alert-info mb-2 py-2">
+                                                                <strong>${detail.credit_impact.affected_credits}</strong> créditos afectados por los cambios
+                                                            </div>
+                                                        </div>
+                                                        ` : ''}
+                                                        
+                                                        <!-- Issues -->
+                                                        ${detail.issues.length > 0 ? `
+                                                        <div class="col-12">
+                                                            <h6 class="fw-bold mb-3 text-danger">
+                                                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                                                Problemas Identificados
+                                                            </h6>
+                                                            <ul class="list-group">
                                                                 ${detail.issues.map(issue => `
-                                                                    <li class="list-group-item text-danger">${issue}</li>
+                                                                    <li class="list-group-item list-group-item-danger">${issue}</li>
                                                                 `).join('')}
                                                             </ul>
                                                         </div>
+                                                        ` : ''}
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
                                     `).join('')}
                                 </div>
-                            ` : '<p class="text-success">No se detectaron estudiantes afectados por los cambios.</p>'}
+                            ` : '<div class="alert alert-success"><i class="fas fa-check-circle me-2"></i>No se detectaron estudiantes afectados por los cambios.</div>'}
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="fas fa-times me-2"></i>Cerrar
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1530,6 +1674,48 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         modal.show();
+        
+        // Initialize search result count after modal is shown
+        setTimeout(() => {
+            filterStudents('');
+        }, 100);
+    }
+    
+    /**
+     * Filter students in the impact analysis modal by document number
+     */
+    window.filterStudents = function(searchTerm) {
+        const accordionItems = document.querySelectorAll('#studentsAccordion .accordion-item');
+        const searchLower = searchTerm.toLowerCase().trim();
+        let visibleCount = 0;
+        
+        accordionItems.forEach(item => {
+            const button = item.querySelector('.accordion-button');
+            const studentDocument = button.textContent;
+            
+            if (searchLower === '' || studentDocument.toLowerCase().includes(searchLower)) {
+                item.style.display = '';
+                visibleCount++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+        
+        // Update result count
+        const resultCountElement = document.getElementById('searchResultCount');
+        if (resultCountElement) {
+            if (searchLower === '') {
+                resultCountElement.textContent = `Mostrando todos los ${accordionItems.length} estudiantes afectados`;
+            } else {
+                resultCountElement.textContent = `Mostrando ${visibleCount} de ${accordionItems.length} estudiantes`;
+                if (visibleCount === 0) {
+                    resultCountElement.textContent += ' - No se encontraron coincidencias';
+                    resultCountElement.classList.add('text-danger');
+                } else {
+                    resultCountElement.classList.remove('text-danger');
+                }
+            }
+        }
     }
     
     // Show loading modal
@@ -2977,7 +3163,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                        onkeyup="filterEditPrerequisiteOptions()">
                             </div>
                             <div style="max-height: 400px; overflow-y: auto;" id="editPrerequisiteList">
-                                ${existingSubjects.filter(s => s.code !== subjectId).map(subject => `
+                                ${existingSubjects
+                                    .filter(s => s.code !== subjectId)
+                                    .filter(s => !s.code.startsWith('#'))
+                                    .map(subject => `
                                     <div class="prerequisite-option mb-2" data-code="${subject.code}" data-name="${subject.name}">
                                         <div class="prerequisite-card p-3 border rounded ${currentPrereqs.includes(subject.code) ? 'selected' : ''}" 
                                              style="cursor: pointer; transition: all 0.3s ease;"
@@ -3236,6 +3425,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update card data
             card.dataset.prerequisites = newPrereqs.join(',');
             
+            // Mark card as modified (yellow border)
+            card.classList.add('modified');
+            
             // Record change
             recordSimulationChange(subjectId, 'prerequisites', newPrereqs.join(','), oldPrereqs.join(','));
             
@@ -3246,6 +3438,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (selectedCard === card) {
                 highlightRelated(card);
             }
+            
+            // Run automatic impact analysis
+            setTimeout(() => {
+                analyzeImpact();
+            }, 300);
         }
         
         // Close modal
