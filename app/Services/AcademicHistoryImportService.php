@@ -801,6 +801,7 @@ class AcademicHistoryImportService
         StudentCurrentSubject::create([
             'student_id' => $student->id,
             'subject_code' => $record['subject_code'],
+            'subject_name' => $record['raw_data']['asignatura'] ?? null,
             'semester_period' => $this->convertPeriod($record['periodo_inscripcion']),
             'status' => 'cursando',
             'partial_grade' => null,

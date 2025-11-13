@@ -94,11 +94,79 @@ class SimulationController extends Controller
                     $totalProgressChange += $impact['progress_change'];
                 }
                 
-                // Get current subjects with names
+                // Get current subjects with names - search in multiple places
                 $currentSubjectsWithNames = $student->currentSubjects->map(function($currentSubject) {
+                    $subjectName = null;
+                    $subjectCode = $currentSubject->subject_code;
+                    
+                    // Try 0: Get from student_current_subjects.subject_name (NEW - from import)
+                    if ($currentSubject->subject_name) {
+                        $subjectName = $currentSubject->subject_name;
+                    }
+                    
+                    // Try 1: Get from direct relationship (subjects table)
+                    if (!$subjectName && $currentSubject->subject && $currentSubject->subject->name) {
+                        $subjectName = $currentSubject->subject->name;
+                    }
+                    
+                    // Try 2: Look up subject by code directly in subjects table
+                    if (!$subjectName) {
+                        $subject = Subject::where('code', $subjectCode)->first();
+                        if ($subject && $subject->name) {
+                            $subjectName = $subject->name;
+                        }
+                    }
+                    
+                    // Try 3: Check in academic_histories table
+                    if (!$subjectName) {
+                        $historyRecord = DB::table('academic_histories')
+                            ->where('subject_code', $subjectCode)
+                            ->whereNotNull('subject_name')
+                            ->where('subject_name', '!=', '')
+                            ->select('subject_name')
+                            ->first();
+                        
+                        if ($historyRecord && $historyRecord->subject_name) {
+                            $subjectName = $historyRecord->subject_name;
+                        }
+                    }
+                    
+                    // Try 4: Check in student_subject pivot table (historical records)
+                    if (!$subjectName) {
+                        $pivotSubject = DB::table('student_subject as ss')
+                            ->join('subjects as s', 'ss.subject_code', '=', 's.code')
+                            ->where('ss.subject_code', $subjectCode)
+                            ->whereNotNull('s.name')
+                            ->select('s.name')
+                            ->first();
+                        
+                        if ($pivotSubject && $pivotSubject->name) {
+                            $subjectName = $pivotSubject->name;
+                        }
+                    }
+                    
+                    // Try 5: Check if it's an alias
+                    if (!$subjectName) {
+                        $alias = DB::table('subject_aliases')
+                            ->where('alias_code', $subjectCode)
+                            ->first();
+                        
+                        if ($alias) {
+                            $mainSubject = Subject::where('code', $alias->subject_code)->first();
+                            if ($mainSubject && $mainSubject->name) {
+                                $subjectName = $mainSubject->name . ' (alias)';
+                            }
+                        }
+                    }
+                    
+                    // If still no name found, use a descriptive fallback
+                    if (!$subjectName) {
+                        $subjectName = 'Materia ' . $subjectCode;
+                    }
+                    
                     return [
-                        'code' => $currentSubject->subject_code,
-                        'name' => $currentSubject->subject->name ?? 'Nombre no disponible'
+                        'code' => $subjectCode,
+                        'name' => $subjectName
                     ];
                 })->toArray();
                 
