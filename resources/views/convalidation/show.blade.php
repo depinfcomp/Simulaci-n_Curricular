@@ -95,13 +95,9 @@
                         <div class="card-body">
                             <h6>Acciones Rápidas</h6>
                             <div class="d-grid gap-2">
-                                <button class="btn btn-outline-primary btn-sm" onclick="showBulkConvalidation()">
-                                    <i class="fas fa-tasks me-2"></i>
-                                    Convalidación Masiva
-                                </button>
-                                <button class="btn btn-outline-info btn-sm" onclick="getSuggestions()">
-                                    <i class="fas fa-magic me-2"></i>
-                                    Sugerencias Automáticas
+                                <button class="btn btn-primary" onclick="showBulkConvalidationModal()">
+                                    <i class="fas fa-bolt me-2"></i>
+                                    Convalidación Masiva Automática
                                 </button>
                             </div>
                         </div>
@@ -229,12 +225,6 @@
                                                                     title="Configurar convalidación">
                                                                 <i class="fas fa-cog"></i>
                                                             </button>
-                                                            <button type="button" 
-                                                                    class="btn btn-outline-info"
-                                                                    onclick="getSuggestions({{ $subject->id }})"
-                                                                    title="Ver sugerencias">
-                                                                <i class="fas fa-magic"></i>
-                                                            </button>
                                                             @if($isConvalidated)
                                                                 <button type="button" 
                                                                         class="btn btn-outline-danger"
@@ -283,26 +273,40 @@
                         <div class="col-12">
                             <label class="form-label">Tipo de Convalidación</label>
                             <div class="form-check">
-                                <input class="form-check-input" type="radio" name="convalidation_type" id="type_direct" value="direct">
+                                <input class="form-check-input" type="radio" name="convalidation_type" id="type_direct" value="direct" checked>
                                 <label class="form-check-label" for="type_direct">
                                     <strong>Convalidación Directa</strong><br>
                                     <small class="text-muted">Equivale a una materia específica de nuestra malla curricular</small>
                                 </label>
                             </div>
                             <div class="form-check">
-                                <input class="form-check-input" type="radio" name="convalidation_type" id="type_free" value="free_elective">
-                                <label class="form-check-label" for="type_free">
-                                    <strong>Libre Elección</strong><br>
-                                    <small class="text-muted">Se reconoce como créditos electivos, sin equivalencia específica</small>
-                                </label>
-                            </div>
-                            <div class="form-check">
                                 <input class="form-check-input" type="radio" name="convalidation_type" id="type_not_convalidated" value="not_convalidated">
                                 <label class="form-check-label" for="type_not_convalidated">
-                                    <strong>Materia Nueva</strong><br>
-                                    <small class="text-muted">Esta es una materia nueva de la malla externa que el estudiante debe cursar</small>
+                                    <strong>Materia Nueva / No Convalidada</strong><br>
+                                    <small class="text-muted">Esta materia no tiene equivalencia y el estudiante debe cursarla como materia nueva</small>
                                 </label>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label for="component_type" class="form-label">
+                                Componente Académico <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select" id="component_type" name="component_type" required>
+                                <option value="">Seleccionar componente...</option>
+                                <option value="fundamental_required">Fundamental Obligatoria</option>
+                                <option value="professional_required">Profesional Obligatoria</option>
+                                <option value="optional_fundamental">Optativa Fundamental</option>
+                                <option value="optional_professional">Optativa Profesional</option>
+                                <option value="free_elective">Libre Elección</option>
+                                <option value="thesis">Trabajo de Grado</option>
+                                <option value="leveling">Nivelación</option>
+                            </select>
+                            <small class="text-muted">
+                                Indica el tipo de componente académico al que pertenece esta materia
+                            </small>
                         </div>
                     </div>
 
@@ -326,13 +330,6 @@
                             <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Observaciones sobre la convalidación..."></textarea>
                         </div>
                     </div>
-
-                    <div class="row" id="suggestions_container" style="display: none;">
-                        <div class="col-12">
-                            <h6>Sugerencias Automáticas:</h6>
-                            <div id="suggestions_list"></div>
-                        </div>
-                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -345,8 +342,119 @@
         </div>
     </div>
 </div>
+
+<!-- Bulk Convalidation Modal -->
+<div class="modal fade" id="bulkConvalidationModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-bolt me-2"></i>
+                    Convalidación Masiva Automática
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Explanation -->
+                <div class="alert alert-info">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-info-circle me-2"></i>
+                        ¿Cómo funciona la convalidación masiva?
+                    </h6>
+                    <p class="mb-2">El sistema comparará automáticamente las materias externas con las materias de nuestra base de datos usando dos criterios:</p>
+                    <ol class="mb-0">
+                        <li><strong>Por código exacto:</strong> Si el código de la materia externa coincide exactamente con una de nuestra malla</li>
+                        <li><strong>Por nombre similar:</strong> Si el nombre de la materia tiene una similitud alta (≥80%) con una de nuestra malla</li>
+                    </ol>
+                    <p class="mt-2 mb-0">
+                        <i class="fas fa-check-circle text-success me-1"></i>
+                        Además, el sistema asignará automáticamente el mismo <strong>componente académico</strong> que tiene la materia encontrada en nuestra base de datos.
+                    </p>
+                </div>
+
+                <!-- Progress -->
+                <div id="bulk_progress" style="display: none;">
+                    <div class="progress mb-3" style="height: 25px;">
+                        <div id="bulk_progress_bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%">
+                            0%
+                        </div>
+                    </div>
+                    <p class="text-center text-muted" id="bulk_progress_text">Preparando...</p>
+                </div>
+
+                <!-- Results -->
+                <div id="bulk_results" style="display: none;">
+                    <h6 class="mb-3">Resultados de la Convalidación Masiva:</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="card bg-success text-white">
+                                <div class="card-body text-center">
+                                    <h2 id="success_count">0</h2>
+                                    <small>Convalidadas Exitosamente</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body text-center">
+                                    <h2 id="skipped_count">0</h2>
+                                    <small>Sin Coincidencias</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-danger text-white">
+                                <div class="card-body text-center">
+                                    <h2 id="error_count">0</h2>
+                                    <small>Errores</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="width: 30%;">Materia Externa</th>
+                                    <th style="width: 30%;">Materia Convalidada</th>
+                                    <th style="width: 20%;">Componente</th>
+                                    <th style="width: 10%;">Método</th>
+                                    <th style="width: 10%;">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bulk_results_table">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" id="start_bulk_btn" onclick="startBulkConvalidation()">
+                    <i class="fas fa-play me-2"></i>
+                    Iniciar Convalidación Masiva
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
-    <script src="{{ asset('js/convalidation-show.js') }}"></script>
+    <script>
+        // Global variables for routes and CSRF token
+        window.convalidationRoutes = {
+            store: '{{ route("convalidation.store-convalidation") }}',
+            destroy: '{{ route("convalidation.destroy-convalidation", ":id") }}',
+            suggestions: '{{ route("convalidation.suggestions") }}',
+            export: '{{ route("convalidation.export", $externalCurriculum) }}',
+            bulkConvalidation: '{{ route("convalidation.bulk-convalidation") }}'
+        };
+        window.csrfToken = '{{ csrf_token() }}';
+        window.externalCurriculumId = {{ $externalCurriculum->id }};
+    </script>
+    <script src="{{ asset('js/convalidation-show.js') }}?v={{ time() }}"></script>
 @endpush

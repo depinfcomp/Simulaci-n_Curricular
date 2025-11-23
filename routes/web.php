@@ -60,6 +60,18 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         Route::delete('/convalidation/{convalidation}', [ConvalidationController::class, 'destroyConvalidation'])->name('convalidation.destroy-convalidation');
         Route::get('/suggestions', [ConvalidationController::class, 'getSuggestions'])->name('convalidation.suggestions');
         
+        // Bulk convalidation
+        Route::post('/bulk-convalidation', [ConvalidationController::class, 'bulkConvalidation'])->name('convalidation.bulk-convalidation');
+        
+        // Component assignment routes
+        Route::get('/{externalCurriculum}/assign-components', [ConvalidationController::class, 'assignComponents'])->name('convalidation.assign-components');
+        Route::post('/component-assignment', [ConvalidationController::class, 'storeComponentAssignment'])->name('convalidation.store-component');
+        
+        // Simulation routes
+        Route::get('/{externalCurriculum}/simulation-analysis', [ConvalidationController::class, 'showSimulationAnalysis'])->name('convalidation.simulation-analysis');
+        Route::post('/simulation/create', [ConvalidationController::class, 'createSimulation'])->name('convalidation.simulation.create');
+        Route::put('/simulation/{simulation}/leveling', [ConvalidationController::class, 'updateLevelingCredits'])->name('convalidation.simulation.update-leveling');
+        
         // Save modified curriculum from simulation
         Route::post('/save-modified-curriculum', [ConvalidationController::class, 'saveModifiedCurriculum'])->name('convalidation.save-modified-curriculum');
     });

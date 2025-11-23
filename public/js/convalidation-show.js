@@ -16,7 +16,12 @@ function showConvalidationModal(externalSubjectId) {
     // Reset form
     document.getElementById('convalidationForm').reset();
     document.getElementById('external_subject_id').value = externalSubjectId;
-    document.getElementById('internal_subject_selection').style.display = 'none';
+    
+    // Check "Convalidación Directa" by default
+    document.getElementById('type_direct').checked = true;
+    
+    // Show internal subject selection by default (since direct is checked)
+    document.getElementById('internal_subject_selection').style.display = 'block';
     
     const modal = new bootstrap.Modal(document.getElementById('convalidationModal'));
     modal.show();
@@ -37,14 +42,21 @@ document.querySelectorAll('input[name="convalidation_type"]').forEach(radio => {
 function saveConvalidation() {
     const formData = new FormData(document.getElementById('convalidationForm'));
     
+    // Validate component type is selected
+    const componentType = formData.get('component_type');
+    if (!componentType) {
+        showAlert('danger', 'Por favor seleccione un componente académico');
+        return;
+    }
+    
     // Store current active semester before making the request
     const currentActiveSemester = getCurrentActiveSemester();
     
-    fetch('{{ route("convalidation.store-convalidation") }}', {
+    fetch(window.convalidationRoutes.store, {
         method: 'POST',
         body: formData,
         headers: {
-            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            'X-CSRF-TOKEN': window.csrfToken
         }
     })
     .then(response => response.json())
@@ -178,7 +190,7 @@ function updateConvalidationDisplay(subjectId, convalidation) {
 function getSuggestions(externalSubjectId = null) {
     const targetId = externalSubjectId || currentExternalSubjectId;
     
-    fetch(`{{ route('convalidation.suggestions') }}?external_subject_id=${targetId}`)
+    fetch(`${window.convalidationRoutes.suggestions}?external_subject_id=${targetId}`)
     .then(response => response.json())
     .then(data => {
         const container = document.getElementById('suggestions_container');
@@ -221,10 +233,11 @@ function selectSuggestion(subjectCode) {
 
 function removeConvalidation(convalidationId) {
     if (confirm('¿Está seguro de que desea eliminar esta convalidación?')) {
-        fetch(`/convalidation/convalidation/${convalidationId}`, {
+        const url = window.convalidationRoutes.destroy.replace(':id', convalidationId);
+        fetch(url, {
             method: 'DELETE',
             headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                'X-CSRF-TOKEN': window.csrfToken
             }
         })
         .then(response => response.json())
@@ -251,5 +264,138 @@ function showAlert(type, message) {
 }
 
 function exportReport() {
-    window.location.href = '{{ route("convalidation.export", $externalCurriculum) }}';
+    window.location.href = window.convalidationRoutes.export;
+}
+
+// ============================================
+// BULK CONVALIDATION FUNCTIONS
+// ============================================
+
+function showBulkConvalidationModal() {
+    // Reset modal state
+    document.getElementById('bulk_progress').style.display = 'none';
+    document.getElementById('bulk_results').style.display = 'none';
+    document.getElementById('start_bulk_btn').style.display = 'block';
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('bulkConvalidationModal'));
+    modal.show();
+}
+
+function startBulkConvalidation() {
+    const btn = document.getElementById('start_bulk_btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Procesando...';
+    
+    // Show progress
+    document.getElementById('bulk_progress').style.display = 'block';
+    
+    // Start the bulk convalidation
+    fetch(window.convalidationRoutes.bulkConvalidation, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': window.csrfToken
+        },
+        body: JSON.stringify({
+            external_curriculum_id: window.externalCurriculumId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayBulkResults(data.results);
+            btn.style.display = 'none';
+            
+            // Reload page after 3 seconds to show new convalidations
+            setTimeout(() => {
+                location.reload();
+            }, 3000);
+        } else {
+            showAlert('danger', data.error || 'Error en la convalidación masiva');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-play me-2"></i>Iniciar Convalidación Masiva';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('danger', 'Error de conexión');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-play me-2"></i>Iniciar Convalidación Masiva';
+    });
+}
+
+function displayBulkResults(results) {
+    // Hide progress
+    document.getElementById('bulk_progress').style.display = 'none';
+    
+    // Show results
+    document.getElementById('bulk_results').style.display = 'block';
+    
+    // Count results
+    let successCount = 0;
+    let skippedCount = 0;
+    let errorCount = 0;
+    
+    results.forEach(result => {
+        if (result.status === 'success') successCount++;
+        else if (result.status === 'skipped') skippedCount++;
+        else if (result.status === 'error') errorCount++;
+    });
+    
+    // Update counters
+    document.getElementById('success_count').textContent = successCount;
+    document.getElementById('skipped_count').textContent = skippedCount;
+    document.getElementById('error_count').textContent = errorCount;
+    
+    // Build results table
+    const tableBody = document.getElementById('bulk_results_table');
+    tableBody.innerHTML = results.map(result => {
+        const statusIcon = result.status === 'success' 
+            ? '<i class="fas fa-check-circle text-success"></i>'
+            : result.status === 'skipped'
+            ? '<i class="fas fa-minus-circle text-warning"></i>'
+            : '<i class="fas fa-times-circle text-danger"></i>';
+        
+        const methodBadge = result.method === 'code'
+            ? '<span class="badge bg-primary">Código</span>'
+            : result.method === 'name'
+            ? '<span class="badge bg-info">Nombre</span>'
+            : '<span class="badge bg-secondary">-</span>';
+        
+        const componentBadge = result.component_type
+            ? `<span class="badge bg-success">${getComponentLabel(result.component_type)}</span>`
+            : '<span class="badge bg-secondary">-</span>';
+        
+        return `
+            <tr>
+                <td>
+                    <small><strong>${result.external_subject.name}</strong></small><br>
+                    <small class="text-muted">${result.external_subject.code}</small>
+                </td>
+                <td>
+                    ${result.internal_subject ? `
+                        <small><strong>${result.internal_subject.name}</strong></small><br>
+                        <small class="text-muted">${result.internal_subject.code}</small>
+                    ` : '<small class="text-muted">-</small>'}
+                </td>
+                <td>${componentBadge}</td>
+                <td>${methodBadge}</td>
+                <td>${statusIcon}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function getComponentLabel(componentType) {
+    const labels = {
+        'fundamental_required': 'Fund. Oblig.',
+        'professional_required': 'Prof. Oblig.',
+        'optional_fundamental': 'Opt. Fund.',
+        'optional_professional': 'Opt. Prof.',
+        'free_elective': 'Libre Elecc.',
+        'thesis': 'Trabajo Grado',
+        'leveling': 'Nivelación'
+    };
+    return labels[componentType] || componentType;
 }

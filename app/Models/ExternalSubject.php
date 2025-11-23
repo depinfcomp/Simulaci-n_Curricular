@@ -40,6 +40,14 @@ class ExternalSubject extends Model
     }
 
     /**
+     * Get the assigned component for this external subject.
+     */
+    public function assignedComponent()
+    {
+        return $this->hasOne(ExternalSubjectComponent::class);
+    }
+
+    /**
      * Check if this subject has been convalidated.
      */
     public function isConvalidated()
