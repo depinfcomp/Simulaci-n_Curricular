@@ -122,7 +122,7 @@ class ExternalCurriculum extends Model
         $convalidatedCredits = $this->convalidations()
             ->where('convalidation_type', 'direct')
             ->join('subjects', 'subject_convalidations.internal_subject_code', '=', 'subjects.code')
-            ->selectRaw('SUM(subjects.credits * (subject_convalidations.equivalence_percentage / 100)) as total_credits')
+            ->selectRaw('SUM(subjects.credits) as total_credits')
             ->value('total_credits') ?? 0;
         
         // Add free electives (assuming 3 credits each as default)

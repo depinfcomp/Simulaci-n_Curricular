@@ -15,15 +15,13 @@ class SubjectConvalidation extends Model
         'internal_subject_code',
         'convalidation_type',
         'notes',
-        'equivalence_percentage',
         'status',
         'approved_by',
         'approved_at'
     ];
 
     protected $casts = [
-        'approved_at' => 'datetime',
-        'equivalence_percentage' => 'decimal:2'
+        'approved_at' => 'datetime'
     ];
 
     /**

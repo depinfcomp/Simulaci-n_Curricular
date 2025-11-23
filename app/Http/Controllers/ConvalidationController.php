@@ -113,8 +113,7 @@ class ConvalidationController extends Controller
             'external_subject_id' => 'required|exists:external_subjects,id',
             'convalidation_type' => 'required|in:direct,free_elective,not_convalidated',
             'internal_subject_code' => 'nullable|exists:subjects,code',
-            'notes' => 'nullable|string',
-            'equivalence_percentage' => 'nullable|numeric|min:0|max:100'
+            'notes' => 'nullable|string'
         ]);
 
         if ($validator->fails()) {
@@ -144,7 +143,6 @@ class ConvalidationController extends Controller
                 'internal_subject_code' => $request->convalidation_type === 'direct' ? $request->internal_subject_code : null,
                 'convalidation_type' => $request->convalidation_type,
                 'notes' => $request->notes,
-                'equivalence_percentage' => $request->convalidation_type === 'not_convalidated' ? 0.00 : ($request->equivalence_percentage ?? 100.00),
                 'status' => 'pending'
             ]);
 

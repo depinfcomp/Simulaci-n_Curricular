@@ -321,16 +321,6 @@
                     </div>
 
                     <div class="row mb-3">
-                        <div class="col-6">
-                            <label for="equivalence_percentage" class="form-label">Porcentaje de Equivalencia</label>
-                            <div class="input-group">
-                                <input type="number" class="form-control" id="equivalence_percentage" name="equivalence_percentage" value="100" min="0" max="100">
-                                <span class="input-group-text">%</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
                         <div class="col-12">
                             <label for="notes" class="form-label">Notas Adicionales</label>
                             <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Observaciones sobre la convalidación..."></textarea>

@@ -77,8 +77,7 @@ class ExternalSubject extends Model
             'status' => $convalidation->status,
             'type' => $convalidation->convalidation_type,
             'internal_subject' => $this->getInternalSubject(),
-            'notes' => $convalidation->notes,
-            'equivalence_percentage' => $convalidation->equivalence_percentage
+            'notes' => $convalidation->notes
         ];
     }
 
@@ -104,5 +103,29 @@ class ExternalSubject extends Model
     public function scopePendingConvalidation($query)
     {
         return $query->whereDoesntHave('convalidation');
+    }
+
+    /**
+     * Get the component assignment for this external subject.
+     */
+    public function component()
+    {
+        return $this->hasOne(ExternalSubjectComponent::class);
+    }
+
+    /**
+     * Check if this subject has a component assigned.
+     */
+    public function hasComponent(): bool
+    {
+        return $this->component !== null;
+    }
+
+    /**
+     * Get the component type or null if not assigned.
+     */
+    public function getComponentType(): ?string
+    {
+        return $this->component?->component_type;
     }
 }
