@@ -1,5 +1,38 @@
 let currentExternalSubjectId = null;
 
+/**
+ * Get Bootstrap color class for component type badge
+ * Maps component types to their corresponding colors
+ */
+function getComponentColor(componentType) {
+    const colors = {
+        'fundamental_required': 'warning',      // Orange (naranja)
+        'professional_required': 'success',     // Green (verde)
+        'optional_fundamental': 'warning',      // Orange (naranja)
+        'optional_professional': 'success',     // Green (verde)
+        'thesis': 'success',                    // Green (verde)
+        'free_elective': 'primary',             // Blue (azul)
+        'leveling': 'danger'                    // Red (rojo)
+    };
+    return colors[componentType] || 'secondary';
+}
+
+/**
+ * Get human-readable label for component type
+ */
+function getComponentLabel(componentType) {
+    const labels = {
+        'fundamental_required': 'Fund. Oblig.',
+        'professional_required': 'Prof. Oblig.',
+        'optional_fundamental': 'Opt. Fund.',
+        'optional_professional': 'Opt. Prof.',
+        'free_elective': 'Libre Elecc.',
+        'thesis': 'Trabajo Grado',
+        'leveling': 'Nivelación'
+    };
+    return labels[componentType] || componentType;
+}
+
 function showConvalidationModal(externalSubjectId) {
     currentExternalSubjectId = externalSubjectId;
     
@@ -174,20 +207,30 @@ function updateConvalidationDisplay(subjectId, convalidation) {
     // Update status badge in the "Estado" column (5th td)
     const row = document.getElementById(`subject-row-${subjectId}`);
     const statusCell = row.querySelector('td:nth-child(5)'); // 5th column is Estado
-    const statusBadge = statusCell.querySelector('.badge');
     
-    if (statusBadge) {
-        if (convalidation.convalidation_type === 'direct') {
-            statusBadge.className = 'badge bg-success';
-            statusBadge.innerHTML = '<i class="fas fa-check me-1"></i>Convalidada';
-        } else if (convalidation.convalidation_type === 'free_elective') {
-            statusBadge.className = 'badge bg-info';
-            statusBadge.innerHTML = '<i class="fas fa-star me-1"></i>Libre Elección';
-        } else if (convalidation.convalidation_type === 'not_convalidated') {
-            statusBadge.className = 'badge bg-warning';
-            statusBadge.innerHTML = '<i class="fas fa-plus-circle me-1"></i>Materia Nueva';
-        }
+    // Get component type and color
+    const componentType = convalidation.component_assignment?.component_type;
+    const componentColor = componentType ? getComponentColor(componentType) : 'secondary';
+    const componentLabel = componentType ? getComponentLabel(componentType) : '';
+    
+    // Build status badges HTML
+    let statusHtml = '<div class="d-flex flex-column gap-1">';
+    
+    if (convalidation.convalidation_type === 'direct') {
+        statusHtml += '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Convalidada</span>';
+    } else if (convalidation.convalidation_type === 'free_elective') {
+        statusHtml += '<span class="badge bg-info"><i class="fas fa-star me-1"></i>Libre Elección</span>';
+    } else if (convalidation.convalidation_type === 'not_convalidated') {
+        statusHtml += '<span class="badge bg-warning"><i class="fas fa-plus-circle me-1"></i>Materia Nueva</span>';
     }
+    
+    // Add component type badge if available
+    if (componentType) {
+        statusHtml += `<span class="badge bg-${componentColor}">${componentLabel}</span>`;
+    }
+    
+    statusHtml += '</div>';
+    statusCell.innerHTML = statusHtml;
 }
 
 function getSuggestions(externalSubjectId = null) {
@@ -373,7 +416,7 @@ function displayBulkResults(results) {
             : '<span class="badge bg-secondary">-</span>';
         
         const componentBadge = result.component_type
-            ? `<span class="badge bg-success">${getComponentLabel(result.component_type)}</span>`
+            ? `<span class="badge bg-${getComponentColor(result.component_type)}">${getComponentLabel(result.component_type)}</span>`
             : '<span class="badge bg-secondary">-</span>';
         
         return `
@@ -394,17 +437,4 @@ function displayBulkResults(results) {
             </tr>
         `;
     }).join('');
-}
-
-function getComponentLabel(componentType) {
-    const labels = {
-        'fundamental_required': 'Fund. Oblig.',
-        'professional_required': 'Prof. Oblig.',
-        'optional_fundamental': 'Opt. Fund.',
-        'optional_professional': 'Opt. Prof.',
-        'free_elective': 'Libre Elecc.',
-        'thesis': 'Trabajo Grado',
-        'leveling': 'Nivelación'
-    };
-    return labels[componentType] || componentType;
 }

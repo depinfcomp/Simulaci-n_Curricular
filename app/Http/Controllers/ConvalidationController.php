@@ -356,6 +356,37 @@ class ConvalidationController extends Controller
     }
 
     /**
+     * Reset all convalidations for a specific external curriculum
+     * Deletes all convalidations and component assignments
+     */
+    public function resetConvalidations(ExternalCurriculum $externalCurriculum)
+    {
+        try {
+            // Delete all convalidations for this curriculum
+            $deletedConvalidations = SubjectConvalidation::where('external_curriculum_id', $externalCurriculum->id)->delete();
+            
+            // Delete all component assignments through external_subjects relationship
+            // First get all external subject IDs for this curriculum
+            $externalSubjectIds = $externalCurriculum->externalSubjects()->pluck('id');
+            
+            // Delete component assignments for these subjects
+            $deletedComponents = \App\Models\ExternalSubjectComponent::whereIn('external_subject_id', $externalSubjectIds)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Se eliminaron {$deletedConvalidations} convalidaciones y {$deletedComponents} asignaciones de componentes.",
+                'deleted_convalidations' => $deletedConvalidations,
+                'deleted_components' => $deletedComponents
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Error al restablecer las convalidaciones: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Analyze the impact of migrating students from original curriculum to external curriculum with convalidations
      */
     public function analyzeConvalidationImpact(ExternalCurriculum $externalCurriculum, Request $request)
@@ -2130,7 +2161,27 @@ class ConvalidationController extends Controller
                         // Get the component type from the matched subject (now properly resolved)
                         $componentType = $matchedSubject['component_type'];
 
-                        // Check if this is an elective or optional subject
+                        // Skip electives and free electives - these MUST be manually convalidated
+                        $isElectiveOrFree = in_array($componentType, [
+                            'free_elective',
+                            'optional_fundamental',
+                            'optional_professional'
+                        ]);
+
+                        if ($isElectiveOrFree) {
+                            $result['status'] = 'skipped';
+                            $result['message'] = 'Materia optativa/libre - Debe convalidarse manualmente';
+                            $result['component_type'] = $componentType;
+                            $result['internal_subject'] = [
+                                'code' => $matchedSubject['code'],
+                                'name' => $matchedSubject['name'],
+                                'credits' => $matchedSubject['credits']
+                            ];
+                            $results[] = $result;
+                            continue; // Skip to next subject
+                        }
+
+                        // Check if this is an elective or optional subject (this check is now redundant but kept for safety)
                         $isElectiveOrOptional = in_array($componentType, [
                             'free_elective',
                             'optional_fundamental',

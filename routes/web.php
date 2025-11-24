@@ -40,6 +40,9 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         Route::delete('/{externalCurriculum}', [ConvalidationController::class, 'destroy'])->name('convalidation.destroy');
         Route::get('/{externalCurriculum}/export', [ConvalidationController::class, 'exportReport'])->name('convalidation.export');
         
+        // Reset all convalidations for a curriculum
+        Route::post('/{externalCurriculum}/reset', [ConvalidationController::class, 'resetConvalidations'])->name('convalidation.reset');
+        
         // New route for impact analysis
         Route::post('/{externalCurriculum}/analyze-impact', [ConvalidationController::class, 'analyzeConvalidationImpact'])->name('convalidation.analyze-impact');
         

@@ -99,6 +99,10 @@
                                     <i class="fas fa-bolt me-2"></i>
                                     Convalidación Masiva Automática
                                 </button>
+                                <button class="btn btn-outline-danger" onclick="confirmResetConvalidations()">
+                                    <i class="fas fa-redo me-2"></i>
+                                    Restablecer Convalidación
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -148,6 +152,31 @@
                                                 @php
                                                     $convalidationStatus = $subject->getConvalidationStatus();
                                                     $isConvalidated = $subject->isConvalidated();
+                                                    $componentType = $subject->getComponentType();
+                                                    
+                                                    // Map component types to colors (same as in Subject model)
+                                                    $componentColors = [
+                                                        'fundamental_required' => 'warning',
+                                                        'professional_required' => 'success',
+                                                        'optional_fundamental' => 'warning',
+                                                        'optional_professional' => 'success',
+                                                        'thesis' => 'success',
+                                                        'free_elective' => 'primary',
+                                                        'leveling' => 'danger'
+                                                    ];
+                                                    
+                                                    $componentLabels = [
+                                                        'fundamental_required' => 'Fund. Oblig.',
+                                                        'professional_required' => 'Prof. Oblig.',
+                                                        'optional_fundamental' => 'Opt. Fund.',
+                                                        'optional_professional' => 'Opt. Prof.',
+                                                        'thesis' => 'Trabajo Grado',
+                                                        'free_elective' => 'Libre Elecc.',
+                                                        'leveling' => 'Nivelación'
+                                                    ];
+                                                    
+                                                    $componentColor = $componentColors[$componentType] ?? 'secondary';
+                                                    $componentLabel = $componentLabels[$componentType] ?? $componentType;
                                                 @endphp
                                                 <tr id="subject-row-{{ $subject->id }}">
                                                     <td>
@@ -194,22 +223,30 @@
                                                     </td>
                                                     <td>
                                                         @if($isConvalidated)
-                                                            @if($convalidationStatus['type'] === 'direct')
-                                                                <span class="badge bg-success">
-                                                                    <i class="fas fa-check me-1"></i>
-                                                                    Convalidada
-                                                                </span>
-                                                            @elseif($convalidationStatus['type'] === 'free_elective')
-                                                                <span class="badge bg-info">
-                                                                    <i class="fas fa-star me-1"></i>
-                                                                    Libre Elección
-                                                                </span>
-                                                            @elseif($convalidationStatus['type'] === 'not_convalidated')
-                                                                <span class="badge bg-warning">
-                                                                    <i class="fas fa-plus-circle me-1"></i>
-                                                                    Materia Nueva
-                                                                </span>
-                                                            @endif
+                                                            <div class="d-flex flex-column gap-1">
+                                                                @if($convalidationStatus['type'] === 'direct')
+                                                                    <span class="badge bg-success">
+                                                                        <i class="fas fa-check me-1"></i>
+                                                                        Convalidada
+                                                                    </span>
+                                                                @elseif($convalidationStatus['type'] === 'free_elective')
+                                                                    <span class="badge bg-info">
+                                                                        <i class="fas fa-star me-1"></i>
+                                                                        Libre Elección
+                                                                    </span>
+                                                                @elseif($convalidationStatus['type'] === 'not_convalidated')
+                                                                    <span class="badge bg-warning">
+                                                                        <i class="fas fa-plus-circle me-1"></i>
+                                                                        Materia Nueva
+                                                                    </span>
+                                                                @endif
+                                                                
+                                                                @if($componentType)
+                                                                    <span class="badge bg-{{ $componentColor }}">
+                                                                        {{ $componentLabel }}
+                                                                    </span>
+                                                                @endif
+                                                            </div>
                                                         @else
                                                             <span class="badge bg-warning">
                                                                 <i class="fas fa-clock me-1"></i>
@@ -372,6 +409,23 @@
                     </p>
                 </div>
 
+                <!-- Warning -->
+                <div class="alert alert-warning">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Advertencia Importante
+                    </h6>
+                    <p class="mb-2">
+                        <strong>Las convalidaciones automáticas pueden no ser 100% correctas.</strong> 
+                        El sistema hace su mejor esfuerzo, pero es importante que <strong>revises y verifiques</strong> cada convalidación después del proceso automático.
+                    </p>
+                    <ul class="mb-0">
+                        <li><strong>Materias optativas y de libre elección</strong> serán saltadas y deberán convalidarse manualmente</li>
+                        <li>La similitud de nombres puede generar <strong>falsos positivos</strong></li>
+                        <li>Siempre puedes usar el botón <strong>"Restablecer Convalidación"</strong> si necesitas empezar de nuevo</li>
+                    </ul>
+                </div>
+
                 <!-- Progress -->
                 <div id="bulk_progress" style="display: none;">
                     <div class="progress mb-3" style="height: 25px;">
@@ -441,6 +495,53 @@
         </div>
     </div>
 </div>
+
+<!-- Reset Convalidations Confirmation Modal -->
+<div class="modal fade" id="resetConvalidationsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Confirmar Restablecimiento
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <strong>¡Atención!</strong> Esta acción no se puede deshacer.
+                </div>
+                <p class="mb-3">
+                    Estás a punto de <strong>eliminar todas las convalidaciones</strong> realizadas para esta malla curricular.
+                </p>
+                <p class="mb-0">
+                    Esto incluye:
+                </p>
+                <ul class="mb-3">
+                    <li>Todas las convalidaciones directas</li>
+                    <li>Todas las materias marcadas como "no convalidadas"</li>
+                    <li>Todas las asignaciones de componentes curriculares</li>
+                </ul>
+                <p class="text-muted mb-0">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Podrás volver a realizar las convalidaciones desde cero después de restablecer.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>
+                    Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="confirm_reset_btn" onclick="executeResetConvalidations()">
+                    <i class="fas fa-redo me-2"></i>
+                    Sí, Restablecer Todo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
@@ -451,10 +552,56 @@
             destroy: '{{ route("convalidation.destroy-convalidation", ":id") }}',
             suggestions: '{{ route("convalidation.suggestions") }}',
             export: '{{ route("convalidation.export", $externalCurriculum) }}',
-            bulkConvalidation: '{{ route("convalidation.bulk-convalidation") }}'
+            bulkConvalidation: '{{ route("convalidation.bulk-convalidation") }}',
+            reset: '{{ route("convalidation.reset", $externalCurriculum) }}'
         };
         window.csrfToken = '{{ csrf_token() }}';
         window.externalCurriculumId = {{ $externalCurriculum->id }};
+
+        // Reset convalidations functions
+        function confirmResetConvalidations() {
+            const modal = new bootstrap.Modal(document.getElementById('resetConvalidationsModal'));
+            modal.show();
+        }
+
+        function executeResetConvalidations() {
+            const btn = document.getElementById('confirm_reset_btn');
+            const originalHtml = btn.innerHTML;
+            
+            // Disable button and show loading
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Restableciendo...';
+
+            fetch(window.convalidationRoutes.reset, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': window.csrfToken,
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Hide modal
+                    bootstrap.Modal.getInstance(document.getElementById('resetConvalidationsModal')).hide();
+                    
+                    // Reload page directly without alert
+                    location.reload();
+                } else {
+                    throw new Error(data.error || 'Error desconocido');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Error al restablecer las convalidaciones: ' + error.message);
+                
+                // Restore button
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            });
+        }
     </script>
     <script src="{{ asset('js/convalidation-show.js') }}?v={{ time() }}"></script>
 @endpush
+
