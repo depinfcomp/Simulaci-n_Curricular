@@ -35,6 +35,107 @@ function getComponentLabel(componentType) {
     return labels[componentType] || componentType;
 }
 
+/**
+ * Filter internal subject options based on convalidation type
+ * For 'direct' convalidations: Hide elective subjects (optativas y libre elección)
+ */
+function filterInternalSubjectOptions(convalidationType) {
+    const internalSubjectSelect = document.getElementById('internal_subject_code');
+    if (!internalSubjectSelect) return;
+    
+    const options = internalSubjectSelect.querySelectorAll('option');
+    let hiddenCount = 0;
+    let shownCount = 0;
+    
+    options.forEach(option => {
+        if (option.value === '') {
+            // Always show placeholder
+            option.style.display = '';
+            option.disabled = false;
+        } else if (convalidationType === 'direct' && option.dataset.subjectCategory === 'elective') {
+            // For direct convalidations: Hide elective subjects (optional_*, free_elective)
+            option.style.display = 'none';
+            option.disabled = true;
+            hiddenCount++;
+        } else {
+            // Show all other subjects (fundamental_required, professional_required, thesis, leveling)
+            option.style.display = '';
+            option.disabled = false;
+            if (option.value !== '') shownCount++;
+        }
+    });
+    
+    console.log(`[Filter Subjects] Type: ${convalidationType}, Hidden: ${hiddenCount}, Shown: ${shownCount}`);
+}
+
+/**
+ * Filter component type options based on convalidation type
+ * For 'direct': Only required components (fundamental, professional, thesis, leveling)
+ * For 'flexible_component': Only elective components (optional_*, free_elective)
+ * For 'not_convalidated': Only required components (new subjects are only obligatory)
+ */
+function filterComponentTypeOptions(convalidationType) {
+    const componentTypeSelect = document.getElementById('component_type');
+    const componentHint = document.getElementById('component_type_hint');
+    if (!componentTypeSelect) return;
+    
+    const options = componentTypeSelect.querySelectorAll('option');
+    let hiddenCount = 0;
+    let shownCount = 0;
+    
+    options.forEach(option => {
+        if (option.value === '') {
+            // Always show placeholder
+            option.style.display = '';
+            option.disabled = false;
+        } else if (convalidationType === 'direct' || convalidationType === 'not_convalidated') {
+            // For "Convalidación Directa" and "Materia Nueva": Only show REQUIRED components
+            // Elective components should use "Componente Electivo" type exclusively
+            if (option.dataset.componentCategory === 'required') {
+                option.style.display = '';
+                option.disabled = false;
+                shownCount++;
+            } else {
+                option.style.display = 'none';
+                option.disabled = true;
+                hiddenCount++;
+            }
+        } else if (convalidationType === 'flexible_component') {
+            // For "Componente Electivo": Only show ELECTIVE components
+            if (option.dataset.componentCategory === 'elective') {
+                option.style.display = '';
+                option.disabled = false;
+                shownCount++;
+            } else {
+                option.style.display = 'none';
+                option.disabled = true;
+                hiddenCount++;
+            }
+        } else {
+            // Fallback: Show all (shouldn't reach here)
+            option.style.display = '';
+            option.disabled = false;
+            if (option.value !== '') shownCount++;
+        }
+    });
+    
+    // Update hint text
+    if (componentHint) {
+        if (convalidationType === 'direct') {
+            componentHint.textContent = 'Selecciona el componente obligatorio (fundamental, profesional, trabajo de grado o nivelación)';
+        } else if (convalidationType === 'flexible_component') {
+            componentHint.textContent = 'Selecciona el tipo de componente electivo (optativas o libre elección)';
+        } else if (convalidationType === 'not_convalidated') {
+            componentHint.textContent = 'Selecciona el componente obligatorio de la materia nueva (las electivas usan "Componente Electivo")';
+        } else {
+            componentHint.textContent = 'Indica el tipo de componente académico al que pertenece esta materia';
+        }
+    }
+    
+    console.log(`[Filter Components] Type: ${convalidationType}, Hidden: ${hiddenCount}, Shown: ${shownCount}`);
+}
+
+
 function showConvalidationModal(externalSubjectId, existingData = null) {
     // Prevent opening multiple modals simultaneously
     if (modalIsOpen) {
@@ -135,14 +236,25 @@ function showConvalidationModal(externalSubjectId, existingData = null) {
         // Set convalidation type
         const typeDirectRadio = document.getElementById('type_direct');
         const typeNotConvalidatedRadio = document.getElementById('type_not_convalidated');
+        const typeFlexibleRadio = document.getElementById('type_flexible_component');
         const internalSubjectSelection = document.getElementById('internal_subject_selection');
         
         if (existingData.convalidationType === 'direct') {
             if (typeDirectRadio) typeDirectRadio.checked = true;
             if (internalSubjectSelection) internalSubjectSelection.style.display = 'block';
+            // Apply filters to hide elective subjects and components
+            filterInternalSubjectOptions('direct');
+            filterComponentTypeOptions('direct');
+        } else if (existingData.convalidationType === 'flexible_component') {
+            if (typeFlexibleRadio) typeFlexibleRadio.checked = true;
+            if (internalSubjectSelection) internalSubjectSelection.style.display = 'none';
+            // Apply filter to show only elective components
+            filterComponentTypeOptions('flexible_component');
         } else {
             if (typeNotConvalidatedRadio) typeNotConvalidatedRadio.checked = true;
             if (internalSubjectSelection) internalSubjectSelection.style.display = 'none';
+            // Show all components
+            filterComponentTypeOptions('not_convalidated');
         }
         
         // Set component type
@@ -186,15 +298,10 @@ function showConvalidationModal(externalSubjectId, existingData = null) {
         // Just need to reset current code variable and set modal title
         currentInternalSubjectCode = null;
         
-        // Reset all option states (enable all)
-        if (internalSubjectSelect) {
-            const options = internalSubjectSelect.querySelectorAll('option');
-            options.forEach(option => {
-                if (option.value !== '') {
-                    option.disabled = false;
-                }
-            });
-        }
+        // The default type is 'direct' (checked by default in HTML)
+        // Apply filters to hide elective subjects and components for direct convalidations
+        filterInternalSubjectOptions('direct');
+        filterComponentTypeOptions('direct');
         
         // Reset label text
         const label = document.querySelector('label[for="internal_subject_code"]');
@@ -227,6 +334,7 @@ document.querySelectorAll('input[name="convalidation_type"]').forEach(radio => {
         const createNewCodeContainer = document.getElementById('create_new_code_container');
         const newCodeMessage = document.getElementById('new_code_message');
         const notesTextarea = document.getElementById('convalidation_notes');
+        const componentHint = document.getElementById('component_type_hint');
         
         // ALWAYS clear all fields when changing type to avoid confusion
         // User must re-select everything
@@ -254,11 +362,21 @@ document.querySelectorAll('input[name="convalidation_type"]').forEach(radio => {
             notesTextarea.value = '';
         }
         
+        // Filter component type options based on convalidation type
+        filterComponentTypeOptions(this.value);
+        
         // Show/hide internal subject selection based on type
+        // - 'direct': Show internal subject selector (filtered to hide electives)
+        // - 'flexible_component': Hide internal subject selector (only component type matters)
+        // - 'not_convalidated': Hide internal subject selector
         if (this.value === 'direct') {
             internalSubjectSelection.style.display = 'block';
+            // Apply filter to hide elective subjects
+            filterInternalSubjectOptions('direct');
         } else {
             internalSubjectSelection.style.display = 'none';
+            // Reset filter when hiding
+            filterInternalSubjectOptions('other');
         }
     });
 });
@@ -414,7 +532,7 @@ function saveConvalidation() {
     // Validate convalidation type is selected
     const convalidationType = formData.get('convalidation_type');
     if (!convalidationType) {
-        showAlert('danger', 'Por favor seleccione el tipo de convalidación (Directa o No se convalida)');
+        showAlert('danger', 'Por favor seleccione el tipo de convalidación');
         return;
     }
     
@@ -432,6 +550,15 @@ function saveConvalidation() {
     if (convalidationType === 'direct' && !internalSubjectCode && !(createNewCodeCheckbox && createNewCodeCheckbox.checked)) {
         showAlert('danger', 'Las convalidaciones directas requieren seleccionar una materia interna o marcar "Crear nuevo código"');
         return;
+    }
+    
+    // Validate that flexible_component has a flexible component type
+    if (convalidationType === 'flexible_component') {
+        const flexibleComponents = ['optional_fundamental', 'optional_professional', 'free_elective'];
+        if (!flexibleComponents.includes(componentType)) {
+            showAlert('danger', 'Los componentes electivos deben ser Optativa Fundamental, Optativa Profesional o Libre Elección');
+            return;
+        }
     }
     
     // Check if "Crear nuevo código" is checked
@@ -534,11 +661,15 @@ function updateConvalidationDisplay(subjectId, convalidation) {
                 </div>
             </div>
         `;
-    } else if (convalidation.convalidation_type === 'free_elective') {
+    } else if (convalidation.convalidation_type === 'flexible_component') {
+        // Get component type label
+        const componentType = convalidation.component_assignment?.component_type;
+        const componentLabel = componentType ? getComponentLabel(componentType) : 'Componente Flexible';
+        
         displayElement.innerHTML = `
             <div class="d-flex align-items-center">
-                <i class="fas fa-star text-info me-2"></i>
-                <span class="fw-bold text-info">Libre Elección</span>
+                <i class="fas fa-layer-group text-info me-2"></i>
+                <span class="fw-bold text-info">${componentLabel}</span>
             </div>
         `;
     } else if (convalidation.convalidation_type === 'not_convalidated') {
@@ -564,8 +695,8 @@ function updateConvalidationDisplay(subjectId, convalidation) {
     
     if (convalidation.convalidation_type === 'direct') {
         statusHtml += '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Convalidada</span>';
-    } else if (convalidation.convalidation_type === 'free_elective') {
-        statusHtml += '<span class="badge bg-info"><i class="fas fa-star me-1"></i>Libre Elección</span>';
+    } else if (convalidation.convalidation_type === 'flexible_component') {
+        statusHtml += '<span class="badge bg-info"><i class="fas fa-layer-group me-1"></i>Componente Electivo</span>';
     } else if (convalidation.convalidation_type === 'not_convalidated') {
         statusHtml += '<span class="badge bg-warning"><i class="fas fa-plus-circle me-1"></i>Materia Nueva</span>';
     }

@@ -287,10 +287,10 @@
                                                                         <small class="text-muted">{{ $convalidationStatus['internal_subject']->code }}</small>
                                                                     </div>
                                                                 </div>
-                                                            @elseif($convalidationStatus['type'] === 'free_elective')
+                                                            @elseif($convalidationStatus['type'] === 'flexible_component')
                                                                 <div class="d-flex align-items-center">
-                                                                    <i class="fas fa-star text-info me-2"></i>
-                                                                    <span class="fw-bold text-info">Libre Elección</span>
+                                                                    <i class="fas fa-layer-group text-info me-2"></i>
+                                                                    <span class="fw-bold text-info">{{ $componentLabel }}</span>
                                                                 </div>
                                                             @elseif($convalidationStatus['type'] === 'not_convalidated')
                                                                 <div class="d-flex align-items-center">
@@ -313,10 +313,10 @@
                                                                         <i class="fas fa-check me-1"></i>
                                                                         Convalidada
                                                                     </span>
-                                                                @elseif($convalidationStatus['type'] === 'free_elective')
+                                                                @elseif($convalidationStatus['type'] === 'flexible_component')
                                                                     <span class="badge bg-info">
-                                                                        <i class="fas fa-star me-1"></i>
-                                                                        Libre Elección
+                                                                        <i class="fas fa-layer-group me-1"></i>
+                                                                        Componente Electivo
                                                                     </span>
                                                                 @elseif($convalidationStatus['type'] === 'not_convalidated')
                                                                     <span class="badge bg-warning">
@@ -407,6 +407,13 @@
                                 </label>
                             </div>
                             <div class="form-check">
+                                <input class="form-check-input" type="radio" name="convalidation_type" id="type_flexible_component" value="flexible_component">
+                                <label class="form-check-label" for="type_flexible_component">
+                                    <strong>Componente Electivo (Optativa / Libre Elección)</strong><br>
+                                    <small class="text-muted">Esta materia cuenta como créditos de un componente electivo (optativas o libre elección), sin equivalencia específica</small>
+                                </label>
+                            </div>
+                            <div class="form-check">
                                 <input class="form-check-input" type="radio" name="convalidation_type" id="type_not_convalidated" value="not_convalidated">
                                 <label class="form-check-label" for="type_not_convalidated">
                                     <strong>Materia Nueva / No Convalidada</strong><br>
@@ -423,15 +430,15 @@
                             </label>
                             <select class="form-select" id="component_type" name="component_type" required>
                                 <option value="">Seleccionar componente...</option>
-                                <option value="fundamental_required">Fundamental Obligatoria</option>
-                                <option value="professional_required">Profesional Obligatoria</option>
-                                <option value="optional_fundamental">Optativa Fundamental</option>
-                                <option value="optional_professional">Optativa Profesional</option>
-                                <option value="free_elective">Libre Elección</option>
-                                <option value="thesis">Trabajo de Grado</option>
-                                <option value="leveling">Nivelación</option>
+                                <option value="fundamental_required" data-component-category="required">Fundamental Obligatoria</option>
+                                <option value="professional_required" data-component-category="required">Profesional Obligatoria</option>
+                                <option value="optional_fundamental" data-component-category="elective">Optativa Fundamental</option>
+                                <option value="optional_professional" data-component-category="elective">Optativa Profesional</option>
+                                <option value="free_elective" data-component-category="elective">Libre Elección</option>
+                                <option value="thesis" data-component-category="required">Trabajo de Grado</option>
+                                <option value="leveling" data-component-category="required">Nivelación</option>
                             </select>
-                            <small class="text-muted">
+                            <small class="text-muted" id="component_type_hint">
                                 Indica el tipo de componente académico al que pertenece esta materia
                             </small>
                         </div>
@@ -443,7 +450,18 @@
                             <select class="form-select" id="internal_subject_code" name="internal_subject_code">
                                 <option value="">Seleccionar materia...</option>
                                 @foreach($internalSubjects as $subject)
-                                    <option value="{{ $subject->code }}" data-semester="{{ $subject->semester }}" data-credits="{{ $subject->credits }}">
+                                    @php
+                                        // Get component type for filtering
+                                        $componentType = $subject->component;
+                                        // Determine if this is an elective component
+                                        $isElective = in_array($componentType, ['optional_fundamental', 'optional_professional', 'free_elective']);
+                                        $subjectCategory = $isElective ? 'elective' : 'required';
+                                    @endphp
+                                    <option value="{{ $subject->code }}" 
+                                            data-semester="{{ $subject->semester }}" 
+                                            data-credits="{{ $subject->credits }}"
+                                            data-component-type="{{ $componentType }}"
+                                            data-subject-category="{{ $subjectCategory }}">
                                         {{ $subject->name }} ({{ $subject->code }}) - Semestre {{ $subject->semester }}
                                     </option>
                                 @endforeach

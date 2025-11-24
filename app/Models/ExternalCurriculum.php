@@ -89,12 +89,12 @@ class ExternalCurriculum extends Model
     {
         $totalSubjects = $this->externalSubjects()->count();
         
-        // Count subjects by convalidation type (now including free_elective as convalidated)
+        // Count subjects by convalidation type
         $directConvalidations = $this->convalidations()->where('convalidation_type', 'direct')->count();
-        $freeElectives = $this->convalidations()->where('convalidation_type', 'free_elective')->count();
+        $flexibleComponents = $this->convalidations()->where('convalidation_type', 'flexible_component')->count();
         $notConvalidated = $this->convalidations()->where('convalidation_type', 'not_convalidated')->count();
         
-        // Count subjects with assigned component (optativas, nivelación, etc.)
+        // Count subjects with assigned component (for not_convalidated with components)
         // These are subjects marked as not_convalidated BUT have a component assigned
         $subjectsWithComponent = $this->externalSubjects()
             ->whereHas('assignedComponent')
@@ -103,8 +103,8 @@ class ExternalCurriculum extends Model
             })
             ->count();
         
-        // Total convalidated subjects includes direct + free elective + subjects with component
-        $convalidatedSubjects = $directConvalidations + $freeElectives + $subjectsWithComponent;
+        // Total convalidated subjects includes direct + flexible_component + subjects with component
+        $convalidatedSubjects = $directConvalidations + $flexibleComponents + $subjectsWithComponent;
         
         // Calculate career completion percentage based on internal curriculum credits
         $careerStats = $this->getCareerCompletionStats();
@@ -116,7 +116,7 @@ class ExternalCurriculum extends Model
             'total_subjects' => $totalSubjects,
             'convalidated_subjects' => $convalidatedSubjects,
             'direct_convalidations' => $directConvalidations,
-            'free_electives' => $freeElectives,
+            'flexible_components' => $flexibleComponents,
             'not_convalidated' => $notConvalidated,
             'pending_subjects' => $totalSubjects - $convalidatedSubjects - $notConvalidated,
             'completion_percentage' => $totalSubjects > 0 ? round(($convalidatedSubjects / $totalSubjects) * 100, 2) : 0,
@@ -144,12 +144,14 @@ class ExternalCurriculum extends Model
             ->selectRaw('SUM(subjects.credits) as total_credits')
             ->value('total_credits') ?? 0;
         
-        // Add free electives (assuming 3 credits each as default)
-        $freeElectiveCredits = $this->convalidations()
-            ->where('convalidation_type', 'free_elective')
-            ->count() * 3; // Default 3 credits per free elective
+        // Add flexible component credits (using external subject credits)
+        $flexibleComponentCredits = $this->convalidations()
+            ->where('convalidation_type', 'flexible_component')
+            ->join('external_subjects', 'subject_convalidations.external_subject_id', '=', 'external_subjects.id')
+            ->selectRaw('SUM(external_subjects.credits) as total_credits')
+            ->value('total_credits') ?? 0;
         
-        $totalConvalidatedCredits = $convalidatedCredits + $freeElectiveCredits;
+        $totalConvalidatedCredits = $convalidatedCredits + $flexibleComponentCredits;
         
         $completionPercentage = $totalCareerCredits > 0 
             ? round(($totalConvalidatedCredits / $totalCareerCredits) * 100, 2) 
@@ -219,12 +221,13 @@ class ExternalCurriculum extends Model
             ->join('subjects', 'subject_convalidations.internal_subject_code', '=', 'subjects.code')
             ->sum('subjects.credits') ?? 0;
         
-        // Add free elective credits (count * 3 credits default)
-        $freeElectiveCredits = $this->convalidations()
-            ->where('convalidation_type', 'free_elective')
-            ->count() * 3;
+        // Add flexible component credits (using external subject credits)
+        $flexibleComponentCredits = $this->convalidations()
+            ->where('convalidation_type', 'flexible_component')
+            ->join('external_subjects', 'subject_convalidations.external_subject_id', '=', 'external_subjects.id')
+            ->sum('external_subjects.credits') ?? 0;
         
-        $totalAssignedOriginalCredits = $assignedOriginalCredits + $freeElectiveCredits;
+        $totalAssignedOriginalCredits = $assignedOriginalCredits + $flexibleComponentCredits;
         
         $percentage = $totalOriginalCredits > 0 
             ? round(($totalAssignedOriginalCredits / $totalOriginalCredits) * 100, 2) 
@@ -248,11 +251,11 @@ class ExternalCurriculum extends Model
         
         // Convalidated credits from NEW curriculum includes:
         // 1. Direct convalidations
-        // 2. Free electives
+        // 2. Flexible components (optativas, libre elección)
         // 3. Subjects with assigned component (optativas, nivelación, etc.) marked as not_convalidated
-        $directAndFreeCredits = $this->externalSubjects()
+        $directAndFlexibleCredits = $this->externalSubjects()
             ->whereHas('convalidation', function($query) {
-                $query->whereIn('convalidation_type', ['direct', 'free_elective']);
+                $query->whereIn('convalidation_type', ['direct', 'flexible_component']);
             })
             ->sum('credits') ?? 0;
         
@@ -264,7 +267,7 @@ class ExternalCurriculum extends Model
             })
             ->sum('credits') ?? 0;
         
-        $convalidatedNewCredits = $directAndFreeCredits + $componentsCredits;
+        $convalidatedNewCredits = $directAndFlexibleCredits + $componentsCredits;
         
         $percentage = $totalNewCredits > 0 
             ? round(($convalidatedNewCredits / $totalNewCredits) * 100, 2) 

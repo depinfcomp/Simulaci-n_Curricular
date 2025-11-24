@@ -111,7 +111,7 @@ class ConvalidationController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'external_subject_id' => 'required|exists:external_subjects,id',
-            'convalidation_type' => 'required|in:direct,not_convalidated',
+            'convalidation_type' => 'required|in:direct,flexible_component,not_convalidated',
             'internal_subject_code' => 'nullable|exists:subjects,code',
             'notes' => 'nullable|string',
             'component_type' => 'required|in:fundamental_required,professional_required,optional_fundamental,optional_professional,free_elective,thesis,leveling',
@@ -130,9 +130,22 @@ class ConvalidationController extends Controller
             return response()->json(['error' => 'Las convalidaciones directas requieren una materia interna'], 422);
         }
 
+        // Validate that flexible_component type doesn't have an internal subject
+        if ($request->convalidation_type === 'flexible_component' && $request->internal_subject_code) {
+            return response()->json(['error' => 'Los componentes electivos no deben tener una materia interna asignada'], 422);
+        }
+
         // Validate that not_convalidated type doesn't have an internal subject
         if ($request->convalidation_type === 'not_convalidated' && $request->internal_subject_code) {
             return response()->json(['error' => 'Las materias no convalidadas no deben tener una materia interna asignada'], 422);
+        }
+
+        // Validate that flexible_component has a flexible component_type
+        if ($request->convalidation_type === 'flexible_component') {
+            $flexibleComponents = ['optional_fundamental', 'optional_professional', 'free_elective'];
+            if (!in_array($request->component_type, $flexibleComponents)) {
+                return response()->json(['error' => 'Los componentes electivos deben ser Optativa Fundamental, Optativa Profesional o Libre Elección'], 422);
+            }
         }
 
         try {
