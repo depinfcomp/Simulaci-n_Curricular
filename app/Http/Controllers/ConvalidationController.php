@@ -1002,9 +1002,14 @@ class ConvalidationController extends Controller
             // Use the student's actual imported progress percentage (already calculated)
             $originalProgress = $student->progress_percentage ?? 0;
             
-            // Get new curriculum size
+            // Get new curriculum size (EXCLUDING leveling subjects for progress calculation)
             $externalSubjects = $externalCurriculum->externalSubjects ?? collect();
-            $newTotalSubjects = max($externalSubjects->count(), 1);
+            $newTotalSubjects = $externalSubjects->filter(function($subject) {
+                // Exclude leveling subjects from total count for progress calculation
+                $component = $subject->assigned_component ?? '';
+                return $component !== 'leveling';
+            })->count();
+            $newTotalSubjects = max($newTotalSubjects, 1);
             
             // Initialize credit counters by component
             $componentCredits = [
@@ -1018,7 +1023,8 @@ class ConvalidationController extends Controller
             ];
             
             $overflowCredits = []; // Credits that exceed component limits
-            $convalidatedCount = 0;
+            $convalidatedCount = 0; // Subjects that count toward progress (excludes leveling)
+            $convalidatedCountIncludingLeveling = 0; // Total convalidated including leveling
             $convalidationDetails = [];
             
             // Process direct convalidations
@@ -1052,7 +1058,13 @@ class ConvalidationController extends Controller
                     
                     if ($accepted > 0) {
                         $componentCredits[$component] += $accepted;
-                        $convalidatedCount++;
+                        $convalidatedCountIncludingLeveling++;
+                        
+                        // Only count toward progress if NOT leveling
+                        if ($component !== 'leveling') {
+                            $convalidatedCount++;
+                        }
+                        
                         $convalidationDetails[] = [
                             'type' => 'direct_partial',
                             'subject' => $internalSubject->name,
@@ -1071,7 +1083,13 @@ class ConvalidationController extends Controller
                 } else {
                     // Fits within limit
                     $componentCredits[$component] += $credits;
-                    $convalidatedCount++;
+                    $convalidatedCountIncludingLeveling++;
+                    
+                    // Only count toward progress if NOT leveling
+                    if ($component !== 'leveling') {
+                        $convalidatedCount++;
+                    }
+                    
                     $convalidationDetails[] = [
                         'type' => 'direct',
                         'subject' => $internalSubject->name,
@@ -1144,7 +1162,8 @@ class ConvalidationController extends Controller
                 // Check if fits in free elective limit
                 if ($componentCredits['free_elective'] + $credits <= $freeElectiveLimit) {
                     $componentCredits['free_elective'] += $credits;
-                    $convalidatedCount++;
+                    $convalidatedCountIncludingLeveling++;
+                    $convalidatedCount++; // Free electives always count toward progress
                     $convalidationDetails[] = [
                         'type' => 'free_elective',
                         'subject' => $convalidation->externalSubject->name,
@@ -1155,7 +1174,8 @@ class ConvalidationController extends Controller
                     $remaining = $freeElectiveLimit - $componentCredits['free_elective'];
                     if ($remaining > 0) {
                         $componentCredits['free_elective'] += $remaining;
-                        $convalidatedCount++;
+                        $convalidatedCountIncludingLeveling++;
+                        $convalidatedCount++; // Free electives always count toward progress
                         
                         $excessCredits[] = [
                             'credits' => $credits - $remaining,
