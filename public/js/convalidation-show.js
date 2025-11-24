@@ -37,7 +37,7 @@ function getComponentLabel(componentType) {
 function showConvalidationModal(externalSubjectId, existingData = null) {
     currentExternalSubjectId = externalSubjectId;
     
-    // Get subject info and show modal
+    // Get subject info
     const row = document.getElementById(`subject-row-${externalSubjectId}`);
     if (!row) {
         console.error('Row not found for subject:', externalSubjectId);
@@ -57,21 +57,70 @@ function showConvalidationModal(externalSubjectId, existingData = null) {
     const subjectName = subjectNameElement.textContent;
     const subjectCredits = subjectCreditsElement.textContent;
     
+    // Get modal element
+    const modalElement = document.getElementById('convalidationModal');
+    if (!modalElement) {
+        console.error('Modal element not found');
+        return;
+    }
+    
+    // Get or create modal instance
+    let modal = bootstrap.Modal.getInstance(modalElement);
+    if (!modal) {
+        modal = new bootstrap.Modal(modalElement);
+    }
+    
+    // Get form elements (they should always be in the DOM)
     const externalSubjectIdInput = document.getElementById('external_subject_id');
     const externalSubjectInfo = document.getElementById('external_subject_info');
     const convalidationForm = document.getElementById('convalidationForm');
     
+    // Log warning if elements not found, but don't stop execution
     if (!externalSubjectIdInput || !externalSubjectInfo || !convalidationForm) {
-        console.error('Form elements not found');
+        console.warn('Form elements not found, retrying...', {
+            externalSubjectIdInput: !!externalSubjectIdInput,
+            externalSubjectInfo: !!externalSubjectInfo,
+            convalidationForm: !!convalidationForm
+        });
+        // Show modal anyway and let Bootstrap handle the DOM ready state
+        modal.show();
         return;
     }
     
+    // Set basic info
     externalSubjectIdInput.value = externalSubjectId;
     externalSubjectInfo.innerHTML = 
         `<strong>${subjectName}</strong> (${subjectCode}) - ${subjectCredits} créditos`;
     
-    // Reset form
+    // Reset form completely - clear all fields explicitly first
     convalidationForm.reset();
+    
+    // Manual cleanup to ensure everything is cleared (browser cache issue)
+    const typeDirectRadio = document.getElementById('type_direct');
+    const typeNotConvalidatedRadio = document.getElementById('type_not_convalidated');
+    const internalSubjectSelection = document.getElementById('internal_subject_selection');
+    const internalSubjectSelect = document.getElementById('internal_subject_code');
+    const componentTypeSelect = document.getElementById('component_type');
+    const notesTextarea = document.getElementById('convalidation_notes');
+    const createNewCodeCheckbox = document.getElementById('create_new_code');
+    const createNewCodeContainer = document.getElementById('create_new_code_container');
+    const newCodeMessage = document.getElementById('new_code_message');
+    
+    // Clear ALL fields first (before checking existingData)
+    if (typeDirectRadio) typeDirectRadio.checked = false;
+    if (typeNotConvalidatedRadio) typeNotConvalidatedRadio.checked = false;
+    if (internalSubjectSelection) internalSubjectSelection.style.display = 'none';
+    if (internalSubjectSelect) {
+        internalSubjectSelect.value = '';
+        internalSubjectSelect.disabled = false;
+    }
+    if (componentTypeSelect) componentTypeSelect.value = '';
+    if (notesTextarea) notesTextarea.value = '';
+    if (createNewCodeCheckbox) createNewCodeCheckbox.checked = false;
+    if (createNewCodeContainer) createNewCodeContainer.style.display = 'none';
+    if (newCodeMessage) newCodeMessage.style.display = 'none';
+    
+    // Restore the external_subject_id after reset
     externalSubjectIdInput.value = externalSubjectId;
     
     // If editing existing convalidation, load data
@@ -126,28 +175,11 @@ function showConvalidationModal(externalSubjectId, existingData = null) {
             modalTitle.textContent = 'Editar Convalidación';
         }
     } else {
-        // New convalidation - default values
-        // Reset current code variable
+        // New convalidation - fields already cleared above
+        // Just need to reset current code variable and set modal title
         currentInternalSubjectCode = null;
         
-        const typeDirectRadio = document.getElementById('type_direct');
-        const internalSubjectSelection = document.getElementById('internal_subject_selection');
-        
-        if (typeDirectRadio) typeDirectRadio.checked = true;
-        if (internalSubjectSelection) internalSubjectSelection.style.display = 'block';
-        
-        // Reset checkbox and related elements
-        const createNewCodeContainer = document.getElementById('create_new_code_container');
-        const createNewCodeCheckbox = document.getElementById('create_new_code');
-        const newCodeMessage = document.getElementById('new_code_message');
-        const internalSubjectSelect = document.getElementById('internal_subject_code');
-        
-        if (createNewCodeContainer) createNewCodeContainer.style.display = 'none';
-        if (createNewCodeCheckbox) createNewCodeCheckbox.checked = false;
-        if (newCodeMessage) newCodeMessage.style.display = 'none';
-        if (internalSubjectSelect) internalSubjectSelect.disabled = false;
-        
-        // Reset all option states
+        // Reset all option states (enable all)
         if (internalSubjectSelect) {
             const options = internalSubjectSelect.querySelectorAll('option');
             options.forEach(option => {
@@ -163,7 +195,7 @@ function showConvalidationModal(externalSubjectId, existingData = null) {
             label.textContent = 'Materia Interna';
         }
         
-        // Reset modal title
+        // Set modal title for new convalidation
         const modalTitle = document.querySelector('#convalidationModal .modal-title');
         if (modalTitle) {
             modalTitle.textContent = 'Configurar Convalidación';
@@ -174,7 +206,7 @@ function showConvalidationModal(externalSubjectId, existingData = null) {
     // This prevents selecting #LIBRE-01 or used optativas when configuring other components
     blockUsedOptativesAndFreeElectives(currentInternalSubjectCode);
     
-    const modal = new bootstrap.Modal(document.getElementById('convalidationModal'));
+    // Show modal
     modal.show();
 }
 
@@ -182,6 +214,40 @@ function showConvalidationModal(externalSubjectId, existingData = null) {
 document.querySelectorAll('input[name="convalidation_type"]').forEach(radio => {
     radio.addEventListener('change', function() {
         const internalSubjectSelection = document.getElementById('internal_subject_selection');
+        const internalSubjectSelect = document.getElementById('internal_subject_code');
+        const componentTypeSelect = document.getElementById('component_type');
+        const createNewCodeCheckbox = document.getElementById('create_new_code');
+        const createNewCodeContainer = document.getElementById('create_new_code_container');
+        const newCodeMessage = document.getElementById('new_code_message');
+        const notesTextarea = document.getElementById('convalidation_notes');
+        
+        // ALWAYS clear all fields when changing type to avoid confusion
+        // User must re-select everything
+        if (internalSubjectSelect) {
+            internalSubjectSelect.value = '';
+        }
+        
+        if (componentTypeSelect) {
+            componentTypeSelect.value = '';
+        }
+        
+        if (createNewCodeContainer) {
+            createNewCodeContainer.style.display = 'none';
+        }
+        
+        if (createNewCodeCheckbox) {
+            createNewCodeCheckbox.checked = false;
+        }
+        
+        if (newCodeMessage) {
+            newCodeMessage.style.display = 'none';
+        }
+        
+        if (notesTextarea) {
+            notesTextarea.value = '';
+        }
+        
+        // Show/hide internal subject selection based on type
         if (this.value === 'direct') {
             internalSubjectSelection.style.display = 'block';
         } else {
@@ -330,6 +396,13 @@ function filterAvailableSubjects(componentType, currentCode = null) {
 function saveConvalidation() {
     const formData = new FormData(document.getElementById('convalidationForm'));
     
+    // Validate convalidation type is selected
+    const convalidationType = formData.get('convalidation_type');
+    if (!convalidationType) {
+        showAlert('danger', 'Por favor seleccione el tipo de convalidación (Directa o No se convalida)');
+        return;
+    }
+    
     // Validate component type is selected
     const componentType = formData.get('component_type');
     if (!componentType) {
@@ -337,8 +410,16 @@ function saveConvalidation() {
         return;
     }
     
-    // Check if "Crear nuevo código" is checked
+    // Validate that direct convalidations have an internal subject (unless creating new code)
     const createNewCodeCheckbox = document.getElementById('create_new_code');
+    const internalSubjectCode = formData.get('internal_subject_code');
+    
+    if (convalidationType === 'direct' && !internalSubjectCode && !(createNewCodeCheckbox && createNewCodeCheckbox.checked)) {
+        showAlert('danger', 'Las convalidaciones directas requieren seleccionar una materia interna o marcar "Crear nuevo código"');
+        return;
+    }
+    
+    // Check if "Crear nuevo código" is checked
     if (createNewCodeCheckbox && createNewCodeCheckbox.checked) {
         // Add a flag to tell the backend to generate a new code
         formData.append('create_new_code', '1');
@@ -747,6 +828,34 @@ function displayBulkResults(results) {
 
 // Add event listener for all convalidation config buttons
 document.addEventListener('DOMContentLoaded', function() {
+    // Fix aria-hidden warning by removing focus before hiding modal
+    const modalElement = document.getElementById('convalidationModal');
+    if (modalElement) {
+        // Use 'hide.bs.modal' event (fires immediately when hide is called)
+        modalElement.addEventListener('hide.bs.modal', function(e) {
+            // Remove focus from the modal and its children immediately
+            if (document.activeElement && (modalElement.contains(document.activeElement) || document.activeElement === modalElement)) {
+                document.activeElement.blur();
+                // Force focus to body
+                setTimeout(() => {
+                    if (document.body.focus) {
+                        document.body.focus();
+                    }
+                }, 0);
+            }
+        });
+        
+        // Also handle the 'hidden.bs.modal' event (fires after modal is completely hidden)
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            // Double-check focus is moved away from modal after it's hidden
+            if (document.activeElement === modalElement || (modalElement.contains && modalElement.contains(document.activeElement))) {
+                if (document.body.focus) {
+                    document.body.focus();
+                }
+            }
+        });
+    }
+    
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('.convalidation-config-btn');
         if (btn) {
