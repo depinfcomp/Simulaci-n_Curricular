@@ -1,4 +1,5 @@
 let currentExternalSubjectId = null;
+let currentInternalSubjectCode = null; // Store current code when editing
 
 /**
  * Get Bootstrap color class for component type badge
@@ -33,28 +34,141 @@ function getComponentLabel(componentType) {
     return labels[componentType] || componentType;
 }
 
-function showConvalidationModal(externalSubjectId) {
+function showConvalidationModal(externalSubjectId, existingData = null) {
     currentExternalSubjectId = externalSubjectId;
     
     // Get subject info and show modal
     const row = document.getElementById(`subject-row-${externalSubjectId}`);
-    const subjectCode = row.querySelector('code').textContent;
-    const subjectName = row.querySelector('h6').textContent;
-    const subjectCredits = row.querySelector('.badge').textContent;
+    if (!row) {
+        console.error('Row not found for subject:', externalSubjectId);
+        return;
+    }
     
-    document.getElementById('external_subject_id').value = externalSubjectId;
-    document.getElementById('external_subject_info').innerHTML = 
+    const subjectCodeElement = row.querySelector('code');
+    const subjectNameElement = row.querySelector('h6');
+    const subjectCreditsElement = row.querySelector('.badge');
+    
+    if (!subjectCodeElement || !subjectNameElement || !subjectCreditsElement) {
+        console.error('Subject info elements not found');
+        return;
+    }
+    
+    const subjectCode = subjectCodeElement.textContent;
+    const subjectName = subjectNameElement.textContent;
+    const subjectCredits = subjectCreditsElement.textContent;
+    
+    const externalSubjectIdInput = document.getElementById('external_subject_id');
+    const externalSubjectInfo = document.getElementById('external_subject_info');
+    const convalidationForm = document.getElementById('convalidationForm');
+    
+    if (!externalSubjectIdInput || !externalSubjectInfo || !convalidationForm) {
+        console.error('Form elements not found');
+        return;
+    }
+    
+    externalSubjectIdInput.value = externalSubjectId;
+    externalSubjectInfo.innerHTML = 
         `<strong>${subjectName}</strong> (${subjectCode}) - ${subjectCredits} créditos`;
     
     // Reset form
-    document.getElementById('convalidationForm').reset();
-    document.getElementById('external_subject_id').value = externalSubjectId;
+    convalidationForm.reset();
+    externalSubjectIdInput.value = externalSubjectId;
     
-    // Check "Convalidación Directa" by default
-    document.getElementById('type_direct').checked = true;
-    
-    // Show internal subject selection by default (since direct is checked)
-    document.getElementById('internal_subject_selection').style.display = 'block';
+    // If editing existing convalidation, load data
+    if (existingData && existingData.convalidationType) {
+        // Set convalidation type
+        const typeDirectRadio = document.getElementById('type_direct');
+        const typeNotConvalidatedRadio = document.getElementById('type_not_convalidated');
+        const internalSubjectSelection = document.getElementById('internal_subject_selection');
+        
+        if (existingData.convalidationType === 'direct') {
+            if (typeDirectRadio) typeDirectRadio.checked = true;
+            if (internalSubjectSelection) internalSubjectSelection.style.display = 'block';
+        } else {
+            if (typeNotConvalidatedRadio) typeNotConvalidatedRadio.checked = true;
+            if (internalSubjectSelection) internalSubjectSelection.style.display = 'none';
+        }
+        
+        // Set component type
+        if (existingData.componentType) {
+            const componentTypeSelect = document.getElementById('component_type');
+            if (componentTypeSelect) {
+                componentTypeSelect.value = existingData.componentType;
+                
+                // Store current code for filtering
+                currentInternalSubjectCode = existingData.internalSubjectCode || null;
+                
+                // Trigger component type change to show/hide checkbox if needed
+                const event = new Event('change');
+                componentTypeSelect.dispatchEvent(event);
+            }
+        }
+        
+        // Set internal subject code
+        if (existingData.internalSubjectCode) {
+            const internalSubjectSelect = document.getElementById('internal_subject_code');
+            if (internalSubjectSelect) {
+                internalSubjectSelect.value = existingData.internalSubjectCode;
+            }
+        }
+        
+        // Set notes
+        if (existingData.notes) {
+            const notesTextarea = document.getElementById('convalidation_notes');
+            if (notesTextarea) {
+                notesTextarea.value = existingData.notes;
+            }
+        }
+        
+        // Change modal title
+        const modalTitle = document.querySelector('#convalidationModal .modal-title');
+        if (modalTitle) {
+            modalTitle.textContent = 'Editar Convalidación';
+        }
+    } else {
+        // New convalidation - default values
+        // Reset current code variable
+        currentInternalSubjectCode = null;
+        
+        const typeDirectRadio = document.getElementById('type_direct');
+        const internalSubjectSelection = document.getElementById('internal_subject_selection');
+        
+        if (typeDirectRadio) typeDirectRadio.checked = true;
+        if (internalSubjectSelection) internalSubjectSelection.style.display = 'block';
+        
+        // Reset checkbox and related elements
+        const createNewCodeContainer = document.getElementById('create_new_code_container');
+        const createNewCodeCheckbox = document.getElementById('create_new_code');
+        const newCodeMessage = document.getElementById('new_code_message');
+        const internalSubjectSelect = document.getElementById('internal_subject_code');
+        
+        if (createNewCodeContainer) createNewCodeContainer.style.display = 'none';
+        if (createNewCodeCheckbox) createNewCodeCheckbox.checked = false;
+        if (newCodeMessage) newCodeMessage.style.display = 'none';
+        if (internalSubjectSelect) internalSubjectSelect.disabled = false;
+        
+        // Reset all option states
+        if (internalSubjectSelect) {
+            const options = internalSubjectSelect.querySelectorAll('option');
+            options.forEach(option => {
+                if (option.value !== '') {
+                    option.disabled = false;
+                }
+            });
+        }
+        
+        // Reset label text
+        const label = document.querySelector('label[for="internal_subject_code"]');
+        if (label) {
+            label.textContent = 'Materia Interna';
+        }
+        
+        // Reset modal title
+        const modalTitle = document.querySelector('#convalidationModal .modal-title');
+        if (modalTitle) {
+            modalTitle.textContent = 'Configurar Convalidación';
+        }
+    }
     
     const modal = new bootstrap.Modal(document.getElementById('convalidationModal'));
     modal.show();
@@ -72,6 +186,94 @@ document.querySelectorAll('input[name="convalidation_type"]').forEach(radio => {
     });
 });
 
+// Handle component type change - show/hide "Crear nuevo código" checkbox
+document.getElementById('component_type').addEventListener('change', function() {
+    const componentType = this.value;
+    const createNewCodeContainer = document.getElementById('create_new_code_container');
+    const createNewCodeCheckbox = document.getElementById('create_new_code');
+    
+    // Show checkbox only for optativas and libre elección
+    const showCheckbox = ['optional_fundamental', 'optional_professional', 'free_elective'].includes(componentType);
+    createNewCodeContainer.style.display = showCheckbox ? 'block' : 'none';
+    
+    // Reset checkbox if hidden
+    if (!showCheckbox) {
+        createNewCodeCheckbox.checked = false;
+        document.getElementById('new_code_message').style.display = 'none';
+    }
+    
+    // Filter available subjects based on component type and already used subjects
+    if (showCheckbox) {
+        // Pass current code if editing, null if creating new
+        filterAvailableSubjects(componentType, currentInternalSubjectCode);
+    }
+});
+
+// Handle "Crear nuevo código" checkbox change
+document.getElementById('create_new_code').addEventListener('change', function() {
+    const newCodeMessage = document.getElementById('new_code_message');
+    const internalSubjectSelect = document.getElementById('internal_subject_code');
+    
+    if (this.checked) {
+        // Show message and disable/hide select
+        newCodeMessage.style.display = 'block';
+        internalSubjectSelect.disabled = true;
+        internalSubjectSelect.value = ''; // Clear selection
+    } else {
+        // Hide message and enable select
+        newCodeMessage.style.display = 'none';
+        internalSubjectSelect.disabled = false;
+    }
+});
+
+function filterAvailableSubjects(componentType, currentCode = null) {
+    const externalCurriculumId = document.querySelector('[data-external-curriculum-id]')?.dataset.externalCurriculumId;
+    
+    if (!externalCurriculumId) return;
+    
+    // Fetch used subjects for this component type
+    fetch(`/convalidation/${externalCurriculumId}/used-subjects?component_type=${componentType}`)
+        .then(response => response.json())
+        .then(data => {
+            const internalSubjectSelect = document.getElementById('internal_subject_code');
+            const options = internalSubjectSelect.querySelectorAll('option');
+            
+            let availableCount = 0;
+            
+            options.forEach(option => {
+                if (option.value === '') return; // Skip empty option
+                
+                // If this is the current code (editing mode), don't disable it
+                const isCurrentCode = currentCode && option.value === currentCode;
+                const isUsed = data.usedSubjects.includes(option.value);
+                
+                option.disabled = isUsed && !isCurrentCode;
+                
+                if (!isUsed || isCurrentCode) availableCount++;
+            });
+            
+            // Update label to show count
+            const label = document.querySelector('label[for="internal_subject_code"]');
+            if (label) {
+                const originalText = label.textContent.replace(/ \(\d+ disponibles?\)/, '');
+                label.textContent = `${originalText} (${availableCount} disponible${availableCount !== 1 ? 's' : ''})`;
+            }
+            
+            // Show/hide checkbox container based on availability
+            const createNewCodeContainer = document.getElementById('create_new_code_container');
+            if (availableCount === 0) {
+                createNewCodeContainer.style.display = 'block';
+                // Auto-check the checkbox since there are no available subjects
+                document.getElementById('create_new_code').checked = true;
+                document.getElementById('new_code_message').style.display = 'block';
+                internalSubjectSelect.disabled = true;
+            }
+        })
+        .catch(error => {
+            console.error('Error al cargar materias disponibles:', error);
+        });
+}
+
 function saveConvalidation() {
     const formData = new FormData(document.getElementById('convalidationForm'));
     
@@ -80,6 +282,13 @@ function saveConvalidation() {
     if (!componentType) {
         showAlert('danger', 'Por favor seleccione un componente académico');
         return;
+    }
+    
+    // Check if "Crear nuevo código" is checked
+    const createNewCodeCheckbox = document.getElementById('create_new_code');
+    if (createNewCodeCheckbox && createNewCodeCheckbox.checked) {
+        // Add a flag to tell the backend to generate a new code
+        formData.append('create_new_code', '1');
     }
     
     // Store current active semester before making the request
@@ -462,3 +671,24 @@ function displayBulkResults(results) {
         `;
     }).join('');
 }
+
+// Add event listener for all convalidation config buttons
+document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.convalidation-config-btn');
+        if (btn) {
+            const externalSubjectId = btn.dataset.externalSubjectId;
+            const convalidationType = btn.dataset.convalidationType;
+            const internalSubjectCode = btn.dataset.internalSubjectCode;
+            const componentType = btn.dataset.componentType;
+            const notes = btn.dataset.notes;
+            
+            showConvalidationModal(externalSubjectId, {
+                convalidationType,
+                internalSubjectCode,
+                componentType,
+                notes
+            });
+        }
+    });
+});

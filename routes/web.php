@@ -43,6 +43,9 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         // Reset all convalidations for a curriculum
         Route::post('/{externalCurriculum}/reset', [ConvalidationController::class, 'resetConvalidations'])->name('convalidation.reset');
         
+        // Get subjects already used for a component type
+        Route::get('/{externalCurriculum}/used-subjects', [ConvalidationController::class, 'getUsedSubjects'])->name('convalidation.used-subjects');
+        
         // New route for impact analysis
         Route::post('/{externalCurriculum}/analyze-impact', [ConvalidationController::class, 'analyzeConvalidationImpact'])->name('convalidation.analyze-impact');
         

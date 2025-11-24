@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
+<div class="container-fluid" data-external-curriculum-id="{{ $externalCurriculum->id }}">
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -257,8 +257,14 @@
                                                     <td>
                                                         <div class="btn-group btn-group-sm" role="group">
                                                             <button type="button" 
-                                                                    class="btn btn-outline-primary"
-                                                                    onclick="showConvalidationModal({{ $subject->id }})"
+                                                                    class="btn btn-outline-primary convalidation-config-btn"
+                                                                    data-external-subject-id="{{ $subject->id }}"
+                                                                    @if($isConvalidated && $subject->convalidation)
+                                                                        data-convalidation-type="{{ $subject->convalidation->convalidation_type }}"
+                                                                        data-internal-subject-code="{{ $subject->convalidation->internal_subject_code ?? '' }}"
+                                                                        data-component-type="{{ $componentType }}"
+                                                                        data-notes="{{ $subject->convalidation->notes ?? '' }}"
+                                                                    @endif
                                                                     title="Configurar convalidación">
                                                                 <i class="fas fa-cog"></i>
                                                             </button>
@@ -358,6 +364,23 @@
                                     </option>
                                 @endforeach
                             </select>
+                            
+                            <!-- Checkbox para crear nuevo código (solo para optativas/libres) -->
+                            <div class="form-check mt-3" id="create_new_code_container" style="display: none;">
+                                <input class="form-check-input" type="checkbox" id="create_new_code" name="create_new_code">
+                                <label class="form-check-label" for="create_new_code">
+                                    <strong>Crear nuevo código placeholder</strong><br>
+                                    <small class="text-muted">
+                                        Genera automáticamente un nuevo código único (ej: #LIBRE-02, #OPT-03) si no hay materias disponibles
+                                    </small>
+                                </label>
+                            </div>
+                            
+                            <!-- Mensaje cuando se activa el checkbox -->
+                            <div class="alert alert-info mt-3" id="new_code_message" style="display: none;">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Nuevo código:</strong> El sistema generará automáticamente el siguiente código disponible al guardar.
+                            </div>
                         </div>
                     </div>
 

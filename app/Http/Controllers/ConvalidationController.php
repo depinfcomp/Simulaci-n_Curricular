@@ -114,15 +114,19 @@ class ConvalidationController extends Controller
             'convalidation_type' => 'required|in:direct,not_convalidated',
             'internal_subject_code' => 'nullable|exists:subjects,code',
             'notes' => 'nullable|string',
-            'component_type' => 'required|in:fundamental_required,professional_required,optional_fundamental,optional_professional,free_elective,thesis,leveling'
+            'component_type' => 'required|in:fundamental_required,professional_required,optional_fundamental,optional_professional,free_elective,thesis,leveling',
+            'create_new_code' => 'nullable|boolean'
         ]);
 
         if ($validator->fails()) {
             return response()->json(['error' => $validator->errors()], 422);
         }
 
-        // Validate that direct convalidations have an internal subject
-        if ($request->convalidation_type === 'direct' && !$request->internal_subject_code) {
+        // Check if we need to create a new placeholder code
+        $createNewCode = $request->input('create_new_code', false);
+
+        // Validate that direct convalidations have an internal subject (unless creating new code)
+        if ($request->convalidation_type === 'direct' && !$request->internal_subject_code && !$createNewCode) {
             return response()->json(['error' => 'Las convalidaciones directas requieren una materia interna'], 422);
         }
 
@@ -143,8 +147,14 @@ class ConvalidationController extends Controller
             $internalSubjectCode = null;
             $notes = $request->notes ?? '';
 
-            // If it's a direct convalidation
-            if ($request->convalidation_type === 'direct') {
+            // If we need to create a new placeholder code
+            if ($createNewCode && $request->convalidation_type === 'direct') {
+                $placeholderCode = $this->generateNextPlaceholderCode($request->component_type, $externalSubject->external_curriculum_id);
+                $internalSubjectCode = $placeholderCode;
+                $notes .= "\n\nCódigo placeholder generado automáticamente: {$placeholderCode}";
+            }
+            // If it's a direct convalidation with existing code
+            else if ($request->convalidation_type === 'direct') {
                 $internalSubject = Subject::where('code', $request->internal_subject_code)->first();
                 
                 if ($internalSubject) {
@@ -384,6 +394,67 @@ class ConvalidationController extends Controller
                 'error' => 'Error al restablecer las convalidaciones: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Get subjects that are already used in convalidations for a specific component type
+     */
+    public function getUsedSubjects(ExternalCurriculum $externalCurriculum, Request $request)
+    {
+        $componentType = $request->input('component_type');
+        
+        // Get all internal subject codes already used for this component type in this curriculum
+        // We check subject_convalidations table because internal_subject_code is stored there
+        $usedSubjects = \DB::table('subject_convalidations')
+            ->join('external_subjects', 'subject_convalidations.external_subject_id', '=', 'external_subjects.id')
+            ->join('external_subject_components', 'external_subject_components.external_subject_id', '=', 'external_subjects.id')
+            ->where('external_subjects.external_curriculum_id', $externalCurriculum->id)
+            ->where('external_subject_components.component_type', $componentType)
+            ->where('subject_convalidations.convalidation_type', 'direct')
+            ->whereNotNull('subject_convalidations.internal_subject_code')
+            ->pluck('subject_convalidations.internal_subject_code')
+            ->unique()
+            ->values()
+            ->toArray();
+        
+        return response()->json([
+            'usedSubjects' => $usedSubjects
+        ]);
+    }
+
+    /**
+     * Generate the next available placeholder code for a component type
+     */
+    private function generateNextPlaceholderCode($componentType, $curriculumId)
+    {
+        // Determine prefix based on component type
+        $prefix = match($componentType) {
+            'free_elective' => '#LIBRE-',
+            'optional_fundamental', 'optional_professional' => '#OPT-',
+            default => '#NEW-'
+        };
+        
+        // Find all existing placeholder codes with this prefix in this curriculum
+        $existingCodes = \DB::table('subject_convalidations')
+            ->join('external_subjects', 'subject_convalidations.external_subject_id', '=', 'external_subjects.id')
+            ->where('external_subjects.external_curriculum_id', $curriculumId)
+            ->where('subject_convalidations.internal_subject_code', 'LIKE', $prefix . '%')
+            ->pluck('subject_convalidations.internal_subject_code')
+            ->toArray();
+        
+        // Extract numbers from existing codes
+        $numbers = array_map(function($code) use ($prefix) {
+            return (int) str_replace($prefix, '', $code);
+        }, $existingCodes);
+        
+        // Find the next available number (start from 01)
+        $nextNumber = 1;
+        while (in_array($nextNumber, $numbers)) {
+            $nextNumber++;
+        }
+        
+        // Format with leading zeros
+        return $prefix . str_pad($nextNumber, 2, '0', STR_PAD_LEFT);
     }
 
     /**
