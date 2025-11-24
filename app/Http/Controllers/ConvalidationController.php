@@ -249,16 +249,20 @@ class ConvalidationController extends Controller
         $externalSubjectId = $request->external_subject_id;
         $externalSubject = ExternalSubject::findOrFail($externalSubjectId);
         
-        // Get internal subjects and calculate similarity
-        $internalSubjects = Subject::all();
+        // Get all internal subjects from all tables (subjects, leveling_subjects, elective_subjects)
+        $internalSubjects = $this->getAllInternalSubjects();
         $suggestions = [];
 
         foreach ($internalSubjects as $internal) {
-            $similarity = $this->calculateSimilarity($externalSubject->name, $internal->name);
+            $similarity = $this->calculateSimilarity($externalSubject->name, $internal['name']);
             
             if ($similarity > 0.3) { // 30% similarity threshold
                 $suggestions[] = [
-                    'subject' => $internal,
+                    'code' => $internal['code'],
+                    'name' => $internal['name'],
+                    'credits' => $internal['credits'],
+                    'component_type' => $internal['component_type'],
+                    'source_table' => $internal['source_table'],
                     'similarity' => $similarity,
                     'match_percentage' => round($similarity * 100, 2)
                 ];
@@ -1894,10 +1898,58 @@ class ConvalidationController extends Controller
      * Get the next available subject for a given component type.
      * Returns null if no subjects are available.
      */
+    /**
+     * Get the next available subject of a specific component type that hasn't been used yet.
+     * Searches across subjects, leveling_subjects, and elective_subjects tables.
+     * 
+     * @param string $componentType
+     * @param int $externalCurriculumId
+     * @return mixed|null Subject model or null if none available
+     */
     private function getNextAvailableSubject($componentType, $externalCurriculumId)
     {
-        // Get all subjects of this component type
-        $subjects = Subject::where('component_type', $componentType)->get();
+        $subjects = collect();
+
+        // Get subjects based on component type
+        switch ($componentType) {
+            case 'leveling':
+                // Search in leveling_subjects table
+                $subjects = \App\Models\LevelingSubject::all();
+                break;
+
+            case 'optional_fundamental':
+                // Search in elective_subjects with type optativa_fundamental
+                $subjects = \App\Models\ElectiveSubject::where('elective_type', 'optativa_fundamental')
+                    ->where('is_active', true)
+                    ->get();
+                break;
+
+            case 'optional_professional':
+                // Search in elective_subjects with type optativa_profesional
+                $subjects = \App\Models\ElectiveSubject::where('elective_type', 'optativa_profesional')
+                    ->where('is_active', true)
+                    ->get();
+                break;
+
+            case 'free_elective':
+            case 'fundamental_required':
+            case 'professional_required':
+            case 'thesis':
+                // Search in main subjects table using the 'type' field
+                // Map component_type back to 'type' field values
+                $typeMapping = [
+                    'free_elective' => 'libre_eleccion',
+                    'fundamental_required' => 'fundamental',
+                    'professional_required' => 'profesional',
+                    'thesis' => 'trabajo_grado',
+                ];
+                
+                $typeValue = $typeMapping[$componentType] ?? null;
+                if ($typeValue) {
+                    $subjects = Subject::where('type', $typeValue)->get();
+                }
+                break;
+        }
 
         // For each subject, check if it's already been used in a convalidation for this curriculum
         foreach ($subjects as $subject) {
@@ -1936,6 +1988,65 @@ class ConvalidationController extends Controller
     }
 
     /**
+     * Get all internal subjects from all tables (subjects, leveling_subjects, elective_subjects)
+     * Returns a collection with normalized component_type for each subject
+     * 
+     * @return \Illuminate\Support\Collection
+     */
+    private function getAllInternalSubjects()
+    {
+        $allSubjects = collect();
+
+        // 1. Get subjects from main 'subjects' table
+        $mainSubjects = Subject::all()->map(function ($subject) {
+            return [
+                'code' => $subject->code,
+                'name' => $subject->name,
+                'credits' => $subject->credits,
+                'component_type' => $subject->component, // Uses the accessor
+                'source_table' => 'subjects',
+                'model' => $subject
+            ];
+        });
+        $allSubjects = $allSubjects->merge($mainSubjects);
+
+        // 2. Get leveling subjects
+        $levelingSubjects = \App\Models\LevelingSubject::all()->map(function ($subject) {
+            return [
+                'code' => $subject->code,
+                'name' => $subject->name,
+                'credits' => $subject->credits,
+                'component_type' => 'leveling',
+                'source_table' => 'leveling_subjects',
+                'model' => $subject
+            ];
+        });
+        $allSubjects = $allSubjects->merge($levelingSubjects);
+
+        // 3. Get elective subjects
+        $electiveSubjects = \App\Models\ElectiveSubject::where('is_active', true)->get()->map(function ($subject) {
+            // Map elective_type to component_type
+            $componentType = match($subject->elective_type) {
+                'optativa_fundamental' => 'optional_fundamental',
+                'optativa_profesional' => 'optional_professional',
+                default => 'free_elective'
+            };
+
+            return [
+                'code' => $subject->code,
+                'name' => $subject->name,
+                'credits' => $subject->credits,
+                'component_type' => $componentType,
+                'source_table' => 'elective_subjects',
+                'model' => $subject
+            ];
+        });
+        $allSubjects = $allSubjects->merge($electiveSubjects);
+
+        return $allSubjects;
+    }
+
+    /**
      * Bulk convalidation: automatically match external subjects with internal subjects.
      */
     public function bulkConvalidation(Request $request)
@@ -1954,7 +2065,8 @@ class ConvalidationController extends Controller
                 ->whereDoesntHave('convalidation')
                 ->get();
 
-            $internalSubjects = Subject::all();
+            // Get all internal subjects from all tables (subjects, leveling_subjects, elective_subjects)
+            $internalSubjects = $this->getAllInternalSubjects();
             $results = [];
 
             foreach ($externalSubjects as $externalSubject) {
@@ -1996,7 +2108,7 @@ class ConvalidationController extends Controller
                     foreach ($internalSubjects as $internalSubject) {
                         similar_text(
                             strtolower($externalSubject->name),
-                            strtolower($internalSubject->name),
+                            strtolower($internalSubject['name']),
                             $similarity
                         );
 
@@ -2015,8 +2127,8 @@ class ConvalidationController extends Controller
                 // If we found a match, create the convalidation
                 if ($matchedSubject) {
                     try {
-                        // Get the component type from the matched subject
-                        $componentType = $matchedSubject->component_type ?? 'professional_required';
+                        // Get the component type from the matched subject (now properly resolved)
+                        $componentType = $matchedSubject['component_type'];
 
                         // Check if this is an elective or optional subject
                         $isElectiveOrOptional = in_array($componentType, [
@@ -2028,7 +2140,7 @@ class ConvalidationController extends Controller
                         // If it's an elective/optional, check if it's already used
                         if ($isElectiveOrOptional) {
                             $timesUsed = SubjectConvalidation::where('external_curriculum_id', $curriculum->id)
-                                ->where('internal_subject_code', $matchedSubject->code)
+                                ->where('internal_subject_code', $matchedSubject['code'])
                                 ->count();
 
                             // If already used, try to find the next available subject of the same type
@@ -2036,8 +2148,15 @@ class ConvalidationController extends Controller
                                 $nextAvailable = $this->getNextAvailableSubject($componentType, $curriculum->id);
                                 
                                 if ($nextAvailable) {
-                                    // Use the next available subject
-                                    $matchedSubject = $nextAvailable;
+                                    // Use the next available subject - convert model to array format
+                                    $matchedSubject = [
+                                        'code' => $nextAvailable->code,
+                                        'name' => $nextAvailable->name,
+                                        'credits' => $nextAvailable->credits,
+                                        'component_type' => $componentType,
+                                        'source_table' => 'subjects',
+                                        'model' => $nextAvailable
+                                    ];
                                 } else {
                                     // No more subjects available, mark as not convalidated
                                     SubjectConvalidation::create([
@@ -2071,7 +2190,7 @@ class ConvalidationController extends Controller
                         SubjectConvalidation::create([
                             'external_curriculum_id' => $curriculum->id,
                             'external_subject_id' => $externalSubject->id,
-                            'internal_subject_code' => $matchedSubject->code,
+                            'internal_subject_code' => $matchedSubject['code'],
                             'convalidation_type' => 'direct',
                             'notes' => 'Convalidación masiva automática por ' . ($matchMethod === 'code' ? 'código exacto' : 'similitud de nombre'),
                             'status' => 'pending'
@@ -2086,9 +2205,9 @@ class ConvalidationController extends Controller
                         ]);
 
                         $result['internal_subject'] = [
-                            'code' => $matchedSubject->code,
-                            'name' => $matchedSubject->name,
-                            'credits' => $matchedSubject->credits
+                            'code' => $matchedSubject['code'],
+                            'name' => $matchedSubject['name'],
+                            'credits' => $matchedSubject['credits']
                         ];
                         $result['component_type'] = $componentType;
                         $result['method'] = $matchMethod;
