@@ -1087,45 +1087,37 @@ function renderImpactAnalysis(results) {
     console.log('=== INICIO DEBUG ANÁLISIS DE IMPACTO ===');
     console.log('Datos completos recibidos del backend:', results);
     
-    // Calculate credits lost from the difference (same as shown in "Progreso de Carrera")
-    // Credits lost = absolute value of difference (whether positive or negative)
-    // This represents any imbalance that needs verification
+    // Get pre-calculated stats (same values as "Progreso de Carrera" progress bars)
+    // These are the exact values shown in the dual progress bars:
+    // - originalAssigned: credits from Original UNAL curriculum (left bar)
+    // - newConvalidated: credits convalidated in Nueva Importada curriculum (right bar)
+    const originalAssigned = parseFloat(results.original_assigned_credits) || 0;
+    const newConvalidated = parseFloat(results.new_convalidated_credits) || 0;
+    
+    // Calculate difference (new - original, can be positive or negative)
+    // This is the SAME calculation shown in "Diferencia de Créditos" message
+    const creditDifference = newConvalidated - originalAssigned;
+    
+    // Credits lost is the absolute value of the difference
+    const creditsLost = Math.abs(creditDifference);
+    
+    console.log('\n--- CRÉDITOS DEL PROGRESO DE CARRERA ---');
+    console.log('Original UNAL (assigned_credits - barra izquierda):', originalAssigned);
+    console.log('Nueva Importada (convalidated_credits - barra derecha):', newConvalidated);
+    console.log('Diferencia (nueva - original):', creditDifference);
+    console.log('Créditos Perdidos (|diferencia|):', creditsLost);
+    
+    // Get component breakdown for the table
     const convalidatedCredits = results.convalidated_credits_by_component || {};
     const originalCredits = results.original_curriculum_credits || {};
     
-    console.log('\n--- CRÉDITOS POR COMPONENTE ---');
-    console.log('Convalidados (del backend):', JSON.stringify(convalidatedCredits, null, 2));
-    console.log('Originales (del backend):', JSON.stringify(originalCredits, null, 2));
-    
-    let totalConvalidated = 0;
-    let totalOriginal = 0;
-    
-    console.log('\n--- CÁLCULO TOTAL CONVALIDADO ---');
-    Object.keys(convalidatedCredits).forEach(component => {
-        const value = parseFloat(convalidatedCredits[component]) || 0;
-        console.log(`  ${component}: ${convalidatedCredits[component]} → ${value}`);
-        totalConvalidated += value;
-    });
-    console.log('TOTAL CONVALIDADO:', totalConvalidated);
-    
-    console.log('\n--- CÁLCULO TOTAL ORIGINAL ---');
-    Object.keys(originalCredits).forEach(component => {
-        const value = parseFloat(originalCredits[component]) || 0;
-        console.log(`  ${component}: ${originalCredits[component]} → ${value}`);
-        totalOriginal += value;
-    });
-    console.log('TOTAL ORIGINAL:', totalOriginal);
-    
-    const creditDifference = totalConvalidated - totalOriginal;
-    const creditsLost = creditDifference !== 0 ? Math.abs(creditDifference) : 0;
-    
-    console.log('\n--- RESULTADO FINAL ---');
-    console.log('Diferencia (Convalidado - Original):', creditDifference);
-    console.log('Créditos Perdidos (valor absoluto):', creditsLost);
+    console.log('\n--- CRÉDITOS POR COMPONENTE (para tabla) ---');
+    console.log('Convalidados de malla externa:', JSON.stringify(convalidatedCredits, null, 2));
+    console.log('Totales de malla original UNAL:', JSON.stringify(originalCredits, null, 2));
     console.log('¿Es correcto que sea 45?', creditsLost === 45 ? '✓ SÍ' : '✗ NO, es ' + creditsLost);
     
     // Summary cards
-    document.getElementById('impact-convalidated-credits').textContent = Math.round(totalConvalidated);
+    document.getElementById('impact-convalidated-credits').textContent = Math.round(newConvalidated);
     document.getElementById('impact-lost-credits').textContent = Math.round(creditsLost);
     document.getElementById('impact-new-subjects').textContent = results.additional_subjects_required || 0;
     document.getElementById('impact-progress-percentage').textContent = 

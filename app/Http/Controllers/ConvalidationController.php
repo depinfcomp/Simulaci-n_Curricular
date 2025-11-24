@@ -582,8 +582,13 @@ class ConvalidationController extends Controller
                     'thesis' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
                     'free_elective' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
                 ],
-                // Credits from original curriculum (/simulation) - real credits by component
+                // Credits for progress comparison (same as "Progreso de Carrera")
+                // These are the exact values shown in the dual progress bars
+                'original_assigned_credits' => $externalCurriculum->getStats()['original_curriculum_stats']['assigned_credits'] ?? 0,
+                'new_convalidated_credits' => $externalCurriculum->getStats()['new_curriculum_stats']['convalidated_credits'] ?? 0,
+                // Keep these for the component breakdown table
                 'original_curriculum_credits' => \App\Models\Subject::getCreditsByComponent(),
+                'convalidated_credits_by_component' => $externalCurriculum->getCreditsByComponent(),
             ];
 
             $totalProgressChange = 0;
@@ -2451,4 +2456,5 @@ class ConvalidationController extends Controller
 
         return $creditsByComponent;
     }
+
 }
