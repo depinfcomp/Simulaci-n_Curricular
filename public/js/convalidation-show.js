@@ -1,5 +1,6 @@
 let currentExternalSubjectId = null;
 let currentInternalSubjectCode = null; // Store current code when editing
+let modalIsOpen = false; // Flag to prevent multiple modal openings
 
 /**
  * Get Bootstrap color class for component type badge
@@ -35,12 +36,20 @@ function getComponentLabel(componentType) {
 }
 
 function showConvalidationModal(externalSubjectId, existingData = null) {
+    // Prevent opening multiple modals simultaneously
+    if (modalIsOpen) {
+        console.warn('Modal is already open, ignoring duplicate click');
+        return;
+    }
+    
+    modalIsOpen = true;
     currentExternalSubjectId = externalSubjectId;
     
     // Get subject info
     const row = document.getElementById(`subject-row-${externalSubjectId}`);
     if (!row) {
         console.error('Row not found for subject:', externalSubjectId);
+        modalIsOpen = false;
         return;
     }
     
@@ -50,6 +59,7 @@ function showConvalidationModal(externalSubjectId, existingData = null) {
     
     if (!subjectCodeElement || !subjectNameElement || !subjectCreditsElement) {
         console.error('Subject info elements not found');
+        modalIsOpen = false;
         return;
     }
     
@@ -61,6 +71,7 @@ function showConvalidationModal(externalSubjectId, existingData = null) {
     const modalElement = document.getElementById('convalidationModal');
     if (!modalElement) {
         console.error('Modal element not found');
+        modalIsOpen = false;
         return;
     }
     
@@ -75,15 +86,11 @@ function showConvalidationModal(externalSubjectId, existingData = null) {
     const externalSubjectInfo = document.getElementById('external_subject_info');
     const convalidationForm = document.getElementById('convalidationForm');
     
-    // Log warning if elements not found, but don't stop execution
+    // If elements not found, reload page to recover from broken state
     if (!externalSubjectIdInput || !externalSubjectInfo || !convalidationForm) {
-        console.warn('Form elements not found, retrying...', {
-            externalSubjectIdInput: !!externalSubjectIdInput,
-            externalSubjectInfo: !!externalSubjectInfo,
-            convalidationForm: !!convalidationForm
-        });
-        // Show modal anyway and let Bootstrap handle the DOM ready state
-        modal.show();
+        console.error('CRITICAL: Form elements not found, reloading page...');
+        modalIsOpen = false;
+        location.reload();
         return;
     }
     
@@ -261,6 +268,12 @@ document.getElementById('component_type').addEventListener('change', function() 
     const componentType = this.value;
     const createNewCodeContainer = document.getElementById('create_new_code_container');
     const createNewCodeCheckbox = document.getElementById('create_new_code');
+    const newCodeMessage = document.getElementById('new_code_message');
+    
+    // Null-safe checks
+    if (!createNewCodeContainer || !createNewCodeCheckbox) {
+        return;
+    }
     
     // Show checkbox only for optativas and libre elección
     const showCheckbox = ['optional_fundamental', 'optional_professional', 'free_elective'].includes(componentType);
@@ -269,7 +282,9 @@ document.getElementById('component_type').addEventListener('change', function() 
     // Reset checkbox if hidden
     if (!showCheckbox) {
         createNewCodeCheckbox.checked = false;
-        document.getElementById('new_code_message').style.display = 'none';
+        if (newCodeMessage) {
+            newCodeMessage.style.display = 'none';
+        }
     }
     
     // Filter available subjects based on component type and already used subjects
@@ -438,55 +453,17 @@ function saveConvalidation() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Attach component_assignment to convalidation object for display
-            const convalidationWithComponent = {
-                ...data.convalidation,
-                component_assignment: data.component_assignment
-            };
-            
-            // Update the convalidation display
-            updateConvalidationDisplay(currentExternalSubjectId, convalidationWithComponent);
-            
-            // Update statistics without page reload
-            if (data.stats) {
-                updateStatistics(data.stats);
-            }
-            
-            // Close modal
-            const modalElement = document.getElementById('convalidationModal');
-            const modal = bootstrap.Modal.getInstance(modalElement);
-            modal.hide();
-            
-            // Clean up form after hiding to prevent data leakage to next modal open
-            const convalidationForm = document.getElementById('convalidationForm');
-            if (convalidationForm) {
-                convalidationForm.reset();
-                
-                // Also clear selects and textarea explicitly
-                const internalSubjectSelect = document.getElementById('internal_subject_code');
-                const componentTypeSelect = document.getElementById('component_type');
-                const notesTextarea = document.getElementById('convalidation_notes');
-                const typeDirectRadio = document.getElementById('type_direct');
-                const typeNotConvalidatedRadio = document.getElementById('type_not_convalidated');
-                
-                if (internalSubjectSelect) internalSubjectSelect.value = '';
-                if (componentTypeSelect) componentTypeSelect.value = '';
-                if (notesTextarea) notesTextarea.value = '';
-                if (typeDirectRadio) typeDirectRadio.checked = false;
-                if (typeNotConvalidatedRadio) typeNotConvalidatedRadio.checked = false;
-            }
-            
-            // Restore active semester
-            restoreActiveSemester(currentActiveSemester);
-            
-            // Show success message
-            showAlert('success', 'Convalidación guardada exitosamente');
+            // Success - reload page to get fresh data and avoid modal state issues
+            console.log('[Save] Convalidación guardada exitosamente, recargando página...');
+            location.reload();
         } else {
+            // Show error (modal stays open, flag stays true)
             showAlert('danger', data.error || 'Error al guardar la convalidación');
         }
     })
     .catch(error => {
         console.error('Error:', error);
+        // Show error (modal stays open, flag stays true)
         showAlert('danger', 'Error de conexión');
     });
 }
@@ -1084,3 +1061,20 @@ function exportImpactAnalysis() {
     // TODO: Implement export functionality
     alert('Funcionalidad de exportación en desarrollo');
 }
+
+// Reset modalIsOpen flag when modal is closed
+document.addEventListener('DOMContentLoaded', function() {
+    const modalElement = document.getElementById('convalidationModal');
+    if (modalElement) {
+        // Reset flag when modal is hidden
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            modalIsOpen = false;
+        });
+        
+        // Also reset on shown in case of issues
+        modalElement.addEventListener('shown.bs.modal', function() {
+            // Modal is now fully visible and initialized
+            // Flag is already true from showConvalidationModal
+        });
+    }
+});

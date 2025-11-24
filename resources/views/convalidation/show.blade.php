@@ -35,66 +35,144 @@
                 <div class="col-lg-8">
                     <div class="card">
                         <div class="card-body">
-                            <h6>Progreso de Convalidación</h6>
-                            <div class="progress mb-2" style="height: 25px;">
+                            <h6 class="mb-3">
+                                <i class="fas fa-chart-bar me-2"></i>
+                                Progreso de Convalidación por Componente (Créditos)
+                            </h6>
+                            <div class="progress mb-3" style="height: 30px;">
                                 <div class="progress-bar bg-success" 
                                      role="progressbar" 
                                      style="width: {{ $stats['completion_percentage'] }}%"
                                      id="convalidation-progress">
-                                    {{ number_format($stats['completion_percentage'], 1) }}%
+                                    <strong>{{ number_format($stats['completion_percentage'], 1) }}% Configurado</strong>
                                 </div>
                             </div>
-                            <div class="row text-center">
-                                <div class="col">
-                                    <h5 class="text-success" id="direct-count">{{ $stats['direct_convalidations'] }}</h5>
-                                    <small class="text-muted">Convalidaciones Directas</small>
-                                </div>
-                                <div class="col">
-                                    <h5 class="text-info" id="elective-count">{{ $stats['free_electives'] }}</h5>
-                                    <small class="text-muted">Libre Elección</small>
-                                </div>
-                                <div class="col">
-                                    <h5 class="text-warning" id="not-convalidated-count">{{ $stats['not_convalidated'] ?? 0 }}</h5>
-                                    <small class="text-muted">Materias Nuevas</small>
-                                </div>
-                                <div class="col">
-                                    <h5 class="text-secondary" id="pending-count">{{ $stats['pending_subjects'] }}</h5>
-                                    <small class="text-muted">Sin Configurar</small>
-                                </div>
+                            
+                            @php
+                                $credits = $stats['credits_by_component'];
+                                $componentLabels = [
+                                    'fundamental_required' => ['label' => 'Fund. Oblig.', 'color' => 'warning', 'icon' => 'book'],
+                                    'professional_required' => ['label' => 'Prof. Oblig.', 'color' => 'success', 'icon' => 'graduation-cap'],
+                                    'optional_fundamental' => ['label' => 'Opt. Fund.', 'color' => 'info', 'icon' => 'book-open'],
+                                    'optional_professional' => ['label' => 'Opt. Prof.', 'color' => 'primary', 'icon' => 'user-graduate'],
+                                    'free_elective' => ['label' => 'Libre Elecc.', 'color' => 'secondary', 'icon' => 'star'],
+                                    'thesis' => ['label' => 'Trabajo Grado', 'color' => 'dark', 'icon' => 'file-alt'],
+                                    'leveling' => ['label' => 'Nivelación', 'color' => 'danger', 'icon' => 'level-up-alt'],
+                                    'pending' => ['label' => 'Sin Configurar', 'color' => 'light text-dark', 'icon' => 'question-circle']
+                                ];
+                            @endphp
+                            
+                            <div class="row text-center g-2">
+                                @foreach($componentLabels as $key => $config)
+                                    @php
+                                        $creditValue = $credits[$key] ?? 0;
+                                        // Only show card if there are credits OR if it's not 'pending'
+                                        $shouldShow = $creditValue > 0 || $key !== 'pending';
+                                    @endphp
+                                    
+                                    @if($shouldShow)
+                                        <div class="col-lg-3 col-md-4 col-6">
+                                            <div class="card border-{{ $config['color'] }} h-100">
+                                                <div class="card-body p-2">
+                                                    <i class="fas fa-{{ $config['icon'] }} text-{{ $config['color'] }} mb-1"></i>
+                                                    <h5 class="mb-0 text-{{ $config['color'] }}" id="{{ $key }}-credits">
+                                                        {{ number_format($creditValue, 1) }}
+                                                    </h5>
+                                                    <small class="text-muted d-block" style="font-size: 0.75rem;">
+                                                        {{ $config['label'] }}
+                                                    </small>
+                                                    <small class="text-muted" style="font-size: 0.7rem;">créditos</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endif
+                                @endforeach
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-4">
-                    <div class="card career-completion-card">
-                        <div class="card-body text-center">
-                            <h6 class="text-primary mb-3">🎓 Progreso de Carrera</h6>
-                            <div class="career-percentage mb-2" id="career-percentage">
-                                {{ number_format($stats['career_completion_percentage'], 1) }}%
-                            </div>
-                            <small class="text-muted mb-3 d-block">
-                                <span id="convalidated-credits">{{ number_format($stats['convalidated_credits'], 1) }}</span> de 
-                                <span id="total-credits">{{ $stats['total_career_credits'] }}</span> créditos convalidados
-                            </small>
-                            <div class="progress" style="height: 15px;">
-                                <div class="progress-bar bg-primary" 
-                                     role="progressbar" 
-                                     style="width: {{ $stats['career_completion_percentage'] }}%"
-                                     id="career-progress">
-                                </div>
-                            </div>
-                            <small class="text-muted mt-2 d-block">
-                                <i class="fas fa-info-circle"></i> 
-                                Basado en equivalencias directas + libre elección
-                            </small>
-                        </div>
-                    </div>
-                </div>
+                
                 <div class="col-lg-4">
                     <div class="card">
                         <div class="card-body">
+                            <h6 class="text-primary mb-3">
+                                <i class="fas fa-exchange-alt me-2"></i>
+                                Progreso de Carrera (Doble Vista)
+                            </h6>
+                            
+                            @php
+                                $originalStats = $stats['original_curriculum_stats'];
+                                $newStats = $stats['new_curriculum_stats'];
+                            @endphp
+                            
+                            <!-- Original (UNAL) Curriculum Progress -->
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <small class="text-muted">
+                                        <i class="fas fa-university"></i> Malla Original (Actual)
+                                    </small>
+                                    <small class="fw-bold text-success">
+                                        {{ number_format($originalStats['percentage'], 1) }}%
+                                    </small>
+                                </div>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar bg-success" 
+                                         role="progressbar" 
+                                         style="width: {{ $originalStats['percentage'] }}%"
+                                         id="original-progress">
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">
+                                    <span id="original-assigned">{{ number_format($originalStats['assigned_credits'], 1) }}</span> de 
+                                    <span id="original-total">{{ number_format($originalStats['total_credits'], 1) }}</span> créditos asignados
+                                </small>
+                            </div>
+                            
+                            <!-- Arrow indicator -->
+                            <div class="text-center my-2">
+                                <i class="fas fa-arrow-down fa-2x text-primary"></i>
+                            </div>
+                            
+                            <!-- New (External/Imported) Curriculum Progress -->
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <small class="text-muted">
+                                        <i class="fas fa-file-import"></i> Malla Nueva (Generada/Importada)
+                                    </small>
+                                    <small class="fw-bold text-primary">
+                                        {{ number_format($newStats['percentage'], 1) }}%
+                                    </small>
+                                </div>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar bg-primary" 
+                                         role="progressbar" 
+                                         style="width: {{ $newStats['percentage'] }}%"
+                                         id="new-progress">
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">
+                                    <span id="new-convalidated">{{ number_format($newStats['convalidated_credits'], 1) }}</span> de 
+                                    <span id="new-total">{{ number_format($newStats['total_credits'], 1) }}</span> créditos convalidados
+                                </small>
+                            </div>
+                            
+                            <div class="alert alert-info p-2 mb-0 mt-3" style="font-size: 0.75rem;">
+                                <i class="fas fa-info-circle me-1"></i>
+                                <strong>Conversión:</strong> 
+                                {{ number_format($newStats['convalidated_credits'], 1) }} créditos nuevos 
+                                → {{ number_format($originalStats['assigned_credits'], 1) }} créditos UNAL
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-lg-12">
+                    <div class="card">
+                        <div class="card-body">
                             <h6>Acciones Rápidas</h6>
-                            <div class="d-grid gap-2">
+                            <div class="d-flex gap-2 flex-wrap">
                                 @if(isset($stats['completion_percentage']) && $stats['completion_percentage'] >= 100)
                                     <button class="btn btn-info" onclick="showImpactAnalysisModal()">
                                         <i class="fas fa-chart-line me-2"></i>
