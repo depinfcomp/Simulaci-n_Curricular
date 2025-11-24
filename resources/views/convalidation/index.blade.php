@@ -133,7 +133,7 @@
                                             <td>
                                                 <div class="d-flex gap-1">
                                                     <span class="badge bg-success">{{ $stats['direct_convalidations'] }} directas</span>
-                                                    <span class="badge bg-info">{{ $stats['free_electives'] }} libres</span>
+                                                    <span class="badge bg-info">{{ $stats['flexible_components'] }} electivos</span>
                                                 </div>
                                             </td>
                                             <td style="width: 200px;">

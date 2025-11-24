@@ -581,7 +581,9 @@ class ConvalidationController extends Controller
                     'leveling' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
                     'thesis' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
                     'free_elective' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
-                ]
+                ],
+                // Credits from original curriculum (/simulation) - real credits by component
+                'original_curriculum_credits' => \App\Models\Subject::getCreditsByComponent(),
             ];
 
             $totalProgressChange = 0;
@@ -645,6 +647,9 @@ class ConvalidationController extends Controller
             $results['average_progress_change'] = $results['affected_students'] > 0 
                 ? round($totalProgressChange / $results['affected_students'], 1)
                 : 0;
+
+            // Calculate convalidated credits by component
+            $results['convalidated_credits_by_component'] = $this->calculateConvalidatedCreditsByComponent($externalCurriculum);
 
             return response()->json([
                 'success' => true,
@@ -2391,14 +2396,59 @@ class ConvalidationController extends Controller
                 'results' => $results,
                 'summary' => [
                     'total' => count($results),
-                    'success' => collect($results)->where('status', 'success')->count(),
-                    'skipped' => collect($results)->where('status', 'skipped')->count(),
-                    'errors' => collect($results)->where('status', 'error')->count()
+                    'success' => count(array_filter($results, fn($r) => $r['status'] === 'success')),
+                    'error' => count(array_filter($results, fn($r) => $r['status'] === 'error'))
                 ]
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error en convalidación masiva: ' . $e->getMessage()
+            ], 500);
         }
+    }
+
+    /**
+     * Calculate convalidated credits by component from configured convalidations
+     */
+    private function calculateConvalidatedCreditsByComponent(ExternalCurriculum $externalCurriculum)
+    {
+        $creditsByComponent = [
+            'fundamental_required' => 0,
+            'professional_required' => 0,
+            'optional_fundamental' => 0,
+            'optional_professional' => 0,
+            'free_elective' => 0,
+            'thesis' => 0,
+            'leveling' => 0,
+        ];
+
+        // Get all convalidations for this curriculum
+        $convalidations = $externalCurriculum->convalidations()
+            ->with(['externalSubject', 'internalSubject', 'externalSubject.assignedComponent'])
+            ->get();
+
+        foreach ($convalidations as $convalidation) {
+            $componentType = null;
+            $credits = 0;
+
+            if ($convalidation->convalidation_type === 'direct' && $convalidation->internalSubject) {
+                // For direct convalidations, use internal subject credits and component
+                $componentType = $convalidation->internalSubject->component ?? null;
+                $credits = $convalidation->internalSubject->credits ?? 0;
+            } elseif ($convalidation->convalidation_type === 'flexible_component' && $convalidation->externalSubject) {
+                // For flexible components, use component_type from convalidation
+                $componentType = $convalidation->component_type ?? null;
+                $credits = $convalidation->externalSubject->credits ?? 0;
+            }
+
+            // Add credits to the corresponding component
+            if ($componentType && isset($creditsByComponent[$componentType])) {
+                $creditsByComponent[$componentType] += $credits;
+            }
+        }
+
+        return $creditsByComponent;
     }
 }

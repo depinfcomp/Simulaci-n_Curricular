@@ -156,11 +156,18 @@
                                 </small>
                             </div>
                             
-                            <div class="alert alert-info p-2 mb-0 mt-3" style="font-size: 0.75rem;">
-                                <i class="fas fa-info-circle me-1"></i>
-                                <strong>Conversión:</strong> 
-                                {{ number_format($newStats['convalidated_credits'], 1) }} créditos nuevos 
-                                → {{ number_format($originalStats['assigned_credits'], 1) }} créditos UNAL
+                            @php
+                                $creditDifference = $newStats['convalidated_credits'] - $originalStats['assigned_credits'];
+                                $diffClass = $creditDifference > 0 ? 'success' : ($creditDifference < 0 ? 'danger' : 'secondary');
+                                $diffIcon = $creditDifference > 0 ? 'arrow-up' : ($creditDifference < 0 ? 'arrow-down' : 'minus');
+                                $diffSign = $creditDifference > 0 ? '+' : '';
+                            @endphp
+                            <div class="alert alert-{{ $diffClass }} p-2 mb-0 mt-3" style="font-size: 0.75rem;">
+                                <i class="fas fa-{{ $diffIcon }} me-1"></i>
+                                <strong>Diferencia de Créditos:</strong> 
+                                {{ $diffSign }}{{ number_format($creditDifference, 1) }} créditos
+                                (Original UNAL: {{ number_format($originalStats['assigned_credits'], 1) }} → 
+                                Importada: {{ number_format($newStats['convalidated_credits'], 1) }})
                             </div>
                         </div>
                     </div>
@@ -262,7 +269,21 @@
                                                     $componentColor = $componentColors[$componentType] ?? 'secondary';
                                                     $componentLabel = $componentLabels[$componentType] ?? $componentType;
                                                 @endphp
-                                                <tr id="subject-row-{{ $subject->id }}">
+                                                <tr id="subject-row-{{ $subject->id }}"
+                                                    data-external-subject-id="{{ $subject->id }}"
+                                                    data-convalidation-type="{{ $isConvalidated ? $convalidationStatus['type'] : '' }}"
+                                                    data-subject-name="{{ $subject->name }}"
+                                                    data-subject-code="{{ $subject->code }}"
+                                                    data-subject-credits="{{ $subject->credits }}"
+                                                    @if($isConvalidated && $convalidationStatus['type'] === 'direct' && isset($convalidationStatus['internal_subject']))
+                                                        data-internal-subject-name="{{ $convalidationStatus['internal_subject']->name }}"
+                                                        data-internal-subject-code="{{ $convalidationStatus['internal_subject']->code }}"
+                                                        data-internal-credits="{{ $convalidationStatus['internal_subject']->credits }}"
+                                                    @endif
+                                                    @if($componentType)
+                                                        data-component-type="{{ $componentType }}"
+                                                    @endif
+                                                >
                                                     <td>
                                                         <code class="text-primary">{{ $subject->code }}</code>
                                                     </td>
@@ -746,9 +767,9 @@
                                     <thead>
                                         <tr>
                                             <th>Componente</th>
+                                            <th class="text-center">Créditos de Malla Original</th>
                                             <th class="text-center">Créditos Convalidados</th>
-                                            <th class="text-center">Créditos Requeridos</th>
-                                            <th class="text-center">Estado</th>
+                                            <th class="text-center">Diferencia</th>
                                         </tr>
                                     </thead>
                                     <tbody id="impact-credits-by-component">
@@ -764,7 +785,7 @@
                         <div class="card-header">
                             <h6 class="mb-0">
                                 <i class="fas fa-exchange-alt me-2"></i>
-                                Mapeo Detallado de Materias
+                                Mapeo Detallado de Convalidaciones
                             </h6>
                         </div>
                         <div class="card-body">
@@ -772,14 +793,10 @@
                                 <table class="table table-sm table-hover">
                                     <thead>
                                         <tr>
-                                            <th>Materia Antigua</th>
-                                            <th>Nota</th>
-                                            <th>Créditos</th>
-                                            <th><i class="fas fa-arrow-right"></i></th>
-                                            <th>Materia Nueva</th>
-                                            <th>Nota Final</th>
-                                            <th>Créditos</th>
-                                            <th>Componente</th>
+                                            <th>Materia Externa (Importada/Nueva)</th>
+                                            <th class="text-center" style="width: 80px;"></th>
+                                            <th>Convalidación (Materia UNAL)</th>
+                                            <th class="text-center" style="width: 150px;">Componente</th>
                                         </tr>
                                     </thead>
                                     <tbody id="impact-subject-mapping">

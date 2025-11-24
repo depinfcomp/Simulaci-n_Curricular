@@ -1091,14 +1091,17 @@ function renderImpactAnalysis(results) {
     document.getElementById('impact-progress-percentage').textContent = 
         (results.average_progress_change || 0).toFixed(1) + '%';
     
-    // Credits by component
-    renderCreditsByComponent(results.credits_by_component || {});
+    // Credits by component - use new data structure
+    renderCreditsByComponent(
+        results.convalidated_credits_by_component || {}, 
+        results.original_curriculum_credits || {}
+    );
     
-    // Subject mapping (using student_details)
-    renderSubjectMapping(results.student_details || []);
+    // Subject mapping - show configured convalidations
+    renderSubjectMapping(results);
 }
 
-function renderCreditsByComponent(creditsByComponent) {
+function renderCreditsByComponent(convalidatedCredits, originalCredits) {
     const tbody = document.getElementById('impact-credits-by-component');
     tbody.innerHTML = '';
     
@@ -1112,72 +1115,147 @@ function renderCreditsByComponent(creditsByComponent) {
         'leveling': 'Nivelación'
     };
     
-    Object.entries(creditsByComponent).forEach(([component, data]) => {
-        const used = data.used || 0;
-        const max = data.max || 0;
-        const percentage = max > 0 ? (used / max * 100).toFixed(1) : 0;
+    // Process each component
+    Object.keys(componentNames).forEach(component => {
+        const convalidated = convalidatedCredits[component] || 0;
+        const original = originalCredits[component] || 0;
+        const difference = convalidated - original;
+        
+        // Determine status color and badge
+        let badgeClass = 'bg-secondary';
+        let statusIcon = 'fa-minus';
+        let statusText = '0';
+        
+        if (difference > 0) {
+            badgeClass = 'bg-success';
+            statusIcon = 'fa-arrow-up';
+            statusText = `+${difference}`;
+        } else if (difference < 0) {
+            badgeClass = 'bg-danger';
+            statusIcon = 'fa-arrow-down';
+            statusText = `${difference}`;
+        }
         
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${componentNames[component] || component}</td>
-            <td class="text-center">${used}</td>
-            <td class="text-center">${max}</td>
+            <td>${componentNames[component]}</td>
+            <td class="text-center"><strong>${original}</strong> créditos</td>
+            <td class="text-center"><strong>${convalidated}</strong> créditos</td>
             <td class="text-center">
-                <div class="progress" style="height: 20px;">
-                    <div class="progress-bar ${percentage >= 100 ? 'bg-success' : 'bg-info'}" 
-                         style="width: ${Math.min(percentage, 100)}%">
-                        ${percentage}%
-                    </div>
-                </div>
+                <span class="badge ${badgeClass}">
+                    <i class="fas ${statusIcon} me-1"></i>
+                    ${statusText} créditos
+                </span>
             </td>
         `;
         tbody.appendChild(row);
     });
 }
 
-function renderSubjectMapping(studentDetails) {
+function renderSubjectMapping(results) {
     const tbody = document.getElementById('impact-subject-mapping');
     tbody.innerHTML = '';
     
-    if (studentDetails.length === 0) {
+    // Get all convalidations from current page (from the DOM)
+    const convalidationRows = document.querySelectorAll('[data-external-subject-id][data-convalidation-type]');
+    
+    if (convalidationRows.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="text-center text-muted">
-                    No hay datos de estudiantes disponibles
+                <td colspan="4" class="text-center text-muted py-4">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No hay convalidaciones configuradas aún
                 </td>
             </tr>
         `;
         return;
     }
     
-    // Take first student as example (or aggregate data)
-    const firstStudent = studentDetails[0];
-    const convalidationDetails = firstStudent.convalidation_details || [];
-    
-    convalidationDetails.forEach(detail => {
-        const row = document.createElement('tr');
+    // Parse and display each convalidation
+    convalidationRows.forEach(row => {
+        const externalSubjectName = row.querySelector('[data-subject-name]')?.textContent?.trim() || 
+                                     row.dataset.subjectName || 'Sin nombre';
+        const externalSubjectCode = row.querySelector('code')?.textContent?.trim() || 
+                                     row.dataset.subjectCode || '-';
+        const externalCreditsElement = row.querySelector('.badge.bg-secondary');
+        const externalCredits = externalCreditsElement?.textContent?.trim() || 
+                                 row.dataset.subjectCredits || '0';
+        const convalidationType = row.dataset.convalidationType;
         
-        const componentBadge = detail.component_type ? 
-            `<span class="badge bg-${getComponentColor(detail.component_type)}">${getComponentLabel(detail.component_type)}</span>` :
-            '<span class="text-muted">-</span>';
+        let convalidationInfo = '';
+        let componentInfo = '';
         
-        row.innerHTML = `
+        if (convalidationType === 'direct') {
+            // Direct convalidation - show internal UNAL subject
+            const internalSubjectName = row.dataset.internalSubjectName || 
+                                         row.querySelector('[data-internal-subject-name]')?.textContent?.trim() || 
+                                         'Sin materia';
+            const internalSubjectCode = row.dataset.internalSubjectCode || '-';
+            const internalCredits = row.dataset.internalCredits || '0';
+            
+            convalidationInfo = `
+                <div>
+                    <strong class="text-success">${internalSubjectName}</strong><br>
+                    <small class="text-muted">
+                        <code>${internalSubjectCode}</code> - 
+                        <span class="badge bg-success">${internalCredits} créditos</span>
+                    </small>
+                </div>
+            `;
+            
+            // Get component from internal subject if available
+            const componentType = row.dataset.componentType;
+            if (componentType) {
+                componentInfo = `<span class="badge bg-${getComponentColor(componentType)}">${getComponentLabel(componentType)}</span>`;
+            }
+            
+        } else if (convalidationType === 'flexible_component') {
+            // Flexible component - show component only
+            const componentType = row.dataset.componentType;
+            convalidationInfo = `
+                <div class="text-info">
+                    <i class="fas fa-layer-group me-1"></i>
+                    <strong>Componente Electivo</strong><br>
+                    <small class="text-muted fst-italic">Créditos flexibles (sin materia específica)</small>
+                </div>
+            `;
+            
+            if (componentType) {
+                componentInfo = `<span class="badge bg-${getComponentColor(componentType)}">${getComponentLabel(componentType)}</span>`;
+            }
+            
+        } else {
+            // Not convalidated - new subject
+            convalidationInfo = `
+                <div class="text-warning">
+                    <i class="fas fa-plus-circle me-1"></i>
+                    <strong>Materia Nueva</strong><br>
+                    <small class="text-muted">No tiene equivalencia en malla UNAL</small>
+                </div>
+            `;
+            
+            const componentType = row.dataset.componentType;
+            if (componentType) {
+                componentInfo = `<span class="badge bg-${getComponentColor(componentType)}">${getComponentLabel(componentType)}</span>`;
+            }
+        }
+        
+        const tableRow = document.createElement('tr');
+        tableRow.innerHTML = `
             <td>
-                <small><strong>${detail.external_subject_name || '-'}</strong></small><br>
-                <small class="text-muted">${detail.external_subject_code || '-'}</small>
+                <strong>${externalSubjectName}</strong><br>
+                <small class="text-muted">
+                    <code>${externalSubjectCode}</code> - 
+                    <span class="badge bg-primary">${externalCredits} créditos</span>
+                </small>
             </td>
-            <td class="text-center">${detail.external_grade || '-'}</td>
-            <td class="text-center">${detail.external_credits || '-'}</td>
-            <td class="text-center"><i class="fas fa-arrow-right text-primary"></i></td>
-            <td>
-                <small><strong>${detail.internal_subject_name || 'No se convalida'}</strong></small><br>
-                <small class="text-muted">${detail.internal_subject_code || '-'}</small>
+            <td class="text-center">
+                <i class="fas fa-arrow-right text-primary fa-lg"></i>
             </td>
-            <td class="text-center">${detail.internal_grade || '-'}</td>
-            <td class="text-center">${detail.internal_credits || '-'}</td>
-            <td>${componentBadge}</td>
+            <td>${convalidationInfo}</td>
+            <td class="text-center">${componentInfo || '-'}</td>
         `;
-        tbody.appendChild(row);
+        tbody.appendChild(tableRow);
     });
 }
 
