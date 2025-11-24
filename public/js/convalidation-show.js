@@ -171,18 +171,21 @@ function updateConvalidationDisplay(subjectId, convalidation) {
         `;
     }
     
-    // Update status badge
-    const statusElement = document.querySelector(`#subject-row-${subjectId} .badge`);
-    if (statusElement) {
+    // Update status badge in the "Estado" column (5th td)
+    const row = document.getElementById(`subject-row-${subjectId}`);
+    const statusCell = row.querySelector('td:nth-child(5)'); // 5th column is Estado
+    const statusBadge = statusCell.querySelector('.badge');
+    
+    if (statusBadge) {
         if (convalidation.convalidation_type === 'direct') {
-            statusElement.className = 'badge bg-success';
-            statusElement.innerHTML = '<i class="fas fa-check me-1"></i>Convalidada';
+            statusBadge.className = 'badge bg-success';
+            statusBadge.innerHTML = '<i class="fas fa-check me-1"></i>Convalidada';
         } else if (convalidation.convalidation_type === 'free_elective') {
-            statusElement.className = 'badge bg-info';
-            statusElement.innerHTML = '<i class="fas fa-star me-1"></i>Libre Elección';
+            statusBadge.className = 'badge bg-info';
+            statusBadge.innerHTML = '<i class="fas fa-star me-1"></i>Libre Elección';
         } else if (convalidation.convalidation_type === 'not_convalidated') {
-            statusElement.className = 'badge bg-warning';
-            statusElement.innerHTML = '<i class="fas fa-plus-circle me-1"></i>Materia Nueva';
+            statusBadge.className = 'badge bg-warning';
+            statusBadge.innerHTML = '<i class="fas fa-plus-circle me-1"></i>Materia Nueva';
         }
     }
 }
@@ -277,8 +280,16 @@ function showBulkConvalidationModal() {
     document.getElementById('bulk_results').style.display = 'none';
     document.getElementById('start_bulk_btn').style.display = 'block';
     
+    // Get modal element
+    const modalElement = document.getElementById('bulkConvalidationModal');
+    const modal = new bootstrap.Modal(modalElement);
+    
+    // Add event listener to reload page when modal is closed
+    modalElement.addEventListener('hidden.bs.modal', function () {
+        location.reload();
+    }, { once: true }); // Use 'once: true' to avoid multiple listeners
+    
     // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('bulkConvalidationModal'));
     modal.show();
 }
 
@@ -307,10 +318,8 @@ function startBulkConvalidation() {
             displayBulkResults(data.results);
             btn.style.display = 'none';
             
-            // Reload page after 3 seconds to show new convalidations
-            setTimeout(() => {
-                location.reload();
-            }, 3000);
+            // Don't auto-reload, let user close modal manually
+            // Reload will happen when modal is closed
         } else {
             showAlert('danger', data.error || 'Error en la convalidación masiva');
             btn.disabled = false;

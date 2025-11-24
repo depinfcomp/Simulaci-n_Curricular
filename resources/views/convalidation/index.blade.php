@@ -9,11 +9,11 @@
                 <div>
                     <a href="{{ route('import.index') }}" class="btn btn-success me-2">
                         <i class="fas fa-file-excel me-2"></i>
-                        Importar Malla desde Excel
+                        Importar Malla
                     </a>
-                    <a href="{{ route('convalidation.create') }}" class="btn btn-primary">
+                    <a href="{{ route('import.index') }}" class="btn btn-primary">
                         <i class="fas fa-upload me-2"></i>
-                        Realizar Convalidación
+                        Cargar Primera Malla
                     </a>
                 </div>
             </div>
