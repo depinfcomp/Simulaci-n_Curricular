@@ -196,7 +196,7 @@
                             <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
                             <h5>No hay mallas curriculares externas</h5>
                             <p class="text-muted">Comienza cargando una malla curricular externa desde Excel</p>
-                            <a href="{{ route('convalidation.create') }}" class="btn btn-primary">
+                            <a href="{{ route('import.index') }}" class="btn btn-primary">
                                 <i class="fas fa-upload me-2"></i>
                                 Cargar Primera Malla
                             </a>
