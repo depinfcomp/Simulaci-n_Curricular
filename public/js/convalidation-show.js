@@ -95,8 +95,14 @@ function saveConvalidation() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            // Attach component_assignment to convalidation object for display
+            const convalidationWithComponent = {
+                ...data.convalidation,
+                component_assignment: data.component_assignment
+            };
+            
             // Update the convalidation display
-            updateConvalidationDisplay(currentExternalSubjectId, data.convalidation);
+            updateConvalidationDisplay(currentExternalSubjectId, convalidationWithComponent);
             
             // Update statistics without page reload
             if (data.stats) {
@@ -231,6 +237,24 @@ function updateConvalidationDisplay(subjectId, convalidation) {
     
     statusHtml += '</div>';
     statusCell.innerHTML = statusHtml;
+    
+    // Update action buttons (6th column - Acciones)
+    const actionsCell = row.querySelector('td:nth-child(6)');
+    const btnGroup = actionsCell.querySelector('.btn-group');
+    
+    // Check if delete button already exists
+    const existingDeleteBtn = btnGroup.querySelector('.btn-outline-danger');
+    
+    // If convalidation exists and delete button doesn't exist, add it
+    if (convalidation.id && !existingDeleteBtn) {
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'btn btn-outline-danger';
+        deleteBtn.title = 'Eliminar convalidación';
+        deleteBtn.onclick = () => removeConvalidation(convalidation.id);
+        deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+        btnGroup.appendChild(deleteBtn);
+    }
 }
 
 function getSuggestions(externalSubjectId = null) {
