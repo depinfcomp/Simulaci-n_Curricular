@@ -584,6 +584,10 @@ function removeConvalidation(convalidationId) {
 }
 
 function showAlert(type, message) {
+    // Remove previous alerts to prevent accumulation
+    const existingAlerts = document.querySelectorAll('.alert');
+    existingAlerts.forEach(alert => alert.remove());
+    
     const alertHtml = `
         <div class="alert alert-${type} alert-dismissible fade show" role="alert">
             ${message}
@@ -592,7 +596,23 @@ function showAlert(type, message) {
     `;
     
     // Insert at top of page
-    document.querySelector('.container-fluid').insertAdjacentHTML('afterbegin', alertHtml);
+    const container = document.querySelector('.container-fluid');
+    container.insertAdjacentHTML('afterbegin', alertHtml);
+    
+    // Auto-dismiss after 2 seconds
+    const alertElement = container.querySelector('.alert');
+    setTimeout(() => {
+        if (alertElement && alertElement.parentElement) {
+            // Use Bootstrap's fade out animation
+            alertElement.classList.remove('show');
+            // Remove from DOM after animation completes
+            setTimeout(() => {
+                if (alertElement.parentElement) {
+                    alertElement.remove();
+                }
+            }, 150); // Bootstrap fade transition is 150ms
+        }
+    }, 2000); // 2 seconds
 }
 
 function exportReport() {
@@ -736,12 +756,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const componentType = btn.dataset.componentType;
             const notes = btn.dataset.notes;
             
-            showConvalidationModal(externalSubjectId, {
+            // Only pass existingData if we have convalidation data
+            const existingData = (convalidationType || internalSubjectCode || componentType) ? {
                 convalidationType,
                 internalSubjectCode,
                 componentType,
                 notes
-            });
+            } : null;
+            
+            showConvalidationModal(externalSubjectId, existingData);
         }
     });
 });
