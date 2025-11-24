@@ -819,9 +819,9 @@
                     <i class="fas fa-times me-2"></i>
                     Cerrar
                 </button>
-                <button type="button" class="btn btn-success" onclick="exportImpactAnalysis()" id="export-impact-btn" style="display: none;">
-                    <i class="fas fa-file-excel me-2"></i>
-                    Exportar a Excel
+                <button type="button" class="btn btn-danger" onclick="generateImpactPdfReportFromShow()" id="export-impact-pdf-btn" style="display: none;">
+                    <i class="fas fa-file-pdf me-2"></i>
+                    Generar Reporte PDF
                 </button>
             </div>
         </div>

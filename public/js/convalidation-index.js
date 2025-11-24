@@ -1,5 +1,6 @@
 let currentImpactResults = null;
 let currentCurriculumId = null;
+let currentCreditLimits = null;
 
 function deleteCurriculum(curriculumId) {
     const deleteForm = document.getElementById('deleteForm');
@@ -178,7 +179,7 @@ function runImpactAnalysis() {
         </div>
     `;
     
-    document.getElementById('exportImpactBtn').style.display = 'none';
+    document.getElementById('exportImpactPdfBtn').style.display = 'none';
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]');
     if (!csrfToken) {
@@ -212,8 +213,18 @@ function runImpactAnalysis() {
     .then(data => {
         if (data.success) {
             currentImpactResults = data.results;
+            // Store credit limits for PDF generation
+            currentCreditLimits = {
+                max_free_elective_credits: maxFreeElectiveCredits,
+                max_optional_professional_credits: maxOptionalProfessionalCredits,
+                max_optional_fundamental_credits: maxOptionalFundamentalCredits,
+                max_leveling_credits: maxLevelingCredits,
+                max_required_fundamental_credits: maxRequiredFundamentalCredits,
+                max_required_professional_credits: maxRequiredProfessionalCredits,
+                max_thesis_credits: maxThesisCredits
+            };
             displayImpactResults(data.results);
-            document.getElementById('exportImpactBtn').style.display = 'inline-block';
+            document.getElementById('exportImpactPdfBtn').style.display = 'inline-block';
         } else {
             showErrorMessage(data.message || 'Error al analizar el impacto');
         }
@@ -664,25 +675,61 @@ function clearStudentSearch() {
     }
 }
 
-function exportImpactResults() {
-    if (!currentImpactResults) {
-        showErrorMessage('No hay resultados para exportar');
+function generateImpactPdfReport() {
+    if (!currentImpactResults || !currentCurriculumId) {
+        showErrorMessage('No hay resultados para generar el reporte');
         return;
     }
 
-    const csvContent = generateCSVContent(currentImpactResults);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    
-    if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', `impacto_convalidacion_${new Date().toISOString().split('T')[0]}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
+    // Show loading state
+    const button = document.getElementById('exportImpactPdfBtn');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generando reporte...';
+
+    // Send request to generate PDF report view
+    fetch(`/convalidation/${currentCurriculumId}/impact-report-pdf`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({
+            results: currentImpactResults,
+            credit_limits: currentCreditLimits
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error al generar el reporte');
+        }
+        return response.text();
+    })
+    .then(html => {
+        // Open the report in a new window
+        const newWindow = window.open('', '_blank');
+        if (newWindow) {
+            newWindow.document.write(html);
+            newWindow.document.close();
+            
+            // Show success message
+            showSuccessMessage('Reporte generado. Use Ctrl+P o Cmd+P en la nueva ventana para imprimir como PDF');
+        } else {
+            throw new Error('No se pudo abrir la ventana del reporte. Verifique que no esté bloqueando ventanas emergentes');
+        }
+
+        // Reset button
+        button.disabled = false;
+        button.innerHTML = originalText;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showErrorMessage('Error al generar el reporte PDF: ' + error.message);
+        
+        // Reset button
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
 }
 
 function generateCSVContent(results) {
@@ -701,6 +748,25 @@ function showErrorMessage(message) {
     const alertDiv = document.createElement('div');
     alertDiv.className = 'alert alert-danger alert-dismissible fade show';
     alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
+function showSuccessMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success alert-dismissible fade show';
+    alertDiv.innerHTML = `
+        <i class="fas fa-check-circle me-2"></i>
         ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;

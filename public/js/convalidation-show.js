@@ -1,6 +1,7 @@
 let currentExternalSubjectId = null;
 let currentInternalSubjectCode = null; // Store current code when editing
 let modalIsOpen = false; // Flag to prevent multiple modal openings
+let currentImpactResults = null; // Store impact analysis results for PDF generation
 
 /**
  * Get Bootstrap color class for component type badge
@@ -1079,10 +1080,13 @@ function loadImpactAnalysis() {
 }
 
 function renderImpactAnalysis(results) {
+    // Store results for PDF generation
+    currentImpactResults = results;
+    
     // Hide loading, show results
     document.getElementById('impact-analysis-loading').style.display = 'none';
     document.getElementById('impact-analysis-results').style.display = 'block';
-    document.getElementById('export-impact-btn').style.display = 'inline-block';
+    document.getElementById('export-impact-pdf-btn').style.display = 'inline-block';
     
     console.log('=== INICIO DEBUG ANÁLISIS DE IMPACTO ===');
     console.log('Datos completos recibidos del backend:', results);
@@ -1354,6 +1358,66 @@ function showImpactError(message) {
 function exportImpactAnalysis() {
     // TODO: Implement export functionality
     alert('Funcionalidad de exportación en desarrollo');
+}
+
+/**
+ * Generate PDF report from the impact analysis in show view
+ */
+function generateImpactPdfReportFromShow() {
+    if (!currentImpactResults || !window.externalCurriculumId) {
+        alert('No hay resultados para generar el reporte');
+        return;
+    }
+
+    // Show loading state
+    const button = document.getElementById('export-impact-pdf-btn');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Generando reporte...';
+
+    // Send request to generate PDF report view
+    fetch(`/convalidation/${window.externalCurriculumId}/impact-report-pdf`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': window.csrfToken
+        },
+        body: JSON.stringify({
+            results: currentImpactResults,
+            credit_limits: {} // Empty for now, can be added later if needed
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error al generar el reporte');
+        }
+        return response.text();
+    })
+    .then(html => {
+        // Open the report in a new window
+        const newWindow = window.open('', '_blank');
+        if (newWindow) {
+            newWindow.document.write(html);
+            newWindow.document.close();
+            
+            // Show success message
+            alert('✓ Reporte generado. Use Ctrl+P o Cmd+P en la nueva ventana para imprimir como PDF');
+        } else {
+            throw new Error('No se pudo abrir la ventana del reporte. Verifique que no esté bloqueando ventanas emergentes');
+        }
+
+        // Reset button
+        button.disabled = false;
+        button.innerHTML = originalText;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('✗ Error al generar el reporte PDF: ' + error.message);
+        
+        // Reset button
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
 }
 
 // Reset modalIsOpen flag when modal is closed

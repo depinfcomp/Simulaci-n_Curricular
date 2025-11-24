@@ -254,9 +254,9 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                <button type="button" class="btn btn-primary" id="exportImpactBtn" style="display: none;" onclick="exportImpactResults()">
-                    <i class="fas fa-download me-1"></i>
-                    Exportar Resultados
+                <button type="button" class="btn btn-danger" id="exportImpactPdfBtn" style="display: none;" onclick="generateImpactPdfReport()">
+                    <i class="fas fa-file-pdf me-1"></i>
+                    Generar Reporte PDF
                 </button>
             </div>
         </div>

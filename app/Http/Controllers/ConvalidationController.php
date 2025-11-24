@@ -2457,4 +2457,43 @@ class ConvalidationController extends Controller
         return $creditsByComponent;
     }
 
+    /**
+     * Generate a comprehensive PDF report of the impact analysis
+     */
+    public function generateImpactReportPdf(Request $request, ExternalCurriculum $externalCurriculum)
+    {
+        try {
+            $data = $request->json()->all();
+            $results = $data['results'] ?? [];
+            $creditLimits = $data['credit_limits'] ?? [];
+
+            // Get curriculum stats
+            $stats = $externalCurriculum->getStats();
+            
+            // Prepare data for the view
+            $reportData = [
+                'curriculum' => $externalCurriculum,
+                'results' => $results,
+                'credit_limits' => $creditLimits,
+                'stats' => $stats,
+                'generated_at' => now()->format('d/m/Y H:i:s'),
+            ];
+
+            // Return HTML view optimized for PDF printing
+            return view('convalidation.impact-report-pdf', $reportData);
+
+        } catch (\Exception $e) {
+            \Log::error('Error generating impact report PDF', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al generar el reporte: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
 }
+
