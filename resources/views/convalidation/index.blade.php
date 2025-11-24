@@ -11,10 +11,6 @@
                         <i class="fas fa-file-excel me-2"></i>
                         Importar Malla
                     </a>
-                    <a href="{{ route('import.index') }}" class="btn btn-primary">
-                        <i class="fas fa-upload me-2"></i>
-                        Cargar Primera Malla
-                    </a>
                 </div>
             </div>
 

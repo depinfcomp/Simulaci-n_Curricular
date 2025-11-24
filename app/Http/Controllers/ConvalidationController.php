@@ -423,6 +423,34 @@ class ConvalidationController extends Controller
     }
 
     /**
+     * Get subjects used ONLY as optativas or free electives
+     * This prevents human errors like selecting #LIBRE-01 when configuring a "Fundamental" component
+     */
+    public function getUsedOptativesAndFree(ExternalCurriculum $externalCurriculum)
+    {
+        // Get internal subject codes used ONLY for optativas and free electives
+        $usedOptativesAndFree = \DB::table('subject_convalidations')
+            ->join('external_subjects', 'subject_convalidations.external_subject_id', '=', 'external_subjects.id')
+            ->join('external_subject_components', 'external_subject_components.external_subject_id', '=', 'external_subjects.id')
+            ->where('external_subjects.external_curriculum_id', $externalCurriculum->id)
+            ->whereIn('external_subject_components.component_type', [
+                'optional_fundamental',
+                'optional_professional',
+                'free_elective'
+            ])
+            ->where('subject_convalidations.convalidation_type', 'direct')
+            ->whereNotNull('subject_convalidations.internal_subject_code')
+            ->pluck('subject_convalidations.internal_subject_code')
+            ->unique()
+            ->values()
+            ->toArray();
+        
+        return response()->json([
+            'usedOptativesAndFree' => $usedOptativesAndFree
+        ]);
+    }
+
+    /**
      * Generate the next available placeholder code for a component type
      */
     private function generateNextPlaceholderCode($componentType, $curriculumId)

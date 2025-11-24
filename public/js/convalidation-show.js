@@ -170,6 +170,10 @@ function showConvalidationModal(externalSubjectId, existingData = null) {
         }
     }
     
+    // ALWAYS block optativas/libres already used, regardless of component selection
+    // This prevents selecting #LIBRE-01 or used optativas when configuring other components
+    blockUsedOptativesAndFreeElectives(currentInternalSubjectCode);
+    
     const modal = new bootstrap.Modal(document.getElementById('convalidationModal'));
     modal.show();
 }
@@ -209,6 +213,38 @@ document.getElementById('component_type').addEventListener('change', function() 
     }
 });
 
+function blockUsedOptativesAndFreeElectives(currentCode = null) {
+    const externalCurriculumId = document.querySelector('[data-external-curriculum-id]')?.dataset.externalCurriculumId;
+    
+    if (!externalCurriculumId) return;
+    
+    // Fetch ONLY optativas and libres used (not all subjects)
+    fetch(`/convalidation/${externalCurriculumId}/used-optatives-and-free`)
+        .then(response => response.json())
+        .then(data => {
+            const internalSubjectSelect = document.getElementById('internal_subject_code');
+            if (!internalSubjectSelect) return;
+            
+            const options = internalSubjectSelect.querySelectorAll('option');
+            
+            options.forEach(option => {
+                if (option.value === '') return; // Skip empty option
+                
+                // If this is the current code (editing mode), don't disable it
+                const isCurrentCode = currentCode && option.value === currentCode;
+                const isUsedOptativeOrFree = data.usedOptativesAndFree.includes(option.value);
+                
+                // Block ONLY optativas/libres already used (like #LIBRE-01, #OPT-01)
+                if (isUsedOptativeOrFree && !isCurrentCode) {
+                    option.disabled = true;
+                }
+            });
+        })
+        .catch(error => {
+            console.error('Error al cargar optativas/libres usadas:', error);
+        });
+}
+
 // Handle "Crear nuevo código" checkbox change
 document.getElementById('create_new_code').addEventListener('change', function() {
     const newCodeMessage = document.getElementById('new_code_message');
@@ -231,43 +267,60 @@ function filterAvailableSubjects(componentType, currentCode = null) {
     
     if (!externalCurriculumId) return;
     
-    // Fetch used subjects for this component type
-    fetch(`/convalidation/${externalCurriculumId}/used-subjects?component_type=${componentType}`)
+    // First, get globally blocked subjects (optativas/libres)
+    fetch(`/convalidation/${externalCurriculumId}/used-optatives-and-free`)
         .then(response => response.json())
-        .then(data => {
-            const internalSubjectSelect = document.getElementById('internal_subject_code');
-            const options = internalSubjectSelect.querySelectorAll('option');
+        .then(globalData => {
+            const globallyBlocked = globalData.usedOptativesAndFree;
             
-            let availableCount = 0;
-            
-            options.forEach(option => {
-                if (option.value === '') return; // Skip empty option
-                
-                // If this is the current code (editing mode), don't disable it
-                const isCurrentCode = currentCode && option.value === currentCode;
-                const isUsed = data.usedSubjects.includes(option.value);
-                
-                option.disabled = isUsed && !isCurrentCode;
-                
-                if (!isUsed || isCurrentCode) availableCount++;
-            });
-            
-            // Update label to show count
-            const label = document.querySelector('label[for="internal_subject_code"]');
-            if (label) {
-                const originalText = label.textContent.replace(/ \(\d+ disponibles?\)/, '');
-                label.textContent = `${originalText} (${availableCount} disponible${availableCount !== 1 ? 's' : ''})`;
-            }
-            
-            // Show/hide checkbox container based on availability
-            const createNewCodeContainer = document.getElementById('create_new_code_container');
-            if (availableCount === 0) {
-                createNewCodeContainer.style.display = 'block';
-                // Auto-check the checkbox since there are no available subjects
-                document.getElementById('create_new_code').checked = true;
-                document.getElementById('new_code_message').style.display = 'block';
-                internalSubjectSelect.disabled = true;
-            }
+            // Then, fetch used subjects for this specific component type
+            return fetch(`/convalidation/${externalCurriculumId}/used-subjects?component_type=${componentType}`)
+                .then(response => response.json())
+                .then(data => {
+                    const internalSubjectSelect = document.getElementById('internal_subject_code');
+                    if (!internalSubjectSelect) return;
+                    
+                    const options = internalSubjectSelect.querySelectorAll('option');
+                    
+                    let availableCount = 0;
+                    
+                    options.forEach(option => {
+                        if (option.value === '') return; // Skip empty option
+                        
+                        const isCurrentCode = currentCode && option.value === currentCode;
+                        
+                        // Check if it's globally blocked (optativa/libre used)
+                        const isGloballyBlocked = globallyBlocked.includes(option.value);
+                        
+                        // Check if it's used for this component type
+                        const isUsedForThisType = data.usedSubjects.includes(option.value);
+                        
+                        // Block if: (globally blocked OR used for this type) AND not current code
+                        option.disabled = (isGloballyBlocked || isUsedForThisType) && !isCurrentCode;
+                        
+                        // Count as available if not disabled
+                        if (!option.disabled) availableCount++;
+                    });
+                    
+                    // Update label to show count
+                    const label = document.querySelector('label[for="internal_subject_code"]');
+                    if (label) {
+                        const originalText = label.textContent.replace(/ \(\d+ disponibles?\)/, '');
+                        label.textContent = `${originalText} (${availableCount} disponible${availableCount !== 1 ? 's' : ''})`;
+                    }
+                    
+                    // Show/hide checkbox container based on availability (only for optativas/libres)
+                    const isOptionalOrFree = ['optional_fundamental', 'optional_professional', 'free_elective'].includes(componentType);
+                    const createNewCodeContainer = document.getElementById('create_new_code_container');
+                    
+                    if (isOptionalOrFree && availableCount === 0) {
+                        createNewCodeContainer.style.display = 'block';
+                        // Auto-check the checkbox since there are no available subjects
+                        document.getElementById('create_new_code').checked = true;
+                        document.getElementById('new_code_message').style.display = 'block';
+                        internalSubjectSelect.disabled = true;
+                    }
+                });
         })
         .catch(error => {
             console.error('Error al cargar materias disponibles:', error);
