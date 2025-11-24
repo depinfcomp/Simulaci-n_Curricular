@@ -648,8 +648,8 @@ class ConvalidationController extends Controller
                 ? round($totalProgressChange / $results['affected_students'], 1)
                 : 0;
 
-            // Calculate convalidated credits by component
-            $results['convalidated_credits_by_component'] = $this->calculateConvalidatedCreditsByComponent($externalCurriculum);
+            // Calculate convalidated credits by component - use the same method as the main view
+            $results['convalidated_credits_by_component'] = $externalCurriculum->getCreditsByComponent();
 
             return response()->json([
                 'success' => true,

@@ -1084,9 +1084,49 @@ function renderImpactAnalysis(results) {
     document.getElementById('impact-analysis-results').style.display = 'block';
     document.getElementById('export-impact-btn').style.display = 'inline-block';
     
+    console.log('=== INICIO DEBUG ANÁLISIS DE IMPACTO ===');
+    console.log('Datos completos recibidos del backend:', results);
+    
+    // Calculate credits lost from the difference (same as shown in "Progreso de Carrera")
+    // Credits lost = absolute value of difference (whether positive or negative)
+    // This represents any imbalance that needs verification
+    const convalidatedCredits = results.convalidated_credits_by_component || {};
+    const originalCredits = results.original_curriculum_credits || {};
+    
+    console.log('\n--- CRÉDITOS POR COMPONENTE ---');
+    console.log('Convalidados (del backend):', JSON.stringify(convalidatedCredits, null, 2));
+    console.log('Originales (del backend):', JSON.stringify(originalCredits, null, 2));
+    
+    let totalConvalidated = 0;
+    let totalOriginal = 0;
+    
+    console.log('\n--- CÁLCULO TOTAL CONVALIDADO ---');
+    Object.keys(convalidatedCredits).forEach(component => {
+        const value = parseFloat(convalidatedCredits[component]) || 0;
+        console.log(`  ${component}: ${convalidatedCredits[component]} → ${value}`);
+        totalConvalidated += value;
+    });
+    console.log('TOTAL CONVALIDADO:', totalConvalidated);
+    
+    console.log('\n--- CÁLCULO TOTAL ORIGINAL ---');
+    Object.keys(originalCredits).forEach(component => {
+        const value = parseFloat(originalCredits[component]) || 0;
+        console.log(`  ${component}: ${originalCredits[component]} → ${value}`);
+        totalOriginal += value;
+    });
+    console.log('TOTAL ORIGINAL:', totalOriginal);
+    
+    const creditDifference = totalConvalidated - totalOriginal;
+    const creditsLost = creditDifference !== 0 ? Math.abs(creditDifference) : 0;
+    
+    console.log('\n--- RESULTADO FINAL ---');
+    console.log('Diferencia (Convalidado - Original):', creditDifference);
+    console.log('Créditos Perdidos (valor absoluto):', creditsLost);
+    console.log('¿Es correcto que sea 45?', creditsLost === 45 ? '✓ SÍ' : '✗ NO, es ' + creditsLost);
+    
     // Summary cards
-    document.getElementById('impact-convalidated-credits').textContent = results.total_convalidated_subjects || 0;
-    document.getElementById('impact-lost-credits').textContent = results.total_credits_lost || 0;
+    document.getElementById('impact-convalidated-credits').textContent = Math.round(totalConvalidated);
+    document.getElementById('impact-lost-credits').textContent = Math.round(creditsLost);
     document.getElementById('impact-new-subjects').textContent = results.additional_subjects_required || 0;
     document.getElementById('impact-progress-percentage').textContent = 
         (results.average_progress_change || 0).toFixed(1) + '%';
@@ -1156,8 +1196,12 @@ function renderSubjectMapping(results) {
     const tbody = document.getElementById('impact-subject-mapping');
     tbody.innerHTML = '';
     
+    console.log('\n=== INICIO DEBUG MAPEO DETALLADO ===');
+    
     // Get all convalidations from current page (from the DOM)
     const convalidationRows = document.querySelectorAll('[data-external-subject-id][data-convalidation-type]');
+    
+    console.log('Total de filas encontradas con data-external-subject-id:', convalidationRows.length);
     
     if (convalidationRows.length === 0) {
         tbody.innerHTML = `
@@ -1168,30 +1212,64 @@ function renderSubjectMapping(results) {
                 </td>
             </tr>
         `;
+        console.log('No se encontraron filas de convalidación');
         return;
     }
     
+    let rowIndex = 0;
+    const processedIds = new Set(); // Para evitar duplicados
+    
     // Parse and display each convalidation
     convalidationRows.forEach(row => {
-        const externalSubjectName = row.querySelector('[data-subject-name]')?.textContent?.trim() || 
-                                     row.dataset.subjectName || 'Sin nombre';
-        const externalSubjectCode = row.querySelector('code')?.textContent?.trim() || 
-                                     row.dataset.subjectCode || '-';
-        const externalCreditsElement = row.querySelector('.badge.bg-secondary');
-        const externalCredits = externalCreditsElement?.textContent?.trim() || 
-                                 row.dataset.subjectCredits || '0';
+        rowIndex++;
+        
+        // Read external subject data from data-attributes
+        const externalSubjectId = row.dataset.externalSubjectId;
+        const externalSubjectName = row.dataset.subjectName || 'Sin nombre';
+        const externalSubjectCode = row.dataset.subjectCode || '-';
+        const externalCredits = row.dataset.subjectCredits || '0';
         const convalidationType = row.dataset.convalidationType;
+        
+        console.log(`\n--- Fila ${rowIndex} ---`);
+        console.log('  ID:', externalSubjectId);
+        console.log('  Nombre externo:', externalSubjectName);
+        console.log('  Código externo:', externalSubjectCode);
+        console.log('  Créditos externos:', externalCredits);
+        console.log('  Tipo convalidación:', convalidationType);
+        
+        // Skip rows without convalidation type (not convalidated yet)
+        if (!convalidationType) {
+            console.log('  → OMITIDA (sin tipo de convalidación)');
+            return;
+        }
+        
+        // Skip duplicate rows (same ID already processed)
+        if (processedIds.has(externalSubjectId)) {
+            console.log('  → OMITIDA (ID duplicado)');
+            return;
+        }
+        
+        // Skip rows with no name and no credits (invalid data)
+        if (externalSubjectName === 'Sin nombre' && externalCredits === '0') {
+            console.log('  → OMITIDA (sin datos válidos)');
+            return;
+        }
+        
+        processedIds.add(externalSubjectId);
         
         let convalidationInfo = '';
         let componentInfo = '';
         
         if (convalidationType === 'direct') {
             // Direct convalidation - show internal UNAL subject
-            const internalSubjectName = row.dataset.internalSubjectName || 
-                                         row.querySelector('[data-internal-subject-name]')?.textContent?.trim() || 
-                                         'Sin materia';
+            const internalSubjectName = row.dataset.internalSubjectName || 'Sin materia';
             const internalSubjectCode = row.dataset.internalSubjectCode || '-';
             const internalCredits = row.dataset.internalCredits || '0';
+            
+            console.log('  Tipo: DIRECTA');
+            console.log('    → Materia UNAL:', internalSubjectName);
+            console.log('    → Código UNAL:', internalSubjectCode);
+            console.log('    → Créditos UNAL:', internalCredits);
             
             convalidationInfo = `
                 <div>
@@ -1203,8 +1281,9 @@ function renderSubjectMapping(results) {
                 </div>
             `;
             
-            // Get component from internal subject if available
+            // Get component from row dataset
             const componentType = row.dataset.componentType;
+            console.log('    → Componente:', componentType);
             if (componentType) {
                 componentInfo = `<span class="badge bg-${getComponentColor(componentType)}">${getComponentLabel(componentType)}</span>`;
             }
@@ -1212,6 +1291,10 @@ function renderSubjectMapping(results) {
         } else if (convalidationType === 'flexible_component') {
             // Flexible component - show component only
             const componentType = row.dataset.componentType;
+            
+            console.log('  Tipo: COMPONENTE FLEXIBLE');
+            console.log('    → Componente:', componentType);
+            
             convalidationInfo = `
                 <div class="text-info">
                     <i class="fas fa-layer-group me-1"></i>
@@ -1224,8 +1307,13 @@ function renderSubjectMapping(results) {
                 componentInfo = `<span class="badge bg-${getComponentColor(componentType)}">${getComponentLabel(componentType)}</span>`;
             }
             
-        } else {
+        } else if (convalidationType === 'not_convalidated') {
             // Not convalidated - new subject
+            const componentType = row.dataset.componentType;
+            
+            console.log('  Tipo: NO CONVALIDADA (materia nueva)');
+            console.log('    → Componente:', componentType);
+            
             convalidationInfo = `
                 <div class="text-warning">
                     <i class="fas fa-plus-circle me-1"></i>
@@ -1234,11 +1322,12 @@ function renderSubjectMapping(results) {
                 </div>
             `;
             
-            const componentType = row.dataset.componentType;
             if (componentType) {
                 componentInfo = `<span class="badge bg-${getComponentColor(componentType)}">${getComponentLabel(componentType)}</span>`;
             }
         }
+        
+        console.log('  → AÑADIDA a la tabla');
         
         const tableRow = document.createElement('tr');
         tableRow.innerHTML = `
@@ -1257,6 +1346,10 @@ function renderSubjectMapping(results) {
         `;
         tbody.appendChild(tableRow);
     });
+    
+    console.log('\n=== FIN DEBUG MAPEO DETALLADO ===');
+    console.log(`Total de filas añadidas a la tabla: ${tbody.children.length}`);
+    console.log(`IDs procesados únicos: ${processedIds.size}`);
 }
 
 function showImpactError(message) {
