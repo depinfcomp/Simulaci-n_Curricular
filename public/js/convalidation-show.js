@@ -453,8 +453,28 @@ function saveConvalidation() {
             }
             
             // Close modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('convalidationModal'));
+            const modalElement = document.getElementById('convalidationModal');
+            const modal = bootstrap.Modal.getInstance(modalElement);
             modal.hide();
+            
+            // Clean up form after hiding to prevent data leakage to next modal open
+            const convalidationForm = document.getElementById('convalidationForm');
+            if (convalidationForm) {
+                convalidationForm.reset();
+                
+                // Also clear selects and textarea explicitly
+                const internalSubjectSelect = document.getElementById('internal_subject_code');
+                const componentTypeSelect = document.getElementById('component_type');
+                const notesTextarea = document.getElementById('convalidation_notes');
+                const typeDirectRadio = document.getElementById('type_direct');
+                const typeNotConvalidatedRadio = document.getElementById('type_not_convalidated');
+                
+                if (internalSubjectSelect) internalSubjectSelect.value = '';
+                if (componentTypeSelect) componentTypeSelect.value = '';
+                if (notesTextarea) notesTextarea.value = '';
+                if (typeDirectRadio) typeDirectRadio.checked = false;
+                if (typeNotConvalidatedRadio) typeNotConvalidatedRadio.checked = false;
+            }
             
             // Restore active semester
             restoreActiveSemester(currentActiveSemester);
