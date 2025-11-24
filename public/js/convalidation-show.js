@@ -896,4 +896,191 @@ document.addEventListener('DOMContentLoaded', function() {
             showConvalidationModal(externalSubjectId, existingData);
         }
     });
+    
+    // Save active semester to localStorage when user switches tabs
+    const semesterTabs = document.querySelectorAll('[data-bs-target^="#semester"]');
+    semesterTabs.forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function(e) {
+            const target = e.target.getAttribute('data-bs-target');
+            const semesterNumber = target.replace('#semester-', '');
+            
+            // Get external curriculum ID from the page
+            const curriculumContainer = document.querySelector('[data-external-curriculum-id]');
+            if (curriculumContainer) {
+                const curriculumId = curriculumContainer.getAttribute('data-external-curriculum-id');
+                const storageKey = `convalidation_active_semester_${curriculumId}`;
+                localStorage.setItem(storageKey, semesterNumber);
+            }
+        });
+    });
+    
+    // Restore active semester from localStorage on page load
+    const curriculumContainer = document.querySelector('[data-external-curriculum-id]');
+    if (curriculumContainer) {
+        const curriculumId = curriculumContainer.getAttribute('data-external-curriculum-id');
+        const storageKey = `convalidation_active_semester_${curriculumId}`;
+        const savedSemester = localStorage.getItem(storageKey);
+        
+        if (savedSemester) {
+            // Restore the saved semester
+            restoreActiveSemester(savedSemester);
+        }
+    }
 });
+
+// Impact Analysis Functions
+function showImpactAnalysisModal() {
+    const modal = new bootstrap.Modal(document.getElementById('impactAnalysisModal'));
+    modal.show();
+    
+    // Load impact analysis immediately
+    loadImpactAnalysis();
+}
+
+function loadImpactAnalysis() {
+    // Show loading state
+    document.getElementById('impact-analysis-loading').style.display = 'block';
+    document.getElementById('impact-analysis-results').style.display = 'none';
+    document.getElementById('impact-analysis-error').style.display = 'none';
+    
+    // Get curriculum ID
+    const curriculumId = window.externalCurriculumId;
+    
+    // Build URL - use the existing analyzeConvalidationImpact endpoint
+    const url = `/convalidation/${curriculumId}/analyze-impact`;
+    
+    fetch(url, {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': window.csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            renderImpactAnalysis(data.results);
+        } else {
+            showImpactError(data.message || 'Error al cargar el análisis');
+        }
+    })
+    .catch(error => {
+        console.error('Error loading impact analysis:', error);
+        showImpactError('Error de conexión al cargar el análisis');
+    });
+}
+
+function renderImpactAnalysis(results) {
+    // Hide loading, show results
+    document.getElementById('impact-analysis-loading').style.display = 'none';
+    document.getElementById('impact-analysis-results').style.display = 'block';
+    document.getElementById('export-impact-btn').style.display = 'inline-block';
+    
+    // Summary cards
+    document.getElementById('impact-convalidated-credits').textContent = results.total_convalidated_subjects || 0;
+    document.getElementById('impact-lost-credits').textContent = results.total_credits_lost || 0;
+    document.getElementById('impact-new-subjects').textContent = results.additional_subjects_required || 0;
+    document.getElementById('impact-progress-percentage').textContent = 
+        (results.average_progress_change || 0).toFixed(1) + '%';
+    
+    // Credits by component
+    renderCreditsByComponent(results.credits_by_component || {});
+    
+    // Subject mapping (using student_details)
+    renderSubjectMapping(results.student_details || []);
+}
+
+function renderCreditsByComponent(creditsByComponent) {
+    const tbody = document.getElementById('impact-credits-by-component');
+    tbody.innerHTML = '';
+    
+    const componentNames = {
+        'fundamental_required': 'Obligatoria Fundamental',
+        'professional_required': 'Obligatoria Profesional',
+        'optional_fundamental': 'Optativa Fundamental',
+        'optional_professional': 'Optativa Profesional',
+        'free_elective': 'Libre Elección',
+        'thesis': 'Trabajo de Grado',
+        'leveling': 'Nivelación'
+    };
+    
+    Object.entries(creditsByComponent).forEach(([component, data]) => {
+        const used = data.used || 0;
+        const max = data.max || 0;
+        const percentage = max > 0 ? (used / max * 100).toFixed(1) : 0;
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${componentNames[component] || component}</td>
+            <td class="text-center">${used}</td>
+            <td class="text-center">${max}</td>
+            <td class="text-center">
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar ${percentage >= 100 ? 'bg-success' : 'bg-info'}" 
+                         style="width: ${Math.min(percentage, 100)}%">
+                        ${percentage}%
+                    </div>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function renderSubjectMapping(studentDetails) {
+    const tbody = document.getElementById('impact-subject-mapping');
+    tbody.innerHTML = '';
+    
+    if (studentDetails.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center text-muted">
+                    No hay datos de estudiantes disponibles
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    // Take first student as example (or aggregate data)
+    const firstStudent = studentDetails[0];
+    const convalidationDetails = firstStudent.convalidation_details || [];
+    
+    convalidationDetails.forEach(detail => {
+        const row = document.createElement('tr');
+        
+        const componentBadge = detail.component_type ? 
+            `<span class="badge bg-${getComponentColor(detail.component_type)}">${getComponentLabel(detail.component_type)}</span>` :
+            '<span class="text-muted">-</span>';
+        
+        row.innerHTML = `
+            <td>
+                <small><strong>${detail.external_subject_name || '-'}</strong></small><br>
+                <small class="text-muted">${detail.external_subject_code || '-'}</small>
+            </td>
+            <td class="text-center">${detail.external_grade || '-'}</td>
+            <td class="text-center">${detail.external_credits || '-'}</td>
+            <td class="text-center"><i class="fas fa-arrow-right text-primary"></i></td>
+            <td>
+                <small><strong>${detail.internal_subject_name || 'No se convalida'}</strong></small><br>
+                <small class="text-muted">${detail.internal_subject_code || '-'}</small>
+            </td>
+            <td class="text-center">${detail.internal_grade || '-'}</td>
+            <td class="text-center">${detail.internal_credits || '-'}</td>
+            <td>${componentBadge}</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function showImpactError(message) {
+    document.getElementById('impact-analysis-loading').style.display = 'none';
+    document.getElementById('impact-analysis-results').style.display = 'none';
+    document.getElementById('impact-analysis-error').style.display = 'block';
+    document.getElementById('impact-error-message').textContent = message;
+}
+
+function exportImpactAnalysis() {
+    // TODO: Implement export functionality
+    alert('Funcionalidad de exportación en desarrollo');
+}

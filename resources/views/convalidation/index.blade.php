@@ -162,12 +162,14 @@
                                                        title="Ver y editar convalidaciones">
                                                         <i class="fas fa-edit"></i>
                                                     </a>
-                                                    <button type="button" 
-                                                            class="btn btn-sm btn-outline-warning"
-                                                            onclick="showImpactConfigModal({{ $curriculum->id }})"
-                                                            title="Analizar impacto en estudiantes">
-                                                        <i class="fas fa-users"></i>
-                                                    </button>
+                                                    @if(isset($stats['completion_percentage']) && $stats['completion_percentage'] >= 100)
+                                                        <button type="button" 
+                                                                class="btn btn-sm btn-outline-warning"
+                                                                onclick="showImpactConfigModal({{ $curriculum->id }})"
+                                                                title="Analizar impacto en estudiantes">
+                                                            <i class="fas fa-users"></i>
+                                                        </button>
+                                                    @endif
                                                     <button type="button" 
                                                             class="btn btn-sm btn-outline-info"
                                                             onclick="exportReport({{ $curriculum->id }})"

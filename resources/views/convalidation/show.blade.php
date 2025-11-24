@@ -95,6 +95,12 @@
                         <div class="card-body">
                             <h6>Acciones Rápidas</h6>
                             <div class="d-grid gap-2">
+                                @if(isset($stats['completion_percentage']) && $stats['completion_percentage'] >= 100)
+                                    <button class="btn btn-info" onclick="showImpactAnalysisModal()">
+                                        <i class="fas fa-chart-line me-2"></i>
+                                        Análisis de Impacto a Estudiantes
+                                    </button>
+                                @endif
                                 <button class="btn btn-primary" onclick="showBulkConvalidationModal()">
                                     <i class="fas fa-bolt me-2"></i>
                                     Convalidación Masiva Automática
@@ -559,6 +565,150 @@
                 <button type="button" class="btn btn-danger" id="confirm_reset_btn" onclick="executeResetConvalidations()">
                     <i class="fas fa-redo me-2"></i>
                     Sí, Restablecer Todo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Impact Analysis Modal -->
+<div class="modal fade" id="impactAnalysisModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Análisis de Impacto a Estudiantes
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Description -->
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>¿Qué es esto?</strong> Este análisis simula cómo las convalidaciones configuradas 
+                    afectarían el progreso académico de los estudiantes al migrar del plan antiguo al nuevo plan de estudios.
+                </div>
+
+                <!-- Loading State -->
+                <div id="impact-analysis-loading" class="text-center py-5" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Analizando...</span>
+                    </div>
+                    <p class="mt-3 text-muted">Calculando impacto en estudiantes...</p>
+                </div>
+
+                <!-- Results Container -->
+                <div id="impact-analysis-results" style="display: none;">
+                    <!-- Summary Cards -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card border-success">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small">Créditos Convalidados</h6>
+                                    <h3 class="text-success mb-0" id="impact-convalidated-credits">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-danger">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small">Créditos Perdidos</h6>
+                                    <h3 class="text-danger mb-0" id="impact-lost-credits">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-warning">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small">Materias Nuevas</h6>
+                                    <h3 class="text-warning mb-0" id="impact-new-subjects">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-primary">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small">Progreso Ajustado</h6>
+                                    <h3 class="text-primary mb-0" id="impact-progress-percentage">0%</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Credits by Component -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-layer-group me-2"></i>
+                                Créditos por Componente Académico
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Componente</th>
+                                            <th class="text-center">Créditos Convalidados</th>
+                                            <th class="text-center">Créditos Requeridos</th>
+                                            <th class="text-center">Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="impact-credits-by-component">
+                                        <!-- Populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Subject Mapping Table -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-exchange-alt me-2"></i>
+                                Mapeo Detallado de Materias
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Materia Antigua</th>
+                                            <th>Nota</th>
+                                            <th>Créditos</th>
+                                            <th><i class="fas fa-arrow-right"></i></th>
+                                            <th>Materia Nueva</th>
+                                            <th>Nota Final</th>
+                                            <th>Créditos</th>
+                                            <th>Componente</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="impact-subject-mapping">
+                                        <!-- Populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error State -->
+                <div id="impact-analysis-error" class="alert alert-danger" style="display: none;">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span id="impact-error-message"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>
+                    Cerrar
+                </button>
+                <button type="button" class="btn btn-success" onclick="exportImpactAnalysis()" id="export-impact-btn" style="display: none;">
+                    <i class="fas fa-file-excel me-2"></i>
+                    Exportar a Excel
                 </button>
             </div>
         </div>

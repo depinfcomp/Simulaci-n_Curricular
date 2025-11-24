@@ -49,8 +49,9 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         // Get subjects used ONLY as optativas/free electives (to block them globally)
         Route::get('/{externalCurriculum}/used-optatives-and-free', [ConvalidationController::class, 'getUsedOptativesAndFree'])->name('convalidation.used-optatives-free');
         
-        // New route for impact analysis
-        Route::post('/{externalCurriculum}/analyze-impact', [ConvalidationController::class, 'analyzeConvalidationImpact'])->name('convalidation.analyze-impact');
+        // Routes for impact analysis (GET for viewing, POST for custom parameters)
+        Route::get('/{externalCurriculum}/analyze-impact', [ConvalidationController::class, 'analyzeConvalidationImpact'])->name('convalidation.analyze-impact');
+        Route::post('/{externalCurriculum}/analyze-impact', [ConvalidationController::class, 'analyzeConvalidationImpact']);
         
         // Route to get total credits from external curriculum
         Route::get('/{externalCurriculum}/total-credits', [ConvalidationController::class, 'getTotalCredits'])->name('convalidation.total-credits');
