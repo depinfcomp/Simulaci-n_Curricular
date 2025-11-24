@@ -550,6 +550,19 @@ class ConvalidationController extends Controller
             $originalSubjects = Subject::with(['prerequisites', 'requiredFor'])->get()->keyBy('code');
             $totalOriginalSubjects = $originalSubjects->count();
 
+            // Get REAL credit limits from the convalidation configuration
+            // These are the actual component limits defined in the external curriculum
+            $convalidatedCredits = $externalCurriculum->getCreditsByComponent();
+            $realCreditLimits = [
+                'max_fundamental_required' => $convalidatedCredits['fundamental_required'] ?? 0,
+                'max_professional_required' => $convalidatedCredits['professional_required'] ?? 0,
+                'max_optional_fundamental' => $convalidatedCredits['optional_fundamental'] ?? 0,
+                'max_optional_professional' => $convalidatedCredits['optional_professional'] ?? 0,
+                'max_free_elective' => $convalidatedCredits['free_elective'] ?? 0,
+                'max_leveling' => $convalidatedCredits['leveling'] ?? 0,
+                'max_thesis' => $convalidatedCredits['thesis'] ?? 0,
+            ];
+
             $results = [
                 'total_students' => $students->count(),
                 'affected_students' => 0,
@@ -572,7 +585,7 @@ class ConvalidationController extends Controller
                 ],
                 'student_details' => [],
                 'subject_impact' => [],
-                'configuration' => $creditLimits,
+                'configuration' => $realCreditLimits,
                 'credits_by_component' => [
                     'fundamental_required' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
                     'fundamental_optional' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
@@ -588,7 +601,7 @@ class ConvalidationController extends Controller
                 'new_convalidated_credits' => $externalCurriculum->getStats()['new_curriculum_stats']['convalidated_credits'] ?? 0,
                 // Keep these for the component breakdown table
                 'original_curriculum_credits' => \App\Models\Subject::getCreditsByComponent(),
-                'convalidated_credits_by_component' => $externalCurriculum->getCreditsByComponent(),
+                'convalidated_credits_by_component' => $convalidatedCredits,
             ];
 
             $totalProgressChange = 0;
@@ -602,7 +615,7 @@ class ConvalidationController extends Controller
                         $freeElectiveConvalidations,
                         $notConvalidatedConvalidations,
                         $externalCurriculum,
-                        $creditLimits,
+                        $realCreditLimits,
                         $originalSubjects,
                         $totalOriginalSubjects
                     );
@@ -630,9 +643,9 @@ class ConvalidationController extends Controller
                         'original_progress' => round($impact['original_progress'] ?? 0, 1),
                         'new_progress' => round($impact['new_progress'] ?? 0, 1),
                         'progress_change' => round($impact['progress_change'] ?? 0, 1),
-                        'convalidated_subjects_count' => $impact['convalidated_subjects_count'] ?? 0,
-                        'new_subjects_count' => $impact['new_subjects_count'] ?? 0,
-                        'lost_credits_count' => $impact['lost_credits_count'] ?? 0,
+                        'convalidated_subjects' => $impact['convalidated_subjects_count'] ?? 0,
+                        'new_subjects' => $impact['new_subjects_count'] ?? 0,
+                        'total_convalidated_credits' => $impact['total_valid_credits'] ?? 0,
                         'convalidation_details' => $impact['convalidation_details'] ?? [],
                         'progress_explanation' => $impact['progress_explanation'] ?? 'Sin explicación disponible'
                     ];
@@ -986,8 +999,8 @@ class ConvalidationController extends Controller
             // Get student's passed subjects
             $passedSubjects = $student->subjects->where('pivot.status', 'passed')->keyBy('code');
             
-            // Calculate original progress
-            $originalProgress = ($passedSubjects->count() / max($totalOriginalSubjects, 1)) * 100;
+            // Use the student's actual imported progress percentage (already calculated)
+            $originalProgress = $student->progress_percentage ?? 0;
             
             // Get new curriculum size
             $externalSubjects = $externalCurriculum->externalSubjects ?? collect();
@@ -1286,13 +1299,13 @@ class ConvalidationController extends Controller
     private function getComponentLimit(string $component, array $creditLimits): ?int
     {
         $map = [
-            'fundamental_required' => 'max_required_fundamental_credits',
-            'fundamental_optional' => 'max_optional_fundamental_credits',
-            'professional_required' => 'max_required_professional_credits',
-            'professional_optional' => 'max_optional_professional_credits',
-            'leveling' => 'max_leveling_credits',
-            'thesis' => 'max_thesis_credits',
-            'free_elective' => 'max_free_elective_credits',
+            'fundamental_required' => 'max_fundamental_required',
+            'fundamental_optional' => 'max_optional_fundamental',
+            'professional_required' => 'max_professional_required',
+            'professional_optional' => 'max_optional_professional',
+            'leveling' => 'max_leveling',
+            'thesis' => 'max_thesis',
+            'free_elective' => 'max_free_elective',
         ];
         
         $key = $map[$component] ?? null;
@@ -1302,8 +1315,8 @@ class ConvalidationController extends Controller
         
         $limit = $creditLimits[$key] ?? null;
         
-        // null means no limit
-        return $limit !== null && $limit !== '' ? (int)$limit : null;
+        // null means no limit (or 0 means no limit for that component)
+        return $limit !== null && $limit !== '' && $limit > 0 ? (int)$limit : null;
     }
 
     /**
@@ -2470,12 +2483,19 @@ class ConvalidationController extends Controller
             // Get curriculum stats
             $stats = $externalCurriculum->getStats();
             
+            // Get all convalidations for this curriculum
+            $convalidations = $externalCurriculum->convalidations()
+                ->with(['externalSubject', 'internalSubject'])
+                ->where('convalidation_type', 'direct')
+                ->get();
+            
             // Prepare data for the view
             $reportData = [
                 'curriculum' => $externalCurriculum,
                 'results' => $results,
                 'credit_limits' => $creditLimits,
                 'stats' => $stats,
+                'convalidations' => $convalidations,
                 'generated_at' => now()->format('d/m/Y H:i:s'),
             ];
 
@@ -2493,7 +2513,5 @@ class ConvalidationController extends Controller
                 'message' => 'Error al generar el reporte: ' . $e->getMessage()
             ], 500);
         }
-    }
-
-}
+    }}
 
