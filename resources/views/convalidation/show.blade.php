@@ -23,9 +23,9 @@
                         <i class="fas fa-arrow-left me-2"></i>
                         Volver
                     </a>
-                    <button class="btn btn-success" onclick="exportReport()">
-                        <i class="fas fa-download me-2"></i>
-                        Exportar Reporte
+                    <button class="btn btn-danger" onclick="generateConvalidationReportPdf()">
+                        <i class="fas fa-file-pdf me-2"></i>
+                        Generar Reporte de Convalidaciones
                     </button>
                 </div>
             </div>

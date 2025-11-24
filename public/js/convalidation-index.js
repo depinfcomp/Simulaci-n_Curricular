@@ -65,11 +65,79 @@ document.getElementById('impactConfigForm').addEventListener('submit', function(
 
 function showImpactConfigModal(curriculumId) {
     currentCurriculumId = curriculumId;
-    const modal = new bootstrap.Modal(document.getElementById('impactConfigModal'));
-    modal.show();
     
-    // Cargar total de créditos de la malla
-    loadCurriculumTotalCredits(curriculumId);
+    // Open the analysis modal directly (skip configuration)
+    const analysisModal = new bootstrap.Modal(document.getElementById('impactAnalysisModal'));
+    analysisModal.show();
+    
+    // Reset content and show loading
+    document.getElementById('impactAnalysisContent').innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Analizando...</span>
+            </div>
+            <p class="mt-3">Analizando impacto en estudiantes...</p>
+            <small class="text-muted">Cargando análisis de convalidaciones...</small>
+        </div>
+    `;
+    
+    document.getElementById('exportImpactPdfBtn').style.display = 'none';
+    
+    // Load impact analysis directly (GET request, no parameters needed)
+    loadDirectImpactAnalysis(curriculumId);
+}
+
+/**
+ * Load impact analysis directly without configuration
+ * Uses the same endpoint as the show view
+ */
+function loadDirectImpactAnalysis(curriculumId) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]');
+    if (!csrfToken) {
+        showErrorMessage('Error: Token CSRF no encontrado');
+        return;
+    }
+    
+    // Use GET request to get default analysis
+    fetch(`/convalidation/${curriculumId}/analyze-impact`, {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': csrfToken.getAttribute('content')
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Error HTTP ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            currentImpactResults = data.results;
+            currentCreditLimits = {}; // No custom limits used
+            displayImpactResults(data.results);
+            document.getElementById('exportImpactPdfBtn').style.display = 'inline-block';
+        } else {
+            showErrorMessage(data.message || 'Error al analizar el impacto');
+            document.getElementById('impactAnalysisContent').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${data.message || 'Error al cargar el análisis'}
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('Error loading impact analysis:', error);
+        showErrorMessage('Error de conexión al cargar el análisis: ' + error.message);
+        document.getElementById('impactAnalysisContent').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Error al cargar el análisis: ${error.message}
+            </div>
+        `;
+    });
 }
 
 function loadCurriculumTotalCredits(curriculumId) {

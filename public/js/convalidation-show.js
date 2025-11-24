@@ -1420,6 +1420,120 @@ function generateImpactPdfReportFromShow() {
     });
 }
 
+/**
+ * Generate PDF report of impact analysis
+ * This triggers the impact analysis and then generates the PDF report
+ */
+function generateConvalidationReportPdf() {
+    if (!window.externalCurriculumId) {
+        alert('Error: No se pudo identificar la malla curricular');
+        return;
+    }
+
+    // Show loading modal
+    const loadingHtml = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Analizando...</span>
+            </div>
+            <h5>Analizando impacto en estudiantes...</h5>
+            <p class="text-muted">Esto puede tomar unos momentos</p>
+        </div>
+    `;
+    
+    // Create a temporary modal to show loading
+    const modalHtml = `
+        <div class="modal fade" id="loadingAnalysisModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-body">
+                        ${loadingHtml}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to page and show it
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingAnalysisModal'));
+    loadingModal.show();
+
+    // Perform the impact analysis first
+    fetch(`/convalidation/${window.externalCurriculumId}/analyze-impact`, {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': window.csrfToken
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error al analizar el impacto');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (!data.results || data.results.length === 0) {
+            throw new Error('No se encontraron resultados de impacto');
+        }
+
+        // Store results for PDF generation
+        currentImpactResults = data.results;
+
+        // Now generate the PDF report
+        return fetch(`/convalidation/${window.externalCurriculumId}/impact-report-pdf`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': window.csrfToken
+            },
+            body: JSON.stringify({
+                results: data.results,
+                credit_limits: data.credit_limits || {}
+            })
+        });
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error al generar el reporte PDF');
+        }
+        return response.text();
+    })
+    .then(html => {
+        // Hide loading modal
+        loadingModal.hide();
+        document.getElementById('loadingAnalysisModal').remove();
+        document.querySelector('.modal-backdrop')?.remove();
+
+        // Open the report in a new window
+        const newWindow = window.open('', '_blank');
+        if (newWindow) {
+            newWindow.document.write(html);
+            newWindow.document.close();
+            
+            // Show success message
+            alert('✓ Reporte de impacto generado. Use Ctrl+P o Cmd+P en la nueva ventana para imprimir como PDF');
+        } else {
+            throw new Error('No se pudo abrir la ventana del reporte. Verifique que no esté bloqueando ventanas emergentes');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        
+        // Hide loading modal if it exists
+        try {
+            loadingModal.hide();
+            document.getElementById('loadingAnalysisModal')?.remove();
+            document.querySelector('.modal-backdrop')?.remove();
+        } catch (e) {
+            // Ignore errors when hiding modal
+        }
+        
+        alert('✗ Error al generar el reporte: ' + error.message);
+    });
+}
+
 // Reset modalIsOpen flag when modal is closed
 document.addEventListener('DOMContentLoaded', function() {
     const modalElement = document.getElementById('convalidationModal');
