@@ -531,10 +531,25 @@ function filterAvailableSubjects(componentType, currentCode = null) {
 let isSavingConvalidation = false;
 
 function saveConvalidation() {
-    // ✅ CRITICAL: Prevent duplicate submissions
+    const timestamp = new Date().toISOString();
+    console.log(`🕒 [${timestamp}] saveConvalidation() called`);
+    
+    // ✅ CRITICAL: Prevent duplicate submissions - CHECK IMMEDIATELY
     if (isSavingConvalidation) {
-        console.warn('⚠️ Ya hay una convalidación en proceso, ignorando click duplicado');
+        console.warn(`⚠️ [${timestamp}] Ya hay una convalidación en proceso, ignorando click duplicado`);
         return;
+    }
+    
+    // ✅ Set flag IMMEDIATELY before any validation or async operation
+    isSavingConvalidation = true;
+    console.log(`🔒 [${timestamp}] Flag seteado - Bloqueando nuevas convalidaciones hasta completar esta...`);
+    
+    // ✅ Disable save button IMMEDIATELY to provide visual feedback
+    const saveButton = document.querySelector('#convalidationModal button[onclick="saveConvalidation()"]');
+    if (saveButton) {
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+        console.log(`🔒 [${timestamp}] Botón deshabilitado`);
     }
     
     const formData = new FormData(document.getElementById('convalidationForm'));
@@ -543,6 +558,12 @@ function saveConvalidation() {
     const convalidationType = formData.get('convalidation_type');
     if (!convalidationType) {
         showAlert('danger', 'Por favor seleccione el tipo de convalidación');
+        // ✅ Reset flag on validation error to allow retry
+        isSavingConvalidation = false;
+        if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.innerHTML = '<i class="fas fa-save me-2"></i>Guardar';
+        }
         return;
     }
     
@@ -550,6 +571,12 @@ function saveConvalidation() {
     const componentType = formData.get('component_type');
     if (!componentType) {
         showAlert('danger', 'Por favor seleccione un componente académico');
+        // ✅ Reset flag on validation error to allow retry
+        isSavingConvalidation = false;
+        if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.innerHTML = '<i class="fas fa-save me-2"></i>Guardar';
+        }
         return;
     }
     
@@ -559,6 +586,12 @@ function saveConvalidation() {
     
     if (convalidationType === 'direct' && !internalSubjectCode && !(createNewCodeCheckbox && createNewCodeCheckbox.checked)) {
         showAlert('danger', 'Las convalidaciones directas requieren seleccionar una materia interna o marcar "Crear nuevo código"');
+        // ✅ Reset flag on validation error to allow retry
+        isSavingConvalidation = false;
+        if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.innerHTML = '<i class="fas fa-save me-2"></i>Guardar';
+        }
         return;
     }
     
@@ -567,6 +600,12 @@ function saveConvalidation() {
         const flexibleComponents = ['optional_fundamental', 'optional_professional', 'free_elective'];
         if (!flexibleComponents.includes(componentType)) {
             showAlert('danger', 'Los componentes electivos deben ser Optativa Fundamental, Optativa Profesional o Libre Elección');
+            // ✅ Reset flag on validation error to allow retry
+            isSavingConvalidation = false;
+            if (saveButton) {
+                saveButton.disabled = false;
+                saveButton.innerHTML = '<i class="fas fa-save me-2"></i>Guardar';
+            }
             return;
         }
     }
@@ -575,17 +614,6 @@ function saveConvalidation() {
     if (createNewCodeCheckbox && createNewCodeCheckbox.checked) {
         // Add a flag to tell the backend to generate a new code
         formData.append('create_new_code', '1');
-    }
-    
-    // ✅ Set flag to prevent duplicate submissions
-    isSavingConvalidation = true;
-    console.log('🔒 Bloqueando nuevas convalidaciones hasta completar esta...');
-    
-    // Disable save button to provide visual feedback
-    const saveButton = document.querySelector('#convalidationModal button[onclick="saveConvalidation()"]');
-    if (saveButton) {
-        saveButton.disabled = true;
-        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
     }
     
     // Store current active semester before making the request
