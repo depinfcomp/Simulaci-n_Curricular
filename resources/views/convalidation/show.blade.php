@@ -907,6 +907,40 @@
     </div>
 </div>
 
+<!-- Completion Success Modal (shown when 100% completed from simulation) -->
+<div class="modal fade" id="completionSuccessModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-success">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-check-circle me-2"></i>
+                    ¡Convalidación Completada!
+                </h5>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div class="mb-3">
+                    <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
+                </div>
+                <h5 class="mb-3">Convalidación al 100%</h5>
+                <p class="text-muted mb-0">
+                    Has completado todas las convalidaciones necesarias.<br>
+                    <strong>Ya puedes guardar los cambios en la simulación.</strong>
+                </p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>
+                    Permanecer aquí
+                </button>
+                <a href="/simulation" class="btn btn-success">
+                    <i class="fas fa-arrow-right me-2"></i>
+                    Ir a Simulación
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
@@ -966,6 +1000,28 @@
                 btn.innerHTML = originalHtml;
             });
         }
+        
+        // Check if convalidation is complete and from simulation
+        document.addEventListener('DOMContentLoaded', function() {
+            const completionPercentage = {{ $stats['completion_percentage'] ?? 0 }};
+            const fromSimulation = {{ isset($metadata['source']) && $metadata['source'] === 'simulation' ? 'true' : 'false' }};
+            const hasShownModal = sessionStorage.getItem('completion_modal_shown_' + window.externalCurriculumId);
+            
+            console.log('Completion check:', {
+                percentage: completionPercentage,
+                fromSimulation: fromSimulation,
+                hasShownModal: hasShownModal
+            });
+            
+            // Show modal if 100% complete, from simulation, and not shown before
+            if (completionPercentage >= 100 && fromSimulation && !hasShownModal) {
+                const modal = new bootstrap.Modal(document.getElementById('completionSuccessModal'));
+                modal.show();
+                
+                // Mark as shown to prevent showing again
+                sessionStorage.setItem('completion_modal_shown_' + window.externalCurriculumId, 'true');
+            }
+        });
     </script>
     <script src="{{ asset('js/convalidation-show.js') }}?v={{ time() }}"></script>
     <script src="{{ asset('js/convalidation-nn-groups.js') }}?v={{ time() }}"></script>

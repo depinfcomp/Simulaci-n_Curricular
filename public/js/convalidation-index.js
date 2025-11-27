@@ -1,13 +1,72 @@
 let currentImpactResults = null;
 let currentCurriculumId = null;
 let currentCreditLimits = null;
+let currentMetadata = null;
 
-function deleteCurriculum(curriculumId) {
+function deleteCurriculum(curriculumId, metadata = null) {
+    currentCurriculumId = curriculumId;
+    currentMetadata = metadata;
+    
     const deleteForm = document.getElementById('deleteForm');
-    deleteForm.action = `/convalidation/${curriculumId}`;
+    const deleteModalBody = document.querySelector('#deleteModal .modal-body p');
+    
+    // Check if this convalidation came from simulation
+    const hasSimulationSource = metadata && metadata.source === 'simulation';
+    
+    if (hasSimulationSource) {
+        deleteForm.action = `/convalidation/${curriculumId}/reset-simulation`;
+        deleteModalBody.innerHTML = `
+            ¿Estás seguro de eliminar esta malla externa?<br>
+            <strong class="text-warning">⚠️ Esta acción también reseteará los cambios en la simulación.</strong>
+        `;
+        
+        // Override form submission to handle AJAX
+        deleteForm.onsubmit = function(e) {
+            e.preventDefault();
+            deleteConvalidationAndResetSimulation(curriculumId);
+            return false;
+        };
+    } else {
+        deleteForm.action = `/convalidation/${curriculumId}`;
+        deleteModalBody.textContent = '¿Estás seguro de eliminar esta malla externa? Esta acción no se puede deshacer.';
+        deleteForm.onsubmit = null; // Use default form submission
+    }
     
     const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
     modal.show();
+}
+
+async function deleteConvalidationAndResetSimulation(curriculumId) {
+    try {
+        const response = await fetch(`/convalidation/${curriculumId}/reset-simulation`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Clear simulation localStorage
+            localStorage.removeItem('simulation_temporary_changes');
+            console.log('✅ localStorage cleared');
+            
+            // Close modal and reload page
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
+            modal.hide();
+            
+            // Show success message and reload
+            alert(data.message || 'Convalidación eliminada y cambios de simulación reseteados');
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo eliminar la convalidación'));
+        }
+    } catch (error) {
+        console.error('Error deleting convalidation:', error);
+        alert('Error al eliminar la convalidación: ' + error.message);
+    }
 }
 
 function exportReport(curriculumId) {

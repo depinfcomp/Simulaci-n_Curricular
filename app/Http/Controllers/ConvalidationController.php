@@ -103,8 +103,16 @@ class ConvalidationController extends Controller
         $subjectsBySemester = $externalCurriculum->getConvalidationsBySemester();
         $internalSubjects = Subject::orderBy('semester')->orderBy('name')->get();
         $stats = $externalCurriculum->getStats();
+        
+        // Parse metadata to check if it comes from simulation
+        $metadata = null;
+        if ($externalCurriculum->metadata) {
+            $metadata = is_string($externalCurriculum->metadata) 
+                ? json_decode($externalCurriculum->metadata, true) 
+                : $externalCurriculum->metadata;
+        }
 
-        return view('convalidation.show', compact('externalCurriculum', 'subjectsBySemester', 'internalSubjects', 'stats'));
+        return view('convalidation.show', compact('externalCurriculum', 'subjectsBySemester', 'internalSubjects', 'stats', 'metadata'));
     }
 
     /**
@@ -364,6 +372,16 @@ class ConvalidationController extends Controller
     public function destroy(ExternalCurriculum $externalCurriculum)
     {
         try {
+            // Check if this curriculum has simulation metadata (came from /simulation)
+            $hasSimulationSource = false;
+            if ($externalCurriculum->metadata) {
+                $metadata = is_string($externalCurriculum->metadata) 
+                    ? json_decode($externalCurriculum->metadata, true) 
+                    : $externalCurriculum->metadata;
+                
+                $hasSimulationSource = isset($metadata['source']) && $metadata['source'] === 'simulation';
+            }
+            
             // Delete the uploaded file
             if ($externalCurriculum->uploaded_file) {
                 Storage::disk('public')->delete($externalCurriculum->uploaded_file);
@@ -373,11 +391,40 @@ class ConvalidationController extends Controller
             $externalCurriculum->delete();
 
             return redirect()->route('convalidation.index')
-                ->with('success', 'Malla externa eliminada exitosamente');
+                ->with('success', 'Malla externa eliminada exitosamente')
+                ->with('reset_simulation', $hasSimulationSource); // Flag to trigger localStorage clear
 
         } catch (\Exception $e) {
             return redirect()->route('convalidation.index')
                 ->withErrors(['error' => 'Error al eliminar la malla: ' . $e->getMessage()]);
+        }
+    }
+    
+    /**
+     * Delete convalidation and reset simulation changes (bidirectional reset)
+     */
+    public function destroyAndResetSimulation(ExternalCurriculum $externalCurriculum)
+    {
+        try {
+            // Delete the uploaded file
+            if ($externalCurriculum->uploaded_file) {
+                Storage::disk('public')->delete($externalCurriculum->uploaded_file);
+            }
+
+            // Delete the curriculum (cascade will handle related records)
+            $externalCurriculum->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Convalidación eliminada. Los cambios en simulación serán reseteados.',
+                'reset_simulation' => true
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Error al eliminar la convalidación: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -1687,6 +1734,15 @@ class ConvalidationController extends Controller
                         'change_details' => !empty($changeDetails) ? $changeDetails : null
                     ]);
                     
+                    // DEBUG: Log what was actually saved
+                    if ($changeType === 'removed' || $changeType === 'added') {
+                        \Log::info("✅ Saved subject with change_type:", [
+                            'code' => $subjectCode,
+                            'change_type_variable' => $changeType,
+                            'change_type_saved' => ($changeType !== 'unchanged' ? $changeType : null)
+                        ]);
+                    }
+                    
                     // Count change types
                     $changeTypeCounts[$changeType]++;
                 }
@@ -2392,6 +2448,11 @@ class ConvalidationController extends Controller
             $curriculum = ExternalCurriculum::findOrFail($request->external_curriculum_id);
             $externalSubjects = $curriculum->externalSubjects()
                 ->whereDoesntHave('convalidation')
+                ->where(function($query) {
+                    // Exclude removed subjects from bulk convalidation
+                    $query->whereNull('change_type')
+                          ->orWhere('change_type', '!=', 'removed');
+                })
                 ->get();
 
             // Get all internal subjects from all tables (subjects, leveling_subjects, elective_subjects)

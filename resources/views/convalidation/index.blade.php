@@ -164,7 +164,7 @@
                                                     </a>
                                                     <button type="button" 
                                                             class="btn btn-sm btn-outline-danger"
-                                                            onclick="deleteCurriculum({{ $curriculum->id }})"
+                                                            onclick="deleteCurriculum({{ $curriculum->id }}, {{ json_encode($curriculum->metadata) }})"
                                                             title="Eliminar malla">
                                                         <i class="fas fa-trash"></i>
                                                     </button>

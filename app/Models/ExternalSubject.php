@@ -16,11 +16,15 @@ class ExternalSubject extends Model
         'credits',
         'semester',
         'description',
-        'additional_data'
+        'additional_data',
+        'change_type',
+        'original_semester',
+        'change_details'
     ];
 
     protected $casts = [
-        'additional_data' => 'array'
+        'additional_data' => 'array',
+        'change_details' => 'array'
     ];
 
     /**

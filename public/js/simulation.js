@@ -431,21 +431,49 @@ document.addEventListener('DOMContentLoaded', function() {
     function initializeTotalCredits() {
         careerCredits = 0;
         totalCredits = 0;
+        let removedCount = 0;
+        let removedCareerCredits = 0;
+        let removedTotalCredits = 0;
+        
         document.querySelectorAll('.subject-card').forEach(card => {
             const creditsElement = card.querySelector('.info-box:first-child .info-value');
             if (creditsElement) {
                 const credits = parseInt(creditsElement.textContent) || 0;
-                totalCredits += credits;
-                
-                // Check if it's a leveling subject
                 const subjectCode = card.dataset.subjectId;
                 const subjectType = card.dataset.type;
                 const isLeveling = isLevelingSubject(subjectCode, subjectType);
-                if (!isLeveling) {
-                    careerCredits += credits;
+                
+                // Check if subject is marked as removed
+                const isRemoved = card.classList.contains('removed-subject');
+                
+                if (isRemoved) {
+                    // Track removed subjects for logging only
+                    removedCount++;
+                    removedTotalCredits += credits;
+                    if (!isLeveling) {
+                        removedCareerCredits += credits;
+                    }
+                    console.log(`🗑️ Removed subject: ${subjectCode} (-${credits} credits${isLeveling ? ' [leveling]' : ''})`);
+                } else {
+                    // ONLY count non-removed subjects
+                    totalCredits += credits;
+                    
+                    // Leveling subjects only count in total, not career
+                    if (!isLeveling) {
+                        careerCredits += credits;
+                    }
                 }
             }
         });
+        
+        if (removedCount > 0) {
+            console.log(`📊 Credit calculation:`);
+            console.log(`   Total credits (excluding removed): ${totalCredits}`);
+            console.log(`   Career credits (excluding removed): ${careerCredits}`);
+            console.log(`   Removed from total: ${removedTotalCredits} (${removedCount} subjects)`);
+            console.log(`   Removed from career: ${removedCareerCredits}`);
+        }
+        
         updateCreditsDisplay();
     }
     
@@ -2327,11 +2355,38 @@ document.addEventListener('DOMContentLoaded', function() {
                     semesterBadge.textContent = `Semestre ${change.old_value}`;
                 }
             }
+        } else if (change.type === 'removed') {
+            // Restore removed subject
+            const card = document.querySelector(`[data-subject-id="${change.subject_code}"]`);
+            if (card) {
+                card.classList.remove('removed-subject');
+                card.style.opacity = '1';
+                card.style.pointerEvents = 'auto';
+                card.style.border = '';
+                card.style.boxShadow = '';
+                card.setAttribute('data-removed', 'false');
+                
+                // Remove strikethrough from name
+                const nameElement = card.querySelector('.subject-name');
+                if (nameElement) {
+                    nameElement.style.textDecoration = '';
+                    nameElement.style.color = '';
+                }
+                
+                // Remove "Eliminada" badge
+                const removedBadge = card.querySelector('.badge.bg-danger');
+                if (removedBadge && removedBadge.textContent === 'Eliminada') {
+                    removedBadge.remove();
+                }
+            }
         }
         
         // Remove change from array
         simulationChanges.splice(index, 1);
         updateSimulationStatus();
+        
+        // Recalculate credits (in case a removed subject was un-removed)
+        initializeTotalCredits();
         
         // Close modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('changesModal'));
@@ -2481,6 +2536,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 clearStoredChanges();
                 
                 updateSimulationStatus();
+                
+                // Recalculate credits to show accurate totals
+                initializeTotalCredits();
                 
                 // Close modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('changesModal'));
@@ -3191,6 +3249,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Confirm delete subject
     window.confirmDeleteSubject = function(subjectId) {
+        console.log(`🎯 confirmDeleteSubject called with ID: ${subjectId}`);
+        
         // Close modal
         const modalElement = document.getElementById('deleteSubjectModal');
         if (modalElement) {
@@ -3202,9 +3262,19 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Find subject card
         const card = document.querySelector(`[data-subject-id="${subjectId}"]`);
+        console.log(`🔍 Card found:`, card);
+        
         if (card) {
+            // Check if already marked as removed
+            if (card.classList.contains('removed-subject')) {
+                console.warn(`⚠️ Subject ${subjectId} is already marked as removed, skipping...`);
+                return;
+            }
+            
             const subjectName = card.querySelector('.subject-name')?.textContent || subjectId;
             const subjectType = card.dataset.type;
+            
+            console.log(`📝 Subject details: ${subjectName}, type: ${subjectType}`);
             
             // Apply removal preview style
             applyRemovedStyle(card);
@@ -3226,6 +3296,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update simulation status
             updateSimulationStatus();
             
+            // Recalculate credits (removed subjects will subtract credits)
+            console.log(`💳 Recalculating credits after removal...`);
+            initializeTotalCredits();
+            
             // Run automatic impact analysis
             setTimeout(() => {
                 analyzeImpact();
@@ -3233,6 +3307,8 @@ document.addEventListener('DOMContentLoaded', function() {
             updateSimulationStatus();
             
             showSuccessMessage(`Materia marcada para eliminación. Recuerda guardar los cambios.`);
+        } else {
+            console.error(`❌ Card not found for subject: ${subjectId}`);
         }
     };
     
@@ -5189,6 +5265,12 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
      * This shows the user that the subject is marked for deletion
      */
     function applyRemovedStyle(card) {
+        const subjectCode = card.dataset.subjectId || 'unknown';
+        console.log(`🔴 Applying removed style to: ${subjectCode}`);
+        
+        // Add removed-subject class for credit calculation
+        card.classList.add('removed-subject');
+        
         // Set opacity and disable interactions
         card.style.opacity = '0.5';
         card.style.pointerEvents = 'none';

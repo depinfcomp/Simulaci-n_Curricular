@@ -38,6 +38,7 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         Route::post('/', [ConvalidationController::class, 'store'])->name('convalidation.store');
         Route::get('/{externalCurriculum}', [ConvalidationController::class, 'show'])->name('convalidation.show');
         Route::delete('/{externalCurriculum}', [ConvalidationController::class, 'destroy'])->name('convalidation.destroy');
+        Route::delete('/{externalCurriculum}/reset-simulation', [ConvalidationController::class, 'destroyAndResetSimulation'])->name('convalidation.destroy-reset');
         Route::get('/{externalCurriculum}/export', [ConvalidationController::class, 'exportReport'])->name('convalidation.export');
         
         // Reset all convalidations for a curriculum

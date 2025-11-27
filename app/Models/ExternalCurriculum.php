@@ -87,12 +87,44 @@ class ExternalCurriculum extends Model
      */
     public function getStats()
     {
-        $totalSubjects = $this->externalSubjects()->count();
+        // Exclude removed subjects from all calculations
+        $totalSubjects = $this->externalSubjects()
+            ->where(function($query) {
+                $query->whereNull('change_type')
+                      ->orWhere('change_type', '!=', 'removed');
+            })
+            ->count();
         
-        // Count subjects by convalidation type
-        $directConvalidations = $this->convalidations()->where('convalidation_type', 'direct')->count();
-        $flexibleComponents = $this->convalidations()->where('convalidation_type', 'flexible_component')->count();
-        $notConvalidated = $this->convalidations()->where('convalidation_type', 'not_convalidated')->count();
+        // Count subjects by convalidation type (excluding removed)
+        $directConvalidations = $this->convalidations()
+            ->where('convalidation_type', 'direct')
+            ->whereHas('externalSubject', function($query) {
+                $query->where(function($q) {
+                    $q->whereNull('change_type')
+                      ->orWhere('change_type', '!=', 'removed');
+                });
+            })
+            ->count();
+            
+        $flexibleComponents = $this->convalidations()
+            ->where('convalidation_type', 'flexible_component')
+            ->whereHas('externalSubject', function($query) {
+                $query->where(function($q) {
+                    $q->whereNull('change_type')
+                      ->orWhere('change_type', '!=', 'removed');
+                });
+            })
+            ->count();
+            
+        $notConvalidated = $this->convalidations()
+            ->where('convalidation_type', 'not_convalidated')
+            ->whereHas('externalSubject', function($query) {
+                $query->where(function($q) {
+                    $q->whereNull('change_type')
+                      ->orWhere('change_type', '!=', 'removed');
+                });
+            })
+            ->count();
         
         // Count subjects with assigned component (for not_convalidated with components)
         // These are subjects marked as not_convalidated BUT have a component assigned
@@ -101,10 +133,23 @@ class ExternalCurriculum extends Model
             ->whereHas('convalidation', function($query) {
                 $query->where('convalidation_type', 'not_convalidated');
             })
+            ->where(function($query) {
+                $query->whereNull('change_type')
+                      ->orWhere('change_type', '!=', 'removed');
+            })
             ->count();
         
         // Total convalidated subjects includes direct + flexible_component + subjects with component
         $convalidatedSubjects = $directConvalidations + $flexibleComponents + $subjectsWithComponent;
+        
+        // Track removed subjects separately (they deduct credits but don't count in totals)
+        $removedSubjects = $this->externalSubjects()
+            ->where('change_type', 'removed')
+            ->count();
+            
+        $removedCredits = $this->externalSubjects()
+            ->where('change_type', 'removed')
+            ->sum('credits');
         
         // Calculate career completion percentage based on internal curriculum credits
         $careerStats = $this->getCareerCompletionStats();
@@ -119,6 +164,8 @@ class ExternalCurriculum extends Model
             'flexible_components' => $flexibleComponents,
             'not_convalidated' => $notConvalidated,
             'pending_subjects' => $totalSubjects - $convalidatedSubjects - $notConvalidated,
+            'removed_subjects' => $removedSubjects,
+            'removed_credits' => $removedCredits,
             'completion_percentage' => $totalSubjects > 0 ? round(($convalidatedSubjects / $totalSubjects) * 100, 2) : 0,
             'career_completion_percentage' => $careerStats['completion_percentage'],
             'convalidated_credits' => $careerStats['convalidated_credits'],
@@ -137,28 +184,45 @@ class ExternalCurriculum extends Model
         // Get total credits from internal curriculum
         $totalCareerCredits = \App\Models\Subject::sum('credits');
         
-        // Get convalidated credits from direct equivalences
+        // Get convalidated credits from direct equivalences (excluding removed subjects)
         $convalidatedCredits = $this->convalidations()
             ->where('convalidation_type', 'direct')
             ->join('subjects', 'subject_convalidations.internal_subject_code', '=', 'subjects.code')
+            ->join('external_subjects', 'subject_convalidations.external_subject_id', '=', 'external_subjects.id')
+            ->where(function($query) {
+                $query->whereNull('external_subjects.change_type')
+                      ->orWhere('external_subjects.change_type', '!=', 'removed');
+            })
             ->selectRaw('SUM(subjects.credits) as total_credits')
             ->value('total_credits') ?? 0;
         
-        // Add flexible component credits (using external subject credits)
+        // Add flexible component credits (using external subject credits, excluding removed)
         $flexibleComponentCredits = $this->convalidations()
             ->where('convalidation_type', 'flexible_component')
             ->join('external_subjects', 'subject_convalidations.external_subject_id', '=', 'external_subjects.id')
+            ->where(function($query) {
+                $query->whereNull('external_subjects.change_type')
+                      ->orWhere('external_subjects.change_type', '!=', 'removed');
+            })
             ->selectRaw('SUM(external_subjects.credits) as total_credits')
             ->value('total_credits') ?? 0;
         
+        // Calculate credits lost from removed subjects
+        $removedCredits = $this->externalSubjects()
+            ->where('change_type', 'removed')
+            ->sum('credits');
+        
         $totalConvalidatedCredits = $convalidatedCredits + $flexibleComponentCredits;
+        $netConvalidatedCredits = $totalConvalidatedCredits - $removedCredits;
         
         $completionPercentage = $totalCareerCredits > 0 
-            ? round(($totalConvalidatedCredits / $totalCareerCredits) * 100, 2) 
+            ? round(($netConvalidatedCredits / $totalCareerCredits) * 100, 2) 
             : 0;
         
         return [
             'convalidated_credits' => round($totalConvalidatedCredits, 2),
+            'removed_credits' => round($removedCredits, 2),
+            'net_convalidated_credits' => round($netConvalidatedCredits, 2),
             'total_career_credits' => $totalCareerCredits,
             'completion_percentage' => $completionPercentage
         ];
@@ -246,8 +310,34 @@ class ExternalCurriculum extends Model
      */
     public function getNewCurriculumStats()
     {
+        // Count all subjects for debugging
+        $allSubjectsCount = $this->externalSubjects()->count();
+        $removedSubjectsCount = $this->externalSubjects()->where('change_type', 'removed')->count();
+        
+        \Log::info('getNewCurriculumStats called:', [
+            'curriculum_id' => $this->id,
+            'total_subjects' => $allSubjectsCount,
+            'removed_subjects' => $removedSubjectsCount
+        ]);
+        
         // Total credits in the NEW (external/imported) curriculum
-        $totalNewCredits = $this->externalSubjects()->sum('credits') ?? 0;
+        // EXCLUDING removed subjects (they reduce credits)
+        $totalNewCredits = $this->externalSubjects()
+            ->where(function($query) {
+                $query->whereNull('change_type')
+                      ->orWhere('change_type', '!=', 'removed');
+            })
+            ->sum('credits') ?? 0;
+        
+        // Credits from removed subjects (to track reduction)
+        $removedCredits = $this->externalSubjects()
+            ->where('change_type', 'removed')
+            ->sum('credits') ?? 0;
+        
+        \Log::info('Credit calculation:', [
+            'total_credits_excluding_removed' => $totalNewCredits,
+            'removed_credits' => $removedCredits
+        ]);
         
         // Convalidated credits from NEW curriculum includes:
         // 1. Direct convalidations
@@ -257,6 +347,11 @@ class ExternalCurriculum extends Model
             ->whereHas('convalidation', function($query) {
                 $query->whereIn('convalidation_type', ['direct', 'flexible_component']);
             })
+            ->where(function($query) {
+                // Exclude removed subjects from convalidated count
+                $query->whereNull('change_type')
+                      ->orWhere('change_type', '!=', 'removed');
+            })
             ->sum('credits') ?? 0;
         
         // Credits from subjects with assigned component (optativas, nivelación, etc.)
@@ -264,6 +359,11 @@ class ExternalCurriculum extends Model
             ->whereHas('assignedComponent')
             ->whereHas('convalidation', function($query) {
                 $query->where('convalidation_type', 'not_convalidated');
+            })
+            ->where(function($query) {
+                // Exclude removed subjects
+                $query->whereNull('change_type')
+                      ->orWhere('change_type', '!=', 'removed');
             })
             ->sum('credits') ?? 0;
         
@@ -276,6 +376,7 @@ class ExternalCurriculum extends Model
         return [
             'total_credits' => $totalNewCredits,
             'convalidated_credits' => $convalidatedNewCredits,
+            'removed_credits' => $removedCredits,
             'percentage' => $percentage
         ];
     }
