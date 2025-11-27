@@ -650,6 +650,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
+        // ✅ CRITICAL: Recalculate credits after restoring changes
+        // This ensures removed subjects are excluded from totals
+        initializeTotalCredits();
+        
         // Update credits display
         updateCreditsDisplay();
         
@@ -4799,6 +4803,10 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                         card.dataset.prerequisites.split(',').map(p => p.trim()).filter(p => p) : 
                         [];
 
+                    // ✅ CRITICAL: Include isAdded and isRemoved flags
+                    const isAdded = card.classList.contains('added-subject');
+                    const isRemoved = card.classList.contains('removed-subject');
+
                     curriculumData.subjects.push({
                         code: card.dataset.subjectId,
                         name: card.querySelector('.subject-name')?.textContent.trim(),
@@ -4807,7 +4815,9 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                         type: card.dataset.type,
                         prerequisites: prerequisites,
                         description: card.title || '',
-                        display_order: Array.from(card.parentElement.children).indexOf(card) + 1
+                        display_order: Array.from(card.parentElement.children).indexOf(card) + 1,
+                        isAdded: isAdded,      // ✅ Flag para materias nuevas
+                        isRemoved: isRemoved   // ✅ Flag para materias eliminadas
                     });
                 });
 

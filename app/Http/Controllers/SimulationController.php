@@ -798,13 +798,15 @@ class SimulationController extends Controller
     private function applyChangesToMainCurriculum($curriculumData)
     {
         $changes = $curriculumData['changes'] ?? [];
+        $subjects = $curriculumData['subjects'] ?? [];
         
         \Log::info("📦 Aplicando cambios al currículum principal", [
             'total_changes' => count($changes),
+            'total_subjects' => count($subjects),
             'changes' => $changes
         ]);
         
-        // Process changes - the frontend sends an array with 'type' field
+        // ✅ PASO 1: Procesar cambios explícitos del array 'changes'
         foreach ($changes as $change) {
             $subjectCode = $change['subject_code'] ?? null;
             $changeType = $change['type'] ?? null;
@@ -816,7 +818,7 @@ class SimulationController extends Controller
             
             if ($changeType === 'added') {
                 // Find the subject data in the subjects array
-                $subjectInfo = collect($curriculumData['subjects'] ?? [])->firstWhere('code', $subjectCode);
+                $subjectInfo = collect($subjects)->firstWhere('code', $subjectCode);
                 
                 if ($subjectInfo) {
                     $subjectData = [
@@ -851,7 +853,7 @@ class SimulationController extends Controller
                         );
                     }
                     
-                    \Log::info("✅ Materia agregada: {$subjectCode} - {$subjectData['name']}");
+                    \Log::info("✅ Materia agregada (desde changes): {$subjectCode} - {$subjectData['name']}");
                 } else {
                     \Log::warning("⚠️ Materia agregada no encontrada en subjects array: {$subjectCode}");
                 }
@@ -860,7 +862,7 @@ class SimulationController extends Controller
                 $subject = Subject::where('code', $subjectCode)->first();
                 
                 if ($subject) {
-                    \Log::info("🗑️ Eliminando materia: {$subjectCode} - {$subject->name}");
+                    \Log::info("🗑️ Eliminando materia (desde changes): {$subjectCode} - {$subject->name}");
                     
                     // Delete prerequisites relationships
                     $subject->prerequisites()->detach();
@@ -880,7 +882,7 @@ class SimulationController extends Controller
             } elseif ($changeType === 'semester') {
                 // Update subject semester
                 $subject = Subject::where('code', $subjectCode)->first();
-                $subjectInfo = collect($curriculumData['subjects'] ?? [])->firstWhere('code', $subjectCode);
+                $subjectInfo = collect($subjects)->firstWhere('code', $subjectCode);
                 
                 if ($subject && $subjectInfo) {
                     $oldSemester = $subject->semester;
@@ -898,7 +900,7 @@ class SimulationController extends Controller
             } elseif ($changeType === 'prerequisites') {
                 // Update prerequisites
                 $subject = Subject::where('code', $subjectCode)->first();
-                $subjectInfo = collect($curriculumData['subjects'] ?? [])->firstWhere('code', $subjectCode);
+                $subjectInfo = collect($subjects)->firstWhere('code', $subjectCode);
                 
                 if ($subject && $subjectInfo) {
                     $newPrereqs = $subjectInfo['prerequisites'] ?? [];
@@ -913,7 +915,7 @@ class SimulationController extends Controller
             } elseif ($changeType === 'modified') {
                 // Update subject data
                 $subject = Subject::where('code', $subjectCode)->first();
-                $subjectInfo = collect($curriculumData['subjects'] ?? [])->firstWhere('code', $subjectCode);
+                $subjectInfo = collect($subjects)->firstWhere('code', $subjectCode);
                 
                 if ($subject && $subjectInfo) {
                     $updateData = [];
@@ -935,11 +937,95 @@ class SimulationController extends Controller
             }
         }
 
-        // Update display_order and semester for all subjects based on curriculum data
-        $subjects = $curriculumData['subjects'] ?? [];
+        // ✅ PASO 2: Procesar flags isAdded/isRemoved del array 'subjects'
+        // Esto es crucial cuando vienes desde convalidación donde los cambios
+        // están marcados con clases CSS (added-subject, removed-subject)
+        \Log::info("🔍 Procesando flags isAdded/isRemoved en subjects array");
+        
+        $addedCount = 0;
+        $removedCount = 0;
+        
+        foreach ($subjects as $subjectData) {
+            $subjectCode = $subjectData['code'] ?? null;
+            if (!$subjectCode) continue;
+            
+            $isAdded = $subjectData['isAdded'] ?? false;
+            $isRemoved = $subjectData['isRemoved'] ?? false;
+            
+            // Handle isAdded flag (materias nuevas desde convalidación)
+            if ($isAdded) {
+                // Check if this subject was already processed in changes array
+                $alreadyProcessed = collect($changes)->contains(function($change) use ($subjectCode) {
+                    return ($change['subject_code'] ?? null) === $subjectCode && 
+                           ($change['type'] ?? null) === 'added';
+                });
+                
+                if (!$alreadyProcessed) {
+                    $newSubjectData = [
+                        'name' => $subjectData['name'] ?? 'Nueva Materia',
+                        'semester' => $subjectData['semester'] ?? 1,
+                        'credits' => $subjectData['credits'] ?? 3,
+                        'classroom_hours' => $subjectData['classroom_hours'] ?? 3,
+                        'student_hours' => $subjectData['student_hours'] ?? 6,
+                        'type' => $subjectData['type'] ?? 'profesional',
+                        'is_required' => $subjectData['is_required'] ?? true,
+                        'description' => $subjectData['description'] ?? null,
+                        'display_order' => $subjectData['display_order'] ?? 0,
+                    ];
+                    
+                    Subject::updateOrCreate(
+                        ['code' => $subjectCode],
+                        $newSubjectData
+                    );
+                    
+                    \Log::info("✅ Materia agregada (desde isAdded flag): {$subjectCode} - {$newSubjectData['name']}");
+                    $addedCount++;
+                }
+            }
+            
+            // Handle isRemoved flag (materias eliminadas desde convalidación)
+            if ($isRemoved) {
+                // Check if this subject was already processed in changes array
+                $alreadyProcessed = collect($changes)->contains(function($change) use ($subjectCode) {
+                    return ($change['subject_code'] ?? null) === $subjectCode && 
+                           ($change['type'] ?? null) === 'removed';
+                });
+                
+                if (!$alreadyProcessed) {
+                    $subject = Subject::where('code', $subjectCode)->first();
+                    
+                    if ($subject) {
+                        \Log::info("🗑️ Eliminando materia (desde isRemoved flag): {$subjectCode} - {$subject->name}");
+                        
+                        // Delete prerequisites relationships
+                        $subject->prerequisites()->detach();
+                        $subject->requiredFor()->detach();
+                        
+                        // Delete the subject
+                        $deletedCount = $subject->delete();
+                        
+                        if ($deletedCount > 0) {
+                            \Log::info("✅ Materia eliminada exitosamente: {$subjectCode}");
+                            $removedCount++;
+                        }
+                    }
+                }
+            }
+        }
+        
+        \Log::info("📊 Resumen de procesamiento de flags:", [
+            'added_from_flags' => $addedCount,
+            'removed_from_flags' => $removedCount
+        ]);
+
+        // ✅ PASO 3: Update display_order and semester for all subjects based on curriculum data
         foreach ($subjects as $subjectData) {
             $code = $subjectData['code'] ?? null;
             if (!$code) continue;
+            
+            // Skip if this subject was removed
+            $isRemoved = $subjectData['isRemoved'] ?? false;
+            if ($isRemoved) continue;
             
             Subject::where('code', $code)
                 ->update([
@@ -948,7 +1034,7 @@ class SimulationController extends Controller
                 ]);
         }
         
-        \Log::info("✅ Cambios aplicados exitosamente");
+        \Log::info("✅ Cambios aplicados exitosamente al currículum principal");
     }
 
     /**
