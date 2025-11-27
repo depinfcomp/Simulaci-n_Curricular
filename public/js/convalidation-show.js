@@ -1402,6 +1402,54 @@ function renderSubjectMapping(results) {
             if (componentType) {
                 componentInfo = `<span class="badge bg-${getComponentColor(componentType)}">${getComponentLabel(componentType)}</span>`;
             }
+            
+        } else if (convalidationType === 'nn_group') {
+            // N:N Group convalidation - show group info
+            const groupName = row.dataset.groupName || 'Grupo N:N';
+            const equivalenceType = row.dataset.equivalenceType || 'all';
+            const componentType = row.dataset.componentType;
+            
+            // Get internal subjects from the group (stored in a data attribute)
+            const internalSubjectsData = row.dataset.internalSubjects || '[]';
+            let internalSubjectsList = '';
+            
+            try {
+                const internalSubjects = JSON.parse(internalSubjectsData);
+                if (internalSubjects.length > 0) {
+                    internalSubjectsList = '<ul class="mb-0 ps-3" style="font-size: 0.85rem;">';
+                    internalSubjects.forEach(subject => {
+                        internalSubjectsList += `<li>${subject.name} <small class="text-muted">(${subject.credits} cr.)</small></li>`;
+                    });
+                    internalSubjectsList += '</ul>';
+                }
+            } catch (e) {
+                console.error('Error parsing internal subjects:', e);
+            }
+            
+            console.log('  Tipo: GRUPO N:N');
+            console.log('    → Nombre grupo:', groupName);
+            console.log('    → Tipo equivalencia:', equivalenceType);
+            console.log('    → Componente:', componentType);
+            
+            const equivalenceLabels = {
+                'all': 'TODAS',
+                'any': 'CUALQUIERA',
+                'credits': 'POR CRÉDITOS'
+            };
+            
+            convalidationInfo = `
+                <div class="text-info">
+                    <i class="fas fa-layer-group me-1"></i>
+                    <strong>Grupo N:N</strong> 
+                    <span class="badge bg-info">${equivalenceLabels[equivalenceType] || equivalenceType}</span><br>
+                    <small class="text-muted fst-italic">${groupName}</small>
+                    ${internalSubjectsList}
+                </div>
+            `;
+            
+            if (componentType) {
+                componentInfo = `<span class="badge bg-${getComponentColor(componentType)}">${getComponentLabel(componentType)}</span>`;
+            }
         }
         
         console.log('  → AÑADIDA a la tabla');

@@ -571,6 +571,93 @@
         </table>
     </div>
     
+    <!-- N:N Groups Table -->
+    @if(isset($nnGroups) && count($nnGroups) > 0)
+    <div class="section">
+        <div class="section-title">Grupos N:N de Convalidación</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 25%;">Materia Externa (Nueva)</th>
+                    <th style="width: 8%; text-align: center;">Créditos Nueva</th>
+                    <th style="width: 32%;">Materias Internas (Viejas)</th>
+                    <th style="width: 8%; text-align: center;">Créditos Viejas</th>
+                    <th style="width: 8%; text-align: center;">Balance</th>
+                    <th style="width: 12%; text-align: center;">Tipo Equiv.</th>
+                    <th style="width: 7%; text-align: center;">Componente</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($nnGroups as $group)
+                    @php
+                        $newCredits = $group->externalSubject->credits ?? 0;
+                        $oldCredits = $group->internalSubjects->sum('credits');
+                        $balance = $newCredits - $oldCredits;
+                        $balanceClass = $balance > 0 ? 'color: green;' : ($balance < 0 ? 'color: red;' : 'color: #666;');
+                        $balanceText = $balance > 0 ? '+' . $balance : $balance;
+                    @endphp
+                    <tr>
+                        <td>{{ $group->externalSubject->name ?? 'N/A' }}</td>
+                        <td style="text-align: center;">
+                            <strong>{{ $newCredits }}</strong>
+                        </td>
+                        <td>
+                            <ul style="margin: 0; padding-left: 15px; font-size: 8pt; line-height: 1.3;">
+                                @foreach($group->internalSubjects as $subject)
+                                    <li>{{ $subject->name }} <small>({{ $subject->credits }} cr.)</small></li>
+                                @endforeach
+                            </ul>
+                        </td>
+                        <td style="text-align: center;">
+                            <strong>{{ $oldCredits }}</strong>
+                        </td>
+                        <td style="text-align: center; {{ $balanceClass }} font-weight: bold;">
+                            {{ $balanceText }}
+                        </td>
+                        <td style="text-align: center; font-size: 8pt;">
+                            @php
+                                $equivalenceLabels = [
+                                    'all' => 'TODAS',
+                                    'any' => 'CUALQUIERA',
+                                    'credits' => 'CRÉDITOS'
+                                ];
+                                $equivalenceLabel = $equivalenceLabels[$group->equivalence_type] ?? $group->equivalence_type;
+                            @endphp
+                            <span class="badge badge-info">{{ $equivalenceLabel }}</span>
+                            @if($group->equivalence_type === 'credits')
+                                <br><small>{{ $group->equivalence_percentage }}%</small>
+                            @endif
+                        </td>
+                        <td style="text-align: center; font-size: 8pt;">
+                            @php
+                                $componentLabels = [
+                                    'fundamental_required' => ['label' => 'Fund. Oblig.', 'class' => 'badge-warning'],
+                                    'professional_required' => ['label' => 'Prof. Oblig.', 'class' => 'badge-success'],
+                                    'optional_fundamental' => ['label' => 'Opt. Fund.', 'class' => 'badge-info'],
+                                    'optional_professional' => ['label' => 'Opt. Prof.', 'class' => 'badge-primary'],
+                                    'free_elective' => ['label' => 'Libre Elecc.', 'class' => 'badge-secondary'],
+                                    'thesis' => ['label' => 'Trab. Grado', 'class' => 'badge-dark'],
+                                    'leveling' => ['label' => 'Nivelación', 'class' => 'badge-danger']
+                                ];
+                                $componentInfo = $componentLabels[$group->component_type] ?? ['label' => 'N/A', 'class' => 'badge-secondary'];
+                            @endphp
+                            <span class="badge {{ $componentInfo['class'] }}">{{ $componentInfo['label'] }}</span>
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+        
+        <div style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107; font-size: 9pt;">
+            <strong>⚠️ Balance de Créditos:</strong><br>
+            • <span style="color: green; font-weight: bold;">Balance positivo (+)</span>: El estudiante gana créditos al migrar (la materia nueva vale más que las viejas)<br>
+            • <span style="color: red; font-weight: bold;">Balance negativo (-)</span>: El estudiante pierde créditos al migrar (las materias viejas valían más que la nueva)<br>
+            • El análisis de impacto calcula el <strong>balance neto</strong> para determinar el avance real del estudiante
+        </div>
+    </div>
+    @endif
+    
     <!-- Footer -->
     <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #ecf0f1; text-align: center; color: #7f8c8d; font-size: 9pt;">
         <p><strong>Universidad Nacional de Colombia</strong></p>
