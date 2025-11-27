@@ -2766,6 +2766,9 @@ class ConvalidationController extends Controller
      */
     public function storeConvalidationGroup(Request $request)
     {
+        // Log incoming request data for debugging
+        \Log::info('Creating N:N group - Request data:', $request->all());
+        
         $validator = Validator::make($request->all(), [
             'external_curriculum_id' => 'required|exists:external_curriculums,id',
             'external_subject_id' => 'required|exists:external_subjects,id',
@@ -2778,6 +2781,11 @@ class ConvalidationController extends Controller
         ]);
 
         if ($validator->fails()) {
+            \Log::error('Validation failed for N:N group:', [
+                'errors' => $validator->errors()->toArray(),
+                'request_data' => $request->all()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'errors' => $validator->errors()

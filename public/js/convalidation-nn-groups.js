@@ -616,6 +616,7 @@ function removeInternalSubject(code) {
  */
 async function saveNNGroup(groupId) {
     const externalSubjectId = window.nnGroupsState.currentExternalSubject.id;
+    const externalSubjectName = window.nnGroupsState.currentExternalSubject.name;
     const equivalenceType = document.querySelector('input[name="equivalenceType"]:checked').value;
     const creditsThreshold = equivalenceType === 'credits' 
         ? parseInt(document.getElementById('creditsThreshold').value) 
@@ -634,16 +635,17 @@ async function saveNNGroup(groupId) {
         return;
     }
     
+    // Generate group name
+    const groupName = `${externalSubjectName} → ${internalSubjects.length} materias`;
+    
     const payload = {
+        external_curriculum_id: window.externalCurriculumId,
         external_subject_id: externalSubjectId,
+        group_name: groupName,
+        description: notes || `Grupo N:N para ${externalSubjectName}`,
         equivalence_type: equivalenceType,
-        credits_threshold_percentage: creditsThreshold,
-        notes: notes,
-        internal_subjects: internalSubjects.map((s, index) => ({
-            code: s.code,
-            weight: 1.0,
-            sort_order: index
-        }))
+        equivalence_percentage: creditsThreshold,
+        internal_subject_codes: internalSubjects.map(s => s.code)
     };
     
     console.log('Saving N:N group:', payload);
@@ -682,11 +684,19 @@ async function saveNNGroup(groupId) {
             // Close modal
             bootstrap.Modal.getInstance(document.getElementById('nnGroupModal')).hide();
         } else {
-            throw new Error(data.error || 'Error al guardar el grupo');
+            // Show specific validation errors
+            let errorMessage = 'Error al guardar el grupo';
+            if (data.errors) {
+                const errorDetails = Object.values(data.errors).flat().join('\n');
+                errorMessage += ':\n\n' + errorDetails;
+            } else if (data.message) {
+                errorMessage = data.message;
+            }
+            throw new Error(errorMessage);
         }
     } catch (error) {
         console.error('Error saving N:N group:', error);
-        alert('❌ Error al guardar el grupo: ' + error.message);
+        alert('❌ ' + error.message);
         
         // Restore button
         btn.disabled = false;
