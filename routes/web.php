@@ -80,6 +80,13 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         Route::get('/{externalCurriculum}/assign-components', [ConvalidationController::class, 'assignComponents'])->name('convalidation.assign-components');
         Route::post('/component-assignment', [ConvalidationController::class, 'storeComponentAssignment'])->name('convalidation.store-component');
         
+        // N:N Convalidation Groups (one external subject = multiple internal subjects)
+        Route::get('/{externalCurriculum}/groups', [ConvalidationController::class, 'getConvalidationGroups'])->name('convalidation.groups.index');
+        Route::post('/groups', [ConvalidationController::class, 'storeConvalidationGroup'])->name('convalidation.groups.store');
+        Route::put('/groups/{group}', [ConvalidationController::class, 'updateConvalidationGroup'])->name('convalidation.groups.update');
+        Route::delete('/groups/{group}', [ConvalidationController::class, 'destroyConvalidationGroup'])->name('convalidation.groups.destroy');
+        Route::get('/{externalCurriculum}/original-state', [ConvalidationController::class, 'getOriginalCurriculumState'])->name('convalidation.original-state');
+        
         // Simulation routes
         Route::get('/{externalCurriculum}/simulation-analysis', [ConvalidationController::class, 'showSimulationAnalysis'])->name('convalidation.simulation-analysis');
         Route::post('/simulation/create', [ConvalidationController::class, 'createSimulation'])->name('convalidation.simulation.create');
@@ -88,6 +95,9 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         // Save modified curriculum from simulation
         Route::post('/save-modified-curriculum', [ConvalidationController::class, 'saveModifiedCurriculum'])->name('convalidation.save-modified-curriculum');
     });
+    
+    // API routes for internal subjects (used by N:N groups)
+    Route::get('/api/subjects/all', [ConvalidationController::class, 'getInternalSubjectsForApi'])->name('api.subjects.all');
 
     // Import curriculum wizard routes
     Route::prefix('import-curriculum')->name('import.')->group(function () {

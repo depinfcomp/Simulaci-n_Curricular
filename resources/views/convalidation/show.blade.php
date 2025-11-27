@@ -1,5 +1,9 @@
 @extends('layouts.app')
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('css/convalidation-nn-groups.css') }}?v={{ time() }}">
+@endpush
+
 @section('content')
 <div class="container-fluid" data-external-curriculum-id="{{ $externalCurriculum->id }}">
     <div class="row">
@@ -268,13 +272,47 @@
                                                     
                                                     $componentColor = $componentColors[$componentType] ?? 'secondary';
                                                     $componentLabel = $componentLabels[$componentType] ?? $componentType;
+                                                    
+                                                    // Get change type and styling
+                                                    $changeType = $subject->change_type ?? 'unchanged';
+                                                    $rowClass = '';
+                                                    $rowStyle = '';
+                                                    $changeBadge = '';
+                                                    $isRemoved = false;
+                                                    
+                                                    switch($changeType) {
+                                                        case 'added':
+                                                            $rowClass = 'border-start border-success border-3';
+                                                            $rowStyle = 'background-color: rgba(40, 167, 69, 0.05);';
+                                                            $changeBadge = '<span class="badge bg-success ms-2"><i class="fas fa-plus me-1"></i>AÑADIDA</span>';
+                                                            break;
+                                                        case 'removed':
+                                                            $rowClass = 'border-start border-danger border-3 text-decoration-line-through';
+                                                            $rowStyle = 'background-color: rgba(220, 53, 69, 0.05); opacity: 0.6;';
+                                                            $changeBadge = '<span class="badge bg-danger ms-2"><i class="fas fa-trash me-1"></i>ELIMINADA</span>';
+                                                            $isRemoved = true;
+                                                            break;
+                                                        case 'modified':
+                                                            $rowClass = 'border-start border-warning border-3';
+                                                            $rowStyle = 'background-color: rgba(255, 193, 7, 0.05);';
+                                                            $changeBadge = '<span class="badge bg-warning text-dark ms-2"><i class="fas fa-edit me-1"></i>MODIFICADA</span>';
+                                                            break;
+                                                        case 'moved':
+                                                            $rowClass = 'border-start border-info border-3';
+                                                            $rowStyle = 'background-color: rgba(13, 202, 240, 0.05);';
+                                                            $changeBadge = '<span class="badge bg-info ms-2"><i class="fas fa-arrows-alt me-1"></i>MOVIDA</span>';
+                                                            break;
+                                                    }
                                                 @endphp
                                                 <tr id="subject-row-{{ $subject->id }}"
+                                                    class="{{ $rowClass }}"
+                                                    style="{{ $rowStyle }}"
                                                     data-external-subject-id="{{ $subject->id }}"
                                                     data-convalidation-type="{{ $isConvalidated ? $convalidationStatus['type'] : '' }}"
                                                     data-subject-name="{{ $subject->name }}"
                                                     data-subject-code="{{ $subject->code }}"
                                                     data-subject-credits="{{ $subject->credits }}"
+                                                    data-change-type="{{ $changeType }}"
                                                     @if($isConvalidated && $convalidationStatus['type'] === 'direct' && isset($convalidationStatus['internal_subject']))
                                                         data-internal-subject-name="{{ $convalidationStatus['internal_subject']->name }}"
                                                         data-internal-subject-code="{{ $convalidationStatus['internal_subject']->code }}"
@@ -289,9 +327,24 @@
                                                     </td>
                                                     <td>
                                                         <div>
-                                                            <h6 class="mb-1">{{ $subject->name }}</h6>
+                                                            <h6 class="mb-1 {{ $isRemoved ? 'text-decoration-line-through text-muted' : '' }}">
+                                                                {{ $subject->name }}
+                                                                {!! $changeBadge !!}
+                                                            </h6>
                                                             @if($subject->description)
                                                                 <small class="text-muted">{{ Str::limit($subject->description, 60) }}</small>
+                                                            @endif
+                                                            @if($changeType === 'modified' && $subject->original_semester)
+                                                                <small class="text-muted d-block">
+                                                                    <i class="fas fa-info-circle me-1"></i>
+                                                                    Antes: Semestre {{ $subject->original_semester }}
+                                                                </small>
+                                                            @endif
+                                                            @if($changeType === 'moved' && $subject->original_semester)
+                                                                <small class="text-info d-block">
+                                                                    <i class="fas fa-arrow-right me-1"></i>
+                                                                    Movida de semestre {{ $subject->original_semester }} → {{ $subject->semester }}
+                                                                </small>
                                                             @endif
                                                         </div>
                                                     </td>
@@ -360,28 +413,54 @@
                                                         @endif
                                                     </td>
                                                     <td>
-                                                        <div class="btn-group btn-group-sm" role="group">
-                                                            <button type="button" 
-                                                                    class="btn btn-outline-primary convalidation-config-btn"
-                                                                    data-external-subject-id="{{ $subject->id }}"
-                                                                    @if($isConvalidated && $subject->convalidation)
-                                                                        data-convalidation-type="{{ $subject->convalidation->convalidation_type }}"
-                                                                        data-internal-subject-code="{{ $subject->convalidation->internal_subject_code ?? '' }}"
-                                                                        data-component-type="{{ $componentType }}"
-                                                                        data-notes="{{ $subject->convalidation->notes ?? '' }}"
-                                                                    @endif
-                                                                    title="Configurar convalidación">
-                                                                <i class="fas fa-cog"></i>
-                                                            </button>
-                                                            @if($isConvalidated)
+                                                        @if($isRemoved)
+                                                            <!-- Materias eliminadas: solo mostrar badge, no botones -->
+                                                            <div class="text-center">
+                                                                <span class="badge bg-danger">
+                                                                    <i class="fas fa-ban me-1"></i>
+                                                                    No convalidable
+                                                                </span>
+                                                                <small class="text-muted d-block mt-1" style="font-size: 0.7rem;">
+                                                                    Materia eliminada
+                                                                </small>
+                                                            </div>
+                                                        @else
+                                                            <!-- Materias activas: mostrar botones normales -->
+                                                            <div class="btn-group-vertical btn-group-sm w-100" role="group">
                                                                 <button type="button" 
-                                                                        class="btn btn-outline-danger"
-                                                                        onclick="removeConvalidation({{ $subject->convalidation->id }})"
-                                                                        title="Eliminar convalidación">
-                                                                    <i class="fas fa-trash"></i>
+                                                                        class="btn btn-outline-primary convalidation-config-btn"
+                                                                        data-external-subject-id="{{ $subject->id }}"
+                                                                        @if($isConvalidated && $subject->convalidation)
+                                                                            data-convalidation-type="{{ $subject->convalidation->convalidation_type }}"
+                                                                            data-internal-subject-code="{{ $subject->convalidation->internal_subject_code ?? '' }}"
+                                                                            data-component-type="{{ $componentType }}"
+                                                                            data-notes="{{ $subject->convalidation->notes ?? '' }}"
+                                                                        @endif
+                                                                        title="Configurar convalidación 1:1">
+                                                                    <i class="fas fa-cog me-1"></i>
+                                                                    Conv. 1:1
                                                                 </button>
-                                                            @endif
-                                                        </div>
+                                                                <button type="button" 
+                                                                        class="btn btn-outline-success nn-group-config-btn"
+                                                                        data-external-subject-id="{{ $subject->id }}"
+                                                                        data-subject-name="{{ $subject->name }}"
+                                                                        data-subject-code="{{ $subject->code }}"
+                                                                        data-subject-credits="{{ $subject->credits }}"
+                                                                        data-change-type="{{ $subject->change_type ?? 'unchanged' }}"
+                                                                        title="Configurar grupo N:N (1 = múltiples)">
+                                                                    <i class="fas fa-layer-group me-1"></i>
+                                                                    Grupo N:N
+                                                                </button>
+                                                                @if($isConvalidated)
+                                                                    <button type="button" 
+                                                                            class="btn btn-outline-danger"
+                                                                            onclick="removeConvalidation({{ $subject->convalidation->id }})"
+                                                                            title="Eliminar convalidación">
+                                                                        <i class="fas fa-trash"></i>
+                                                                    </button>
+                                                                @endif
+                                                            </div>
+                                                        @endif
                                                     </td>
                                                 </tr>
                                             @endforeach
@@ -889,5 +968,7 @@
         }
     </script>
     <script src="{{ asset('js/convalidation-show.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/convalidation-nn-groups.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/convalidation-visual-sync.js') }}?v={{ time() }}"></script>
 @endpush
 

@@ -9,9 +9,12 @@ use App\Models\SubjectConvalidation;
 use App\Models\Subject;
 use App\Models\Student;
 use App\Models\StudentConvalidation;
+use App\Models\ConvalidationGroup;
+use App\Models\ConvalidationGroupSubject;
 use App\Services\ExcelImportService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 
 class ConvalidationController extends Controller
 {
@@ -1510,6 +1513,20 @@ class ConvalidationController extends Controller
             $name = $request->input('name');
             $institution = $request->input('institution', 'Simulación Curricular');
 
+            // DEBUG: Log incoming data
+            \Log::info('=== SAVE MODIFIED CURRICULUM DEBUG ===', [
+                'name' => $name,
+                'total_semesters' => count($curriculumData),
+                'changes_count' => count($changes),
+                'changes_summary' => collect($changes)->groupBy('type')->map->count(),
+                'sample_change' => !empty($changes) ? $changes[0] : null,
+                'changes_sample' => array_slice($changes, 0, 3)
+            ]);
+
+            // Build a map of changes by subject code for easy lookup
+            // simulationChanges structure: [{subject_code, type, new_value, old_value, ...}]
+            $changesMap = collect($changes)->keyBy('subject_code');
+
             // Calculate total subjects
             $totalSubjects = 0;
             foreach ($curriculumData as $semester => $subjects) {
@@ -1533,27 +1550,152 @@ class ConvalidationController extends Controller
             ]);
 
             // Process curriculum data and create external subjects
+            \Log::info('Starting to process curriculum subjects...');
+            $processedCount = 0;
+            $changeTypeCounts = ['added' => 0, 'removed' => 0, 'modified' => 0, 'moved' => 0, 'unchanged' => 0];
+            
             foreach ($curriculumData as $semester => $subjects) {
+                \Log::info("Processing semester {$semester} with " . count($subjects) . " subjects");
+                
                 foreach ($subjects as $subjectData) {
-                    // Prepare additional_data with information about prerequisites and simulation details
+                    $subjectCode = $subjectData['code'];
+                    $processedCount++;
+                    
+                    // Sample first 3 subjects for detailed logging
+                    if ($processedCount <= 3) {
+                        \Log::info("Sample subject data:", [
+                            'code' => $subjectCode,
+                            'name' => $subjectData['name'],
+                            'semester' => $semester,
+                            'isRemoved' => $subjectData['isRemoved'] ?? 'not set',
+                            'isAdded' => $subjectData['isAdded'] ?? 'not set',
+                            'all_keys' => array_keys($subjectData)
+                        ]);
+                    }
+                    
+                    // Determine change type based on multiple sources
+                    $changeType = 'unchanged';
+                    $originalSemester = null;
+                    $changeDetails = [];
+                    
+                    // Check if subject is marked as removed in the frontend
+                    if (isset($subjectData['isRemoved']) && $subjectData['isRemoved']) {
+                        $changeType = 'removed';
+                    }
+                    // Check if subject is marked as added in the frontend
+                    elseif (isset($subjectData['isAdded']) && $subjectData['isAdded']) {
+                        $changeType = 'added';
+                    }
+                    // Check simulationChanges array for this subject
+                    else {
+                        $changeInfo = $changesMap->get($subjectCode);
+                        if ($changeInfo) {
+                            $infoType = $changeInfo['type'] ?? '';
+                            
+                            // Map simulation change types
+                            if ($infoType === 'added') {
+                                $changeType = 'added';
+                            } elseif ($infoType === 'removed') {
+                                $changeType = 'removed';
+                            } elseif ($infoType === 'semester') {
+                                $changeType = 'moved';
+                                $originalSemester = $changeInfo['old_value'] ?? null;
+                            } elseif ($infoType === 'prerequisites' || $infoType === 'edit') {
+                                $changeType = 'modified';
+                            }
+                        }
+                    }
+                    
+                    // DEBUG: Log change type detection
+                    \Log::info("Processing subject: {$subjectCode} - {$subjectData['name']}", [
+                        'semester' => $semester,
+                        'isRemoved_flag' => $subjectData['isRemoved'] ?? false,
+                        'isAdded_flag' => $subjectData['isAdded'] ?? false,
+                        'has_change_in_map' => $changesMap->has($subjectCode),
+                        'detected_changeType' => $changeType
+                    ]);
+                    
+                    // Build change details based on type
+                    switch ($changeType) {
+                        case 'added':
+                            $changeDetails = [
+                                'added_reason' => 'Nueva materia agregada en simulación',
+                                'added_at' => now()->toISOString()
+                            ];
+                            break;
+
+                        case 'removed':
+                            $changeDetails = [
+                                'removed_reason' => 'Materia eliminada en simulación',
+                                'removed_at' => now()->toISOString()
+                            ];
+                            break;
+
+                        case 'moved':
+                            $changeDetails = [
+                                'old_semester' => $originalSemester,
+                                'new_semester' => $semester,
+                                'moved_at' => now()->toISOString()
+                            ];
+                            break;
+
+                        case 'modified':
+                            $changeInfo = $changesMap->get($subjectCode);
+                            $changeDetails = [
+                                'modifications' => $changeInfo['new_value'] ?? [],
+                                'old_value' => $changeInfo['old_value'] ?? null,
+                                'modified_at' => now()->toISOString()
+                            ];
+                            break;
+                    }
+
+                    // Get credits from actual subject data in the database if available
+                    $credits = $subjectData['credits'] ?? 3;
+                    
+                    // Try to get credits from the original subject if not in subjectData
+                    if (!isset($subjectData['credits']) || $credits === 3) {
+                        $originalSubject = Subject::where('code', $subjectCode)->first();
+                        if ($originalSubject) {
+                            $credits = $originalSubject->credits;
+                        }
+                    }
+
+                    // Prepare additional_data with comprehensive information
                     $additionalData = [
                         'prerequisites' => $subjectData['prerequisites'] ?? [],
-                        'is_added_in_simulation' => $subjectData['isAdded'] ?? false,
+                        'is_added_in_simulation' => ($changeType === 'added'),
+                        'is_removed_in_simulation' => ($changeType === 'removed'),
+                        'is_modified_in_simulation' => ($changeType === 'modified'),
+                        'is_moved_in_simulation' => ($changeType === 'moved'),
                         'original_description' => $subjectData['description'] ?? null,
-                        'source' => 'simulation'
+                        'source' => 'simulation',
+                        'classroom_hours' => $subjectData['classroom_hours'] ?? null,
+                        'student_hours' => $subjectData['student_hours'] ?? null,
+                        'type' => $subjectData['type'] ?? null
                     ];
 
                     ExternalSubject::create([
                         'external_curriculum_id' => $externalCurriculum->id,
-                        'code' => $subjectData['code'],
+                        'code' => $subjectCode,
                         'name' => $subjectData['name'],
-                        'semester' => (int) $subjectData['semester'],
-                        'credits' => $subjectData['credits'] ?? 3, // Default to 3 credits if not specified
+                        'semester' => (int) $semester,
+                        'credits' => $credits,
                         'description' => $subjectData['description'] ?? $subjectData['name'],
-                        'additional_data' => $additionalData
+                        'additional_data' => $additionalData,
+                        'change_type' => $changeType !== 'unchanged' ? $changeType : null,
+                        'original_semester' => $originalSemester,
+                        'change_details' => !empty($changeDetails) ? $changeDetails : null
                     ]);
+                    
+                    // Count change types
+                    $changeTypeCounts[$changeType]++;
                 }
             }
+            
+            \Log::info('Finished processing curriculum', [
+                'total_processed' => $processedCount,
+                'change_type_counts' => $changeTypeCounts
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -1564,6 +1706,7 @@ class ConvalidationController extends Controller
 
         } catch (\Exception $e) {
             \Log::error('Error saving modified curriculum: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
             
             return response()->json([
                 'success' => false,
@@ -2533,5 +2676,262 @@ class ConvalidationController extends Controller
                 'message' => 'Error al generar el reporte: ' . $e->getMessage()
             ], 500);
         }
-    }}
+    }
 
+    /**
+     * Get all convalidation groups for an external curriculum
+     */
+    public function getConvalidationGroups(ExternalCurriculum $externalCurriculum)
+    {
+        try {
+            $groups = \App\Models\ConvalidationGroup::where('external_curriculum_id', $externalCurriculum->id)
+                ->with(['externalSubject', 'internalSubjects'])
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'groups' => $groups
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener grupos: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Store a new convalidation group (N:N relationship)
+     */
+    public function storeConvalidationGroup(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'external_curriculum_id' => 'required|exists:external_curriculums,id',
+            'external_subject_id' => 'required|exists:external_subjects,id',
+            'group_name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'equivalence_type' => 'required|in:all,any,credits',
+            'equivalence_percentage' => 'nullable|numeric|min:0|max:100',
+            'internal_subject_codes' => 'required|array|min:1',
+            'internal_subject_codes.*' => 'required|exists:subjects,code'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Create the convalidation group
+            $group = \App\Models\ConvalidationGroup::create([
+                'external_curriculum_id' => $request->external_curriculum_id,
+                'external_subject_id' => $request->external_subject_id,
+                'group_name' => $request->group_name,
+                'description' => $request->description,
+                'equivalence_type' => $request->equivalence_type,
+                'equivalence_percentage' => $request->equivalence_percentage ?? 100,
+                'metadata' => $request->metadata ?? []
+            ]);
+
+            // Attach internal subjects to the group
+            foreach ($request->internal_subject_codes as $index => $subjectCode) {
+                \App\Models\ConvalidationGroupSubject::create([
+                    'convalidation_group_id' => $group->id,
+                    'internal_subject_code' => $subjectCode,
+                    'sort_order' => $index,
+                    'weight' => 1.0,
+                    'notes' => null
+                ]);
+            }
+
+            // Load relationships for response
+            $group->load(['externalSubject', 'internalSubjects']);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Grupo de convalidación creado exitosamente',
+                'group' => $group
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error creating convalidation group: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al crear el grupo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update a convalidation group
+     */
+    public function updateConvalidationGroup(Request $request, $groupId)
+    {
+        $validator = Validator::make($request->all(), [
+            'group_name' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+            'equivalence_type' => 'nullable|in:all,any,credits',
+            'equivalence_percentage' => 'nullable|numeric|min:0|max:100',
+            'internal_subject_codes' => 'nullable|array'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $group = \App\Models\ConvalidationGroup::findOrFail($groupId);
+
+            // Update basic fields
+            $group->update([
+                'group_name' => $request->group_name ?? $group->group_name,
+                'description' => $request->description ?? $group->description,
+                'equivalence_type' => $request->equivalence_type ?? $group->equivalence_type,
+                'equivalence_percentage' => $request->equivalence_percentage ?? $group->equivalence_percentage
+            ]);
+
+            // Update internal subjects if provided
+            if ($request->has('internal_subject_codes')) {
+                // Delete existing associations
+                \App\Models\ConvalidationGroupSubject::where('convalidation_group_id', $group->id)->delete();
+
+                // Create new associations
+                foreach ($request->internal_subject_codes as $index => $subjectCode) {
+                    \App\Models\ConvalidationGroupSubject::create([
+                        'convalidation_group_id' => $group->id,
+                        'internal_subject_code' => $subjectCode,
+                        'sort_order' => $index,
+                        'weight' => 1.0
+                    ]);
+                }
+            }
+
+            $group->load(['externalSubject', 'internalSubjects']);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Grupo actualizado exitosamente',
+                'group' => $group
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar el grupo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete a convalidation group
+     */
+    public function destroyConvalidationGroup($groupId)
+    {
+        try {
+            $group = \App\Models\ConvalidationGroup::findOrFail($groupId);
+            $group->delete(); // Cascade will delete related records
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Grupo eliminado exitosamente'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar el grupo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get the original curriculum state (before changes)
+     * This returns external subjects with change_type != 'removed'
+     */
+    public function getOriginalCurriculumState($curriculumId)
+    {
+        try {
+            $curriculum = ExternalCurriculum::findOrFail($curriculumId);
+            
+            // Get all external subjects excluding removed ones
+            $subjects = $curriculum->externalSubjects()
+                ->where(function($query) {
+                    $query->whereNull('change_type')
+                          ->orWhere('change_type', '!=', 'removed');
+                })
+                ->get()
+                ->map(function($subject) {
+                    return [
+                        'id' => $subject->id,
+                        'code' => $subject->code,
+                        'name' => $subject->name,
+                        'credits' => $subject->credits,
+                        'semester' => $subject->semester,
+                        'change_type' => $subject->change_type
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'subjects' => $subjects
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener el estado original: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all internal subjects for API (UNAL curriculum)
+     * Used for selecting equivalences in N:N groups
+     */
+    public function getInternalSubjectsForApi()
+    {
+        try {
+            $subjects = Subject::select('code', 'name', 'credits', 'semester', 'type')
+                ->orderBy('semester')
+                ->orderBy('code')
+                ->get()
+                ->map(function($subject) {
+                    return [
+                        'code' => $subject->code,
+                        'name' => $subject->name,
+                        'credits' => $subject->credits,
+                        'semester' => $subject->semester,
+                        'type' => $subject->type
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'subjects' => $subjects
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener las materias internas: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+}

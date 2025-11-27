@@ -4201,18 +4201,46 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!semesterColumn) continue;
             
             const subjects = Array.from(semesterColumn.querySelectorAll('.subject-card')).map(card => {
-                // Try to extract credits from existing data or default to null
-                const creditsElement = card.querySelector('.subject-credits');
-                const credits = creditsElement ? parseInt(creditsElement.textContent) : null;
+                // Extract credits from multiple possible sources
+                let credits = 3; // Default value
+                
+                // Try 1: From data attribute (most reliable)
+                if (card.dataset.credits) {
+                    credits = parseInt(card.dataset.credits);
+                }
+                // Try 2: From visible credit display
+                else {
+                    const creditsElement = card.querySelector('.subject-credits');
+                    if (creditsElement) {
+                        const creditsText = creditsElement.textContent.trim();
+                        const parsedCredits = parseInt(creditsText);
+                        if (!isNaN(parsedCredits)) {
+                            credits = parsedCredits;
+                        }
+                    }
+                }
+                
+                // Extract other metadata
+                const classroomHours = card.dataset.classroomHours ? parseInt(card.dataset.classroomHours) : null;
+                const studentHours = card.dataset.studentHours ? parseInt(card.dataset.studentHours) : null;
+                const subjectType = card.dataset.type || null;
+                const subjectCode = card.dataset.subjectId;
+                
+                // Check if this subject was removed
+                const isRemoved = card.classList.contains('removed-subject');
                 
                 return {
-                    code: card.dataset.subjectId,
-                    name: card.querySelector('.subject-name').textContent.trim(),
-                    prerequisites: card.dataset.prerequisites.split(',').filter(p => p.trim()),
+                    code: subjectCode,
+                    name: card.querySelector('.subject-name')?.textContent.trim() || 'Sin nombre',
+                    prerequisites: card.dataset.prerequisites ? card.dataset.prerequisites.split(',').filter(p => p.trim()) : [],
                     semester: semester,
                     credits: credits,
+                    classroom_hours: classroomHours,
+                    student_hours: studentHours,
+                    type: subjectType,
                     isAdded: card.classList.contains('added-subject'),
-                    description: card.title || card.querySelector('.subject-name').textContent.trim()
+                    isRemoved: isRemoved,
+                    description: card.title || card.querySelector('.subject-name')?.textContent.trim() || 'Sin descripción'
                 };
             });
             
