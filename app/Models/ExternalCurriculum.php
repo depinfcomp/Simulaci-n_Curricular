@@ -46,6 +46,14 @@ class ExternalCurriculum extends Model
     }
 
     /**
+     * Get the N:N convalidation groups for this curriculum.
+     */
+    public function convalidationGroups()
+    {
+        return $this->hasMany(\App\Models\ConvalidationGroup::class, 'external_curriculum_id');
+    }
+
+    /**
      * Get the credit limits configuration for this curriculum.
      */
     public function creditLimitsConfig()
@@ -139,8 +147,18 @@ class ExternalCurriculum extends Model
             })
             ->count();
         
-        // Total convalidated subjects includes direct + flexible_component + subjects with component
-        $convalidatedSubjects = $directConvalidations + $flexibleComponents + $subjectsWithComponent;
+        // Count subjects with N:N convalidation groups (excluding removed subjects)
+        $nnGroupConvalidations = $this->convalidationGroups()
+            ->whereHas('externalSubject', function($query) {
+                $query->where(function($q) {
+                    $q->whereNull('change_type')
+                      ->orWhere('change_type', '!=', 'removed');
+                });
+            })
+            ->count();
+        
+        // Total convalidated subjects includes direct + flexible_component + subjects with component + N:N groups
+        $convalidatedSubjects = $directConvalidations + $flexibleComponents + $subjectsWithComponent + $nnGroupConvalidations;
         
         // Track removed subjects separately (they deduct credits but don't count in totals)
         $removedSubjects = $this->externalSubjects()
@@ -162,6 +180,7 @@ class ExternalCurriculum extends Model
             'convalidated_subjects' => $convalidatedSubjects,
             'direct_convalidations' => $directConvalidations,
             'flexible_components' => $flexibleComponents,
+            'nn_group_convalidations' => $nnGroupConvalidations,
             'not_convalidated' => $notConvalidated,
             'pending_subjects' => $totalSubjects - $convalidatedSubjects - $notConvalidated,
             'removed_subjects' => $removedSubjects,
@@ -245,9 +264,13 @@ class ExternalCurriculum extends Model
             'pending' => 0 // Credits from subjects not yet configured
         ];
 
-        // Get all external subjects with their components and convalidations
+        // Get all external subjects with their components and convalidations (excluding removed subjects)
         $subjects = $this->externalSubjects()
             ->with(['assignedComponent', 'convalidation'])
+            ->where(function($query) {
+                $query->whereNull('change_type')
+                      ->orWhere('change_type', '!=', 'removed');
+            })
             ->get();
 
         foreach ($subjects as $subject) {
@@ -260,7 +283,7 @@ class ExternalCurriculum extends Model
                     $components[$componentType] += $credits;
                 }
             } else {
-                // Not configured yet
+                // Not configured yet (excluding removed subjects)
                 $components['pending'] += $credits;
             }
         }
