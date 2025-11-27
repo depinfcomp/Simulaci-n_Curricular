@@ -264,6 +264,20 @@ class ExternalCurriculum extends Model
             'pending' => 0 // Credits from subjects not yet configured
         ];
 
+        // Get N:N groups with their component types and subject IDs (excluding removed subjects)
+        $nnGroupsData = $this->convalidationGroups()
+            ->whereHas('externalSubject', function($query) {
+                $query->where(function($q) {
+                    $q->whereNull('change_type')
+                      ->orWhere('change_type', '!=', 'removed');
+                });
+            })
+            ->with('externalSubject')
+            ->get()
+            ->mapWithKeys(function($group) {
+                return [$group->external_subject_id => $group->component_type];
+            });
+
         // Get all external subjects with their components and convalidations (excluding removed subjects)
         $subjects = $this->externalSubjects()
             ->with(['assignedComponent', 'convalidation'])
@@ -276,8 +290,15 @@ class ExternalCurriculum extends Model
         foreach ($subjects as $subject) {
             $credits = $subject->credits ?? 0;
             
-            // If subject has a component assigned
-            if ($subject->assignedComponent && $subject->assignedComponent->component_type) {
+            // Check if subject has N:N group with component type
+            if (isset($nnGroupsData[$subject->id]) && $nnGroupsData[$subject->id]) {
+                $componentType = $nnGroupsData[$subject->id];
+                if (isset($components[$componentType])) {
+                    $components[$componentType] += $credits;
+                }
+            }
+            // If subject has a component assigned via assignedComponent
+            else if ($subject->assignedComponent && $subject->assignedComponent->component_type) {
                 $componentType = $subject->assignedComponent->component_type;
                 if (isset($components[$componentType])) {
                     $components[$componentType] += $credits;
@@ -390,7 +411,18 @@ class ExternalCurriculum extends Model
             })
             ->sum('credits') ?? 0;
         
-        $convalidatedNewCredits = $directAndFlexibleCredits + $componentsCredits;
+        // Credits from N:N convalidation groups (excluding removed subjects)
+        $nnGroupCredits = $this->convalidationGroups()
+            ->whereHas('externalSubject', function($query) {
+                $query->where(function($q) {
+                    $q->whereNull('change_type')
+                      ->orWhere('change_type', '!=', 'removed');
+                });
+            })
+            ->join('external_subjects', 'convalidation_groups.external_subject_id', '=', 'external_subjects.id')
+            ->sum('external_subjects.credits') ?? 0;
+        
+        $convalidatedNewCredits = $directAndFlexibleCredits + $componentsCredits + $nnGroupCredits;
         
         $percentage = $totalNewCredits > 0 
             ? round(($convalidatedNewCredits / $totalNewCredits) * 100, 2) 

@@ -21,18 +21,18 @@ function loadTemporaryChanges() {
         }
         
         const data = JSON.parse(stored);
-        console.log('📦 localStorage data:', data);
+        console.log('localStorage data:', data);
         
         // Validate curriculum ID
         if (data.curriculumId !== CURRICULUM_ID) {
-            console.warn('⚠️ Wrong curriculum ID');
+            console.warn('Wrong curriculum ID');
             return null;
         }
         
-        console.log('✅ Loaded', data.changes?.length || 0, 'changes');
+        console.log('Loaded', data.changes?.length || 0, 'changes');
         return data.changes || [];
     } catch (error) {
-        console.error('❌ Error loading changes:', error);
+        console.error('Error loading changes:', error);
         return null;
     }
 }
@@ -170,7 +170,7 @@ function applyEditedStyleToRow(row) {
  * Initialize on page load
  */
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 DOM loaded - initializing visual sync');
+    console.log('DOM loaded - initializing visual sync');
     highlightTemporarySubjects();
 });
 
@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', function() {
  */
 window.addEventListener('storage', function(e) {
     if (e.key === STORAGE_KEY) {
-        console.log('🔄 Storage changed, refreshing...');
+        console.log('Storage changed, refreshing...');
         highlightTemporarySubjects();
     }
 });

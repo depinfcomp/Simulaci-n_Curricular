@@ -16,6 +16,7 @@ class ConvalidationGroup extends Model
         'description',
         'equivalence_type',
         'equivalence_percentage',
+        'component_type',
         'metadata'
     ];
 

@@ -23,14 +23,10 @@
                     </p>
                 </div>
                 <div>
-                    <a href="{{ route('convalidation.index') }}" class="btn btn-secondary me-2">
+                    <a href="{{ route('convalidation.index') }}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left me-2"></i>
                         Volver
                     </a>
-                    <button class="btn btn-danger" onclick="generateConvalidationReportPdf()">
-                        <i class="fas fa-file-pdf me-2"></i>
-                        Generar Reporte de Convalidaciones
-                    </button>
                 </div>
             </div>
 

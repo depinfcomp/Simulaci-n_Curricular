@@ -66,6 +66,7 @@ function updateGroupIndicators() {
     window.nnGroupsState.groups.forEach(group => {
         const row = document.querySelector(`tr[data-external-subject-id="${group.external_subject_id}"]`);
         if (row) {
+            // Update convalidation display cell
             const displayCell = row.querySelector(`#convalidation-display-${group.external_subject_id}`);
             if (displayCell) {
                 const internalCount = group.internal_subjects ? group.internal_subjects.length : 0;
@@ -79,8 +80,86 @@ function updateGroupIndicators() {
                     </div>
                 `;
             }
+            
+            // Update status cell (Estado column - 5th td)
+            const statusCell = row.querySelector('td:nth-child(5)');
+            if (statusCell) {
+                const componentType = group.component_type;
+                const componentColor = getComponentColor(componentType);
+                const componentLabel = getComponentLabel(componentType);
+                
+                statusCell.innerHTML = `
+                    <div class="d-flex flex-column gap-1">
+                        <span class="badge bg-success">
+                            <i class="fas fa-check me-1"></i>Convalidada
+                        </span>
+                        ${componentType ? `
+                        <span class="badge bg-${componentColor}">
+                            <i class="fas fa-layer-group me-1"></i>${componentLabel}
+                        </span>
+                        ` : ''}
+                    </div>
+                `;
+            }
+            
+            // Update actions cell (Acciones column - 6th td)
+            const actionsCell = row.querySelector('td:nth-child(6)');
+            if (actionsCell) {
+                const btnGroup = actionsCell.querySelector('.btn-group-vertical');
+                const existingBtn = btnGroup ? btnGroup.querySelector('.nn-group-config-btn') : null;
+                
+                if (existingBtn) {
+                    // Update button to show "edit" icon
+                    existingBtn.innerHTML = '<i class="fas fa-edit me-1"></i>Editar';
+                    existingBtn.classList.remove('btn-outline-success');
+                    existingBtn.classList.add('btn-outline-primary');
+                    
+                    // Add delete button if it doesn't exist
+                    if (!btnGroup.querySelector('.nn-group-delete-btn')) {
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.type = 'button';
+                        deleteBtn.className = 'btn btn-outline-danger btn-sm nn-group-delete-btn';
+                        deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                        deleteBtn.title = 'Eliminar grupo N:N';
+                        deleteBtn.onclick = function(e) {
+                            e.stopPropagation();
+                            showDeleteConfirmModal(group.id);
+                        };
+                        
+                        // Add to the button group
+                        btnGroup.appendChild(deleteBtn);
+                    }
+                }
+            }
         }
     });
+}
+
+// Helper functions to get component styling (should match convalidation-show.js)
+function getComponentColor(componentType) {
+    const colors = {
+        'fundamental_required': 'warning',
+        'professional_required': 'success',
+        'optional_fundamental': 'info',
+        'optional_professional': 'primary',
+        'free_elective': 'secondary',
+        'thesis': 'dark',
+        'leveling': 'danger'
+    };
+    return colors[componentType] || 'secondary';
+}
+
+function getComponentLabel(componentType) {
+    const labels = {
+        'fundamental_required': 'Fund. Oblig.',
+        'professional_required': 'Prof. Oblig.',
+        'optional_fundamental': 'Opt. Fund.',
+        'optional_professional': 'Opt. Prof.',
+        'free_elective': 'Libre Elecc.',
+        'thesis': 'Trabajo Grado',
+        'leveling': 'Nivelación'
+    };
+    return labels[componentType] || componentType;
 }
 
 /**
@@ -283,6 +362,47 @@ function showNNGroupModal() {
                                     <small class="text-muted">Por ejemplo: 80% significa que el estudiante debe haber cursado materias 
                                     que sumen al menos el 80% de los créditos totales del grupo</small>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Component Assignment -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-layer-group me-2"></i>
+                                    Componente Curricular
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <label class="form-label fw-bold">Selecciona el componente curricular al que pertenecerá esta materia</label>
+                                <select class="form-select" id="componentType" required>
+                                    <option value="">-- Seleccione un componente --</option>
+                                    <option value="fundamental_required" ${existingGroup?.component_type === 'fundamental_required' ? 'selected' : ''}>
+                                        Fundamental Obligatorio
+                                    </option>
+                                    <option value="professional_required" ${existingGroup?.component_type === 'professional_required' ? 'selected' : ''}>
+                                        Profesional Obligatorio
+                                    </option>
+                                    <option value="optional_fundamental" ${existingGroup?.component_type === 'optional_fundamental' ? 'selected' : ''}>
+                                        Optativa Fundamental
+                                    </option>
+                                    <option value="optional_professional" ${existingGroup?.component_type === 'optional_professional' ? 'selected' : ''}>
+                                        Optativa Profesional
+                                    </option>
+                                    <option value="free_elective" ${existingGroup?.component_type === 'free_elective' ? 'selected' : ''}>
+                                        Libre Elección
+                                    </option>
+                                    <option value="thesis" ${existingGroup?.component_type === 'thesis' ? 'selected' : ''}>
+                                        Trabajo de Grado
+                                    </option>
+                                    <option value="leveling" ${existingGroup?.component_type === 'leveling' ? 'selected' : ''}>
+                                        Nivelación
+                                    </option>
+                                </select>
+                                <small class="text-muted d-block mt-2">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Este componente se usará para calcular los créditos del programa y las estadísticas
+                                </small>
                             </div>
                         </div>
 
@@ -622,11 +742,17 @@ async function saveNNGroup(groupId) {
         ? parseInt(document.getElementById('creditsThreshold').value) 
         : 100;
     const notes = document.getElementById('groupNotes').value;
+    const componentType = document.getElementById('componentType').value;
     const internalSubjects = window.nnGroupsState.selectedInternalSubjects;
     
     // Validation
     if (internalSubjects.length === 0) {
         alert('⚠️ Debes seleccionar al menos una materia equivalente');
+        return;
+    }
+    
+    if (!componentType) {
+        alert('⚠️ Debes seleccionar un componente curricular');
         return;
     }
     
@@ -645,6 +771,7 @@ async function saveNNGroup(groupId) {
         description: notes || `Grupo N:N para ${externalSubjectName}`,
         equivalence_type: equivalenceType,
         equivalence_percentage: creditsThreshold,
+        component_type: componentType,
         internal_subject_codes: internalSubjects.map(s => s.code)
     };
     
@@ -675,14 +802,18 @@ async function saveNNGroup(groupId) {
         const data = await response.json();
         
         if (response.ok && data.success) {
-            // Success
-            alert('✅ Grupo N:N guardado exitosamente');
-            
-            // Reload groups
+            // Reload groups to update UI
             await loadExistingGroups();
             
             // Close modal
-            bootstrap.Modal.getInstance(document.getElementById('nnGroupModal')).hide();
+            const modal = document.getElementById('nnGroupModal');
+            if (modal) {
+                const modalInstance = bootstrap.Modal.getInstance(modal);
+                if (modalInstance) modalInstance.hide();
+            }
+            
+            // Reload page to update all statistics
+            location.reload();
         } else {
             // Show specific validation errors
             let errorMessage = 'Error al guardar el grupo';
@@ -705,12 +836,82 @@ async function saveNNGroup(groupId) {
 }
 
 /**
+ * Show delete confirmation modal
+ */
+function showDeleteConfirmModal(groupId) {
+    // Find group info
+    const group = window.nnGroupsState.groups.find(g => g.id == groupId);
+    const groupName = group ? group.group_name : 'este grupo';
+    
+    const modalHtml = `
+        <div class="modal fade" id="deleteConfirmModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Confirmar Eliminación
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-3">
+                            ¿Estás seguro de que deseas eliminar el grupo N:N?
+                        </p>
+                        <div class="alert alert-warning">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>${groupName}</strong>
+                        </div>
+                        <p class="text-muted mb-0">
+                            <i class="fas fa-exclamation-circle me-1"></i>
+                            Esta acción no se puede deshacer. La materia volverá a estado "Sin configurar".
+                        </p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-1"></i>
+                            Cancelar
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="confirmDeleteNNGroup(${groupId})">
+                            <i class="fas fa-trash me-1"></i>
+                            Sí, Eliminar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if any
+    const existingModal = document.getElementById('deleteConfirmModal');
+    if (existingModal) existingModal.remove();
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    modal.show();
+}
+
+/**
+ * Confirm and execute deletion
+ */
+async function confirmDeleteNNGroup(groupId) {
+    // Close confirmation modal
+    const confirmModal = document.getElementById('deleteConfirmModal');
+    if (confirmModal) {
+        const modalInstance = bootstrap.Modal.getInstance(confirmModal);
+        if (modalInstance) modalInstance.hide();
+    }
+    
+    // Execute deletion
+    await deleteNNGroup(groupId);
+}
+
+/**
  * Delete N:N group
  */
 async function deleteNNGroup(groupId) {
-    if (!confirm('¿Estás seguro de eliminar este grupo N:N? Esta acción no se puede deshacer.')) {
-        return;
-    }
     
     try {
         const response = await fetch(`/convalidation/groups/${groupId}`, {
@@ -724,13 +925,68 @@ async function deleteNNGroup(groupId) {
         const data = await response.json();
         
         if (response.ok && data.success) {
-            alert('✅ Grupo eliminado exitosamente');
+            // Find the deleted group's external_subject_id before reloading
+            const deletedGroup = window.nnGroupsState.groups.find(g => g.id == groupId);
+            const externalSubjectId = deletedGroup ? deletedGroup.external_subject_id : null;
             
             // Reload groups
             await loadExistingGroups();
             
-            // Close modal
-            bootstrap.Modal.getInstance(document.getElementById('nnGroupModal')).hide();
+            // Reset UI for the subject that had the group
+            if (externalSubjectId) {
+                const row = document.querySelector(`tr[data-external-subject-id="${externalSubjectId}"]`);
+                if (row) {
+                    // Reset display cell
+                    const displayCell = row.querySelector(`#convalidation-display-${externalSubjectId}`);
+                    if (displayCell) {
+                        displayCell.innerHTML = `
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-times text-muted me-2"></i>
+                                <span class="text-muted">Sin configurar</span>
+                            </div>
+                        `;
+                    }
+                    
+                    // Reset status cell
+                    const statusCell = row.querySelector('td:nth-child(5)');
+                    if (statusCell) {
+                        statusCell.innerHTML = `
+                            <span class="badge bg-light text-dark">
+                                <i class="fas fa-question-circle me-1"></i>Pendiente
+                            </span>
+                        `;
+                    }
+                    
+                    // Reset actions cell - restore original button
+                    const actionsCell = row.querySelector('td:nth-child(6)');
+                    if (actionsCell) {
+                        const btnGroup = actionsCell.querySelector('.btn-group-vertical');
+                        const editBtn = btnGroup ? btnGroup.querySelector('.nn-group-config-btn') : null;
+                        
+                        if (editBtn) {
+                            editBtn.innerHTML = '<i class="fas fa-layer-group me-1"></i>Grupo N:N';
+                            editBtn.classList.remove('btn-outline-primary');
+                            editBtn.classList.add('btn-outline-success');
+                        }
+                        
+                        // Remove delete button
+                        const deleteBtn = btnGroup ? btnGroup.querySelector('.nn-group-delete-btn') : null;
+                        if (deleteBtn) deleteBtn.remove();
+                    }
+                }
+            }
+            
+            // Close modal if open
+            const modal = document.getElementById('nnGroupModal');
+            if (modal) {
+                const modalInstance = bootstrap.Modal.getInstance(modal);
+                if (modalInstance) modalInstance.hide();
+            }
+            
+            // Reload page statistics
+            if (typeof updateStatistics === 'function') {
+                location.reload(); // Reload to update all statistics
+            }
         } else {
             throw new Error(data.error || 'Error al eliminar el grupo');
         }

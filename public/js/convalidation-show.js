@@ -773,24 +773,105 @@ function selectSuggestion(subjectCode) {
     document.getElementById('internal_subject_selection').style.display = 'block';
 }
 
-function removeConvalidation(convalidationId) {
-    if (confirm('¿Está seguro de que desea eliminar esta convalidación?')) {
-        const url = window.convalidationRoutes.destroy.replace(':id', convalidationId);
-        fetch(url, {
-            method: 'DELETE',
-            headers: {
-                'X-CSRF-TOKEN': window.csrfToken
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                showAlert('danger', 'Error al eliminar la convalidación');
-            }
-        });
+/**
+ * Show confirmation modal for deleting convalidation
+ */
+function showDeleteConvalidationModal(convalidationId) {
+    // Find convalidation info from the row
+    const row = document.querySelector(`button[onclick*="removeConvalidation(${convalidationId})"]`)?.closest('tr');
+    const subjectName = row ? row.querySelector('td:nth-child(2)')?.textContent.trim() : 'esta convalidación';
+    
+    const modalHtml = `
+        <div class="modal fade" id="deleteConvalidationModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Confirmar Eliminación
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-3">
+                            ¿Estás seguro de que deseas eliminar esta convalidación?
+                        </p>
+                        <div class="alert alert-warning">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>${subjectName}</strong>
+                        </div>
+                        <p class="text-muted mb-0">
+                            <i class="fas fa-exclamation-circle me-1"></i>
+                            Esta acción no se puede deshacer. La materia volverá a estado "Sin configurar".
+                        </p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-1"></i>
+                            Cancelar
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="confirmDeleteConvalidation(${convalidationId})">
+                            <i class="fas fa-trash me-1"></i>
+                            Sí, Eliminar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if any
+    const existingModal = document.getElementById('deleteConvalidationModal');
+    if (existingModal) existingModal.remove();
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('deleteConvalidationModal'));
+    modal.show();
+}
+
+/**
+ * Confirm and execute deletion of convalidation
+ */
+function confirmDeleteConvalidation(convalidationId) {
+    // Close confirmation modal
+    const confirmModal = document.getElementById('deleteConvalidationModal');
+    if (confirmModal) {
+        const modalInstance = bootstrap.Modal.getInstance(confirmModal);
+        if (modalInstance) modalInstance.hide();
     }
+    
+    // Execute deletion
+    executeDeleteConvalidation(convalidationId);
+}
+
+/**
+ * Execute deletion of convalidation (without confirm)
+ */
+function executeDeleteConvalidation(convalidationId) {
+    const url = window.convalidationRoutes.destroy.replace(':id', convalidationId);
+    fetch(url, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': window.csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            showAlert('danger', 'Error al eliminar la convalidación');
+        }
+    });
+}
+
+/**
+ * Remove convalidation (legacy function - now shows modal)
+ */
+function removeConvalidation(convalidationId) {
+    showDeleteConvalidationModal(convalidationId);
 }
 
 function showAlert(type, message) {

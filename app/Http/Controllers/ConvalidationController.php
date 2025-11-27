@@ -2776,6 +2776,7 @@ class ConvalidationController extends Controller
             'description' => 'nullable|string',
             'equivalence_type' => 'required|in:all,any,credits',
             'equivalence_percentage' => 'nullable|numeric|min:0|max:100',
+            'component_type' => 'required|in:fundamental_required,professional_required,optional_fundamental,optional_professional,free_elective,thesis,leveling',
             'internal_subject_codes' => 'required|array|min:1',
             'internal_subject_codes.*' => 'required|exists:subjects,code'
         ]);
@@ -2803,6 +2804,7 @@ class ConvalidationController extends Controller
                 'description' => $request->description,
                 'equivalence_type' => $request->equivalence_type,
                 'equivalence_percentage' => $request->equivalence_percentage ?? 100,
+                'component_type' => $request->component_type,
                 'metadata' => $request->metadata ?? []
             ]);
 
