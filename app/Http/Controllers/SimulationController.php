@@ -799,74 +799,156 @@ class SimulationController extends Controller
     {
         $changes = $curriculumData['changes'] ?? [];
         
-        foreach ($changes as $subjectCode => $changeData) {
-            if ($changeData['action'] === 'added') {
-                $subjectData = [
-                    'name' => $changeData['data']['name'] ?? 'Nueva Materia',
-                    'semester' => $changeData['data']['semester'] ?? 1,
-                    'credits' => $changeData['data']['credits'] ?? 3,
-                    'classroom_hours' => $changeData['data']['classroom_hours'] ?? 3,
-                    'student_hours' => $changeData['data']['student_hours'] ?? 6,
-                    'type' => $changeData['data']['type'] ?? 'profesional',
-                    'is_required' => $changeData['data']['is_required'] ?? true,
-                    'description' => $changeData['data']['description'] ?? null,
-                ];
+        \Log::info("📦 Aplicando cambios al currículum principal", [
+            'total_changes' => count($changes),
+            'changes' => $changes
+        ]);
+        
+        // Process changes - the frontend sends an array with 'type' field
+        foreach ($changes as $change) {
+            $subjectCode = $change['subject_code'] ?? null;
+            $changeType = $change['type'] ?? null;
+            
+            if (!$subjectCode || !$changeType) {
+                \Log::warning("⚠️ Cambio inválido (sin código o tipo)", ['change' => $change]);
+                continue;
+            }
+            
+            if ($changeType === 'added') {
+                // Find the subject data in the subjects array
+                $subjectInfo = collect($curriculumData['subjects'] ?? [])->firstWhere('code', $subjectCode);
                 
-                // Add new subject
-                Subject::updateOrCreate(
-                    ['code' => $subjectCode],
-                    $subjectData
-                );
-                
-                // If it's a leveling subject, also add to leveling_subjects table
-                if (($changeData['data']['type'] ?? 'profesional') === 'nivelacion') {
-                    \App\Models\LevelingSubject::updateOrCreate(
-                        ['code' => $subjectCode],
-                        [
-                            'name' => $subjectData['name'],
-                            'credits' => $subjectData['credits'],
-                            'classroom_hours' => $subjectData['classroom_hours'],
-                            'student_hours' => $subjectData['student_hours'],
-                            'description' => $subjectData['description'],
-                        ]
-                    );
-                }
-            } elseif ($changeData['action'] === 'removed') {
-                // Mark as removed or delete
-                Subject::where('code', $subjectCode)->delete();
-                // Note: We don't delete from leveling_subjects - they remain for historical records
-            } elseif ($changeData['action'] === 'modified') {
-                // Update subject
-                $subject = Subject::where('code', $subjectCode)->first();
-                if ($subject) {
-                    $subject->update($changeData['data']);
+                if ($subjectInfo) {
+                    $subjectData = [
+                        'name' => $subjectInfo['name'] ?? 'Nueva Materia',
+                        'semester' => $subjectInfo['semester'] ?? 1,
+                        'credits' => $subjectInfo['credits'] ?? 3,
+                        'classroom_hours' => $subjectInfo['classroom_hours'] ?? 3,
+                        'student_hours' => $subjectInfo['student_hours'] ?? 6,
+                        'type' => $subjectInfo['type'] ?? 'profesional',
+                        'is_required' => $subjectInfo['is_required'] ?? true,
+                        'description' => $subjectInfo['description'] ?? null,
+                        'display_order' => $subjectInfo['display_order'] ?? 0,
+                    ];
                     
-                    // If it's a leveling subject, also update in leveling_subjects table
-                    if (($changeData['data']['type'] ?? $subject->type) === 'nivelacion') {
+                    // Add new subject
+                    Subject::updateOrCreate(
+                        ['code' => $subjectCode],
+                        $subjectData
+                    );
+                    
+                    // If it's a leveling subject, also add to leveling_subjects table
+                    if (($subjectInfo['type'] ?? 'profesional') === 'nivelacion') {
                         \App\Models\LevelingSubject::updateOrCreate(
                             ['code' => $subjectCode],
                             [
-                                'name' => $changeData['data']['name'] ?? $subject->name,
-                                'credits' => $changeData['data']['credits'] ?? $subject->credits,
-                                'classroom_hours' => $changeData['data']['classroom_hours'] ?? $subject->classroom_hours,
-                                'student_hours' => $changeData['data']['student_hours'] ?? $subject->student_hours,
-                                'description' => $changeData['data']['description'] ?? $subject->description,
+                                'name' => $subjectData['name'],
+                                'credits' => $subjectData['credits'],
+                                'classroom_hours' => $subjectData['classroom_hours'],
+                                'student_hours' => $subjectData['student_hours'],
+                                'description' => $subjectData['description'],
                             ]
                         );
                     }
+                    
+                    \Log::info("✅ Materia agregada: {$subjectCode} - {$subjectData['name']}");
+                } else {
+                    \Log::warning("⚠️ Materia agregada no encontrada en subjects array: {$subjectCode}");
+                }
+            } elseif ($changeType === 'removed') {
+                // Delete subject from database
+                $subject = Subject::where('code', $subjectCode)->first();
+                
+                if ($subject) {
+                    \Log::info("🗑️ Eliminando materia: {$subjectCode} - {$subject->name}");
+                    
+                    // Delete prerequisites relationships
+                    $subject->prerequisites()->detach();
+                    $subject->requiredFor()->detach();
+                    
+                    // Delete the subject
+                    $deletedCount = $subject->delete();
+                    
+                    if ($deletedCount > 0) {
+                        \Log::info("✅ Materia eliminada exitosamente: {$subjectCode}");
+                    }
+                } else {
+                    \Log::warning("⚠️ Materia no encontrada para eliminar: {$subjectCode}");
+                }
+                
+                // Note: We don't delete from leveling_subjects - they remain for historical records
+            } elseif ($changeType === 'semester') {
+                // Update subject semester
+                $subject = Subject::where('code', $subjectCode)->first();
+                $subjectInfo = collect($curriculumData['subjects'] ?? [])->firstWhere('code', $subjectCode);
+                
+                if ($subject && $subjectInfo) {
+                    $oldSemester = $subject->semester;
+                    $newSemester = $subjectInfo['semester'];
+                    
+                    $subject->update([
+                        'semester' => $newSemester,
+                        'display_order' => $subjectInfo['display_order'] ?? $subject->display_order,
+                    ]);
+                    
+                    \Log::info("🔄 Semestre cambiado: {$subjectCode} - {$oldSemester} → {$newSemester}");
+                } else {
+                    \Log::warning("⚠️ Materia no encontrada para cambio de semestre: {$subjectCode}");
+                }
+            } elseif ($changeType === 'prerequisites') {
+                // Update prerequisites
+                $subject = Subject::where('code', $subjectCode)->first();
+                $subjectInfo = collect($curriculumData['subjects'] ?? [])->firstWhere('code', $subjectCode);
+                
+                if ($subject && $subjectInfo) {
+                    $newPrereqs = $subjectInfo['prerequisites'] ?? [];
+                    $prereqIds = Subject::whereIn('code', $newPrereqs)->pluck('id')->toArray();
+                    
+                    $subject->prerequisites()->sync($prereqIds);
+                    
+                    \Log::info("🔗 Prerrequisitos actualizados: {$subjectCode} - " . implode(', ', $newPrereqs));
+                } else {
+                    \Log::warning("⚠️ Materia no encontrada para cambio de prerrequisitos: {$subjectCode}");
+                }
+            } elseif ($changeType === 'modified') {
+                // Update subject data
+                $subject = Subject::where('code', $subjectCode)->first();
+                $subjectInfo = collect($curriculumData['subjects'] ?? [])->firstWhere('code', $subjectCode);
+                
+                if ($subject && $subjectInfo) {
+                    $updateData = [];
+                    
+                    // Only update fields that are present in subjectInfo
+                    if (isset($subjectInfo['name'])) $updateData['name'] = $subjectInfo['name'];
+                    if (isset($subjectInfo['credits'])) $updateData['credits'] = $subjectInfo['credits'];
+                    if (isset($subjectInfo['semester'])) $updateData['semester'] = $subjectInfo['semester'];
+                    if (isset($subjectInfo['type'])) $updateData['type'] = $subjectInfo['type'];
+                    if (isset($subjectInfo['description'])) $updateData['description'] = $subjectInfo['description'];
+                    if (isset($subjectInfo['display_order'])) $updateData['display_order'] = $subjectInfo['display_order'];
+                    
+                    $subject->update($updateData);
+                    
+                    \Log::info("✏️ Materia modificada: {$subjectCode} - " . json_encode($updateData));
+                } else {
+                    \Log::warning("⚠️ Materia no encontrada para modificación: {$subjectCode}");
                 }
             }
         }
 
-        // Update display_order for all subjects based on curriculum data
+        // Update display_order and semester for all subjects based on curriculum data
         $subjects = $curriculumData['subjects'] ?? [];
         foreach ($subjects as $subjectData) {
-            Subject::where('code', $subjectData['code'])
+            $code = $subjectData['code'] ?? null;
+            if (!$code) continue;
+            
+            Subject::where('code', $code)
                 ->update([
                     'display_order' => $subjectData['display_order'] ?? 0,
                     'semester' => $subjectData['semester']
                 ]);
         }
+        
+        \Log::info("✅ Cambios aplicados exitosamente");
     }
 
     /**

@@ -4680,9 +4680,9 @@ document.addEventListener('DOMContentLoaded', function() {
      * Save current curriculum as a new version
      */
     window.saveCurrentCurriculum = function() {
-        // Check if there are added or removed subjects
-        const hasAddedSubjects = simulationChanges.some(c => c.type === 'added');
-        const hasRemovedSubjects = simulationChanges.some(c => c.type === 'removed');
+        // Check if there are added or removed subjects that haven't been exported yet
+        const hasAddedSubjects = simulationChanges.some(c => c.type === 'added' && !c.exported);
+        const hasRemovedSubjects = simulationChanges.some(c => c.type === 'removed' && !c.exported);
         
         if (hasAddedSubjects || hasRemovedSubjects) {
             // Show info message and redirect to convalidation
@@ -4732,6 +4732,20 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
+                            // Save the curriculum ID to prevent duplicate exports
+                            if (data.curriculum_id) {
+                                localStorage.setItem('current_external_curriculum_id', data.curriculum_id);
+                                console.log('Saved external curriculum ID for convalidation:', data.curriculum_id);
+                                
+                                // Mark all added/removed changes as exported
+                                simulationChanges.forEach(change => {
+                                    if (change.type === 'added' || change.type === 'removed') {
+                                        change.exported = true;
+                                    }
+                                });
+                                saveChangesToStorage();
+                            }
+                            
                             showSuccessMessage('Malla exportada. Redirigiendo a convalidación...');
                             
                             // Store pending save flag in sessionStorage
@@ -4775,7 +4789,7 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                 // Gather all current curriculum data
                 const curriculumData = {
                     subjects: [],
-                    changes: window.simulationChanges || {}
+                    changes: window.simulationChanges || []  // Should be an array, not an object
                 };
 
                 // Collect all subjects with their current state
@@ -4822,6 +4836,9 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                         
                         // Clear from localStorage
                         clearStoredChanges();
+                        
+                        // Clear external curriculum ID since we successfully saved
+                        localStorage.removeItem('current_external_curriculum_id');
                         
                         updateSimulationStatus();
                         
@@ -4949,10 +4966,14 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
             card.style.cursor = 'default';
         });
 
-        // Disable buttons
-        document.querySelectorAll('.curriculum-controls button:not(#versionSelector)').forEach(btn => {
+        // Disable buttons (except version selector and dropdown)
+        document.querySelectorAll('.curriculum-controls button').forEach(btn => {
+            // Keep version selector button enabled
+            if (btn.closest('.dropdown') || btn.id === 'versionSelector') {
+                return;
+            }
+            // Keep export button enabled
             if (btn.textContent.includes('Exportar')) {
-                // Keep export button enabled
                 return;
             }
             btn.disabled = true;

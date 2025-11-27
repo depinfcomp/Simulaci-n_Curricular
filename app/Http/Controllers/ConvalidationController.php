@@ -165,6 +165,12 @@ class ConvalidationController extends Controller
         try {
             $externalSubject = ExternalSubject::findOrFail($request->external_subject_id);
 
+            // CRITICAL: Check if there's already a convalidation being created (race condition protection)
+            $existingConvalidation = SubjectConvalidation::where('external_subject_id', $externalSubject->id)->first();
+            if ($existingConvalidation) {
+                \Log::warning("Ya existe una convalidación para external_subject_id: {$externalSubject->id}, eliminando duplicado...");
+            }
+
             // Delete existing convalidation if any
             SubjectConvalidation::where('external_subject_id', $externalSubject->id)->delete();
 
@@ -240,6 +246,12 @@ class ConvalidationController extends Controller
                 'notes' => null
             ]);
 
+            \Log::info("✅ Convalidación creada exitosamente", [
+                'external_subject_id' => $externalSubject->id,
+                'convalidation_type' => $request->convalidation_type,
+                'component_type' => $request->component_type
+            ]);
+
             $convalidation->load('internalSubject');
             
             // Get updated statistics
@@ -255,6 +267,11 @@ class ConvalidationController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            \Log::error("❌ Error al crear convalidación: " . $e->getMessage(), [
+                'exception' => $e,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json(['error' => 'Error al crear la convalidación: ' . $e->getMessage()], 500);
         }
     }

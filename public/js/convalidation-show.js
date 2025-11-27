@@ -527,7 +527,16 @@ function filterAvailableSubjects(componentType, currentCode = null) {
         });
 }
 
+// Global flag to prevent duplicate submissions
+let isSavingConvalidation = false;
+
 function saveConvalidation() {
+    // ✅ CRITICAL: Prevent duplicate submissions
+    if (isSavingConvalidation) {
+        console.warn('⚠️ Ya hay una convalidación en proceso, ignorando click duplicado');
+        return;
+    }
+    
     const formData = new FormData(document.getElementById('convalidationForm'));
     
     // Validate convalidation type is selected
@@ -568,6 +577,17 @@ function saveConvalidation() {
         formData.append('create_new_code', '1');
     }
     
+    // ✅ Set flag to prevent duplicate submissions
+    isSavingConvalidation = true;
+    console.log('🔒 Bloqueando nuevas convalidaciones hasta completar esta...');
+    
+    // Disable save button to provide visual feedback
+    const saveButton = document.querySelector('#convalidationModal button[onclick="saveConvalidation()"]');
+    if (saveButton) {
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+    }
+    
     // Store current active semester before making the request
     const currentActiveSemester = getCurrentActiveSemester();
     
@@ -582,17 +602,35 @@ function saveConvalidation() {
     .then(data => {
         if (data.success) {
             // Success - reload page to get fresh data and avoid modal state issues
-            console.log('[Save] Convalidación guardada exitosamente, recargando página...');
+            console.log('✅ Convalidación guardada exitosamente, recargando página...');
             location.reload();
         } else {
-            // Show error (modal stays open, flag stays true)
+            // Show error (modal stays open)
             showAlert('danger', data.error || 'Error al guardar la convalidación');
+            
+            // ✅ Reset flag on error to allow retry
+            isSavingConvalidation = false;
+            
+            // Re-enable button
+            if (saveButton) {
+                saveButton.disabled = false;
+                saveButton.innerHTML = '<i class="fas fa-save me-2"></i>Guardar';
+            }
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        // Show error (modal stays open, flag stays true)
+        // Show error (modal stays open)
         showAlert('danger', 'Error de conexión');
+        
+        // ✅ Reset flag on error to allow retry
+        isSavingConvalidation = false;
+        
+        // Re-enable button
+        if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.innerHTML = '<i class="fas fa-save me-2"></i>Guardar';
+        }
     });
 }
 
