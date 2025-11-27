@@ -16,11 +16,15 @@ class ExternalSubject extends Model
         'credits',
         'semester',
         'description',
-        'additional_data'
+        'additional_data',
+        'change_type',
+        'original_semester',
+        'change_details'
     ];
 
     protected $casts = [
-        'additional_data' => 'array'
+        'additional_data' => 'array',
+        'change_details' => 'array'
     ];
 
     /**
@@ -40,11 +44,27 @@ class ExternalSubject extends Model
     }
 
     /**
+     * Get the N:N convalidation group this subject belongs to (as the NEW subject).
+     */
+    public function convalidationGroup()
+    {
+        return $this->hasOne(ConvalidationGroup::class);
+    }
+
+    /**
+     * Get the assigned component for this external subject.
+     */
+    public function assignedComponent()
+    {
+        return $this->hasOne(ExternalSubjectComponent::class);
+    }
+
+    /**
      * Check if this subject has been convalidated.
      */
     public function isConvalidated()
     {
-        return $this->convalidation !== null;
+        return $this->convalidation !== null || $this->convalidationGroup !== null;
     }
 
     /**
@@ -63,7 +83,33 @@ class ExternalSubject extends Model
      */
     public function getConvalidationStatus()
     {
-        if (!$this->isConvalidated()) {
+        // Check if subject is part of an N:N group
+        if ($this->convalidationGroup) {
+            $group = $this->convalidationGroup;
+            $group->load('internalSubjects'); // Eager load internal subjects
+            
+            return [
+                'status' => 'approved',
+                'type' => 'nn_group',
+                'internal_subject' => null,
+                'notes' => null,
+                'group_name' => $group->group_name,
+                'equivalence_type' => $group->equivalence_type,
+                'equivalence_percentage' => $group->equivalence_percentage,
+                'component_type' => $group->component_type,
+                'internal_subjects' => $group->internalSubjects->map(function($subject) {
+                    return [
+                        'id' => $subject->id,
+                        'code' => $subject->code,
+                        'name' => $subject->name,
+                        'credits' => $subject->credits
+                    ];
+                })->toArray()
+            ];
+        }
+        
+        // Check if subject has a direct convalidation
+        if (!$this->convalidation) {
             return [
                 'status' => 'pending',
                 'type' => null,
@@ -77,8 +123,7 @@ class ExternalSubject extends Model
             'status' => $convalidation->status,
             'type' => $convalidation->convalidation_type,
             'internal_subject' => $this->getInternalSubject(),
-            'notes' => $convalidation->notes,
-            'equivalence_percentage' => $convalidation->equivalence_percentage
+            'notes' => $convalidation->notes
         ];
     }
 
@@ -104,5 +149,29 @@ class ExternalSubject extends Model
     public function scopePendingConvalidation($query)
     {
         return $query->whereDoesntHave('convalidation');
+    }
+
+    /**
+     * Get the component assignment for this external subject.
+     */
+    public function component()
+    {
+        return $this->hasOne(ExternalSubjectComponent::class);
+    }
+
+    /**
+     * Check if this subject has a component assigned.
+     */
+    public function hasComponent(): bool
+    {
+        return $this->component !== null;
+    }
+
+    /**
+     * Get the component type or null if not assigned.
+     */
+    public function getComponentType(): ?string
+    {
+        return $this->component?->component_type;
     }
 }

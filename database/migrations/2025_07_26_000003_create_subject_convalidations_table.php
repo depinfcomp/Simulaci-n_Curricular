@@ -18,7 +18,6 @@ return new class extends Migration
             $table->string('internal_subject_code')->nullable()->comment('Internal subject code (null for free electives)');
             $table->enum('convalidation_type', ['direct', 'free_elective', 'not_convalidated'])->comment('Convalidation type');
             $table->text('notes')->nullable()->comment('Convalidation notes and observations');
-            $table->decimal('equivalence_percentage', 5, 2)->default(100.00)->comment('Equivalence percentage');
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending')->comment('Approval status');
             $table->string('approved_by')->nullable()->comment('User who approved the convalidation');
             $table->timestamp('approved_at')->nullable()->comment('Approval timestamp');

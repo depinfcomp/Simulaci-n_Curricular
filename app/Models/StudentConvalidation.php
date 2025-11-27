@@ -65,8 +65,7 @@ class StudentConvalidation extends Model
     {
         // Simple conversion logic - can be made more complex
         // Assuming external grades are on 0-5 scale and internal on 0-5 scale
-        $equivalencePercentage = $this->subjectConvalidation->equivalence_percentage / 100;
-        $convertedGrade = $this->external_grade * $equivalencePercentage;
+        $convertedGrade = $this->external_grade;
         
         // Ensure minimum passing grade if original was passing
         if ($this->external_grade >= 3.0 && $convertedGrade < 3.0) {

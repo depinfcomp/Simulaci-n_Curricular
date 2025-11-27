@@ -114,4 +114,34 @@ class Subject extends Model
         
         return $colors[$this->component] ?? 'secondary';
     }
+
+    /**
+     * Get total credits by component from the original curriculum (/simulation)
+     * Returns the sum of credits for each component type
+     * Only counts credits where subject has positive credits (to avoid empty/invalid entries)
+     */
+    public static function getCreditsByComponent(): array
+    {
+        // Only get subjects with credits > 0 to avoid counting invalid/empty entries
+        $subjects = self::where('credits', '>', 0)->get();
+        
+        $creditsByComponent = [
+            'fundamental_required' => 0,
+            'professional_required' => 0,
+            'optional_fundamental' => 0,
+            'optional_professional' => 0,
+            'free_elective' => 0,
+            'thesis' => 0,
+            'leveling' => 0,
+        ];
+        
+        foreach ($subjects as $subject) {
+            $component = $subject->component;
+            if (isset($creditsByComponent[$component])) {
+                $creditsByComponent[$component] += $subject->credits;
+            }
+        }
+        
+        return $creditsByComponent;
+    }
 }

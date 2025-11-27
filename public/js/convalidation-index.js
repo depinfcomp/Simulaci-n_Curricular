@@ -1,12 +1,72 @@
 let currentImpactResults = null;
 let currentCurriculumId = null;
+let currentCreditLimits = null;
+let currentMetadata = null;
 
-function deleteCurriculum(curriculumId) {
+function deleteCurriculum(curriculumId, metadata = null) {
+    currentCurriculumId = curriculumId;
+    currentMetadata = metadata;
+    
     const deleteForm = document.getElementById('deleteForm');
-    deleteForm.action = `/convalidation/${curriculumId}`;
+    const deleteModalBody = document.querySelector('#deleteModal .modal-body p');
+    
+    // Check if this convalidation came from simulation
+    const hasSimulationSource = metadata && metadata.source === 'simulation';
+    
+    if (hasSimulationSource) {
+        deleteForm.action = `/convalidation/${curriculumId}/reset-simulation`;
+        deleteModalBody.innerHTML = `
+            ¿Estás seguro de eliminar esta malla externa?<br>
+            <strong class="text-warning">⚠️ Esta acción también reseteará los cambios en la simulación.</strong>
+        `;
+        
+        // Override form submission to handle AJAX
+        deleteForm.onsubmit = function(e) {
+            e.preventDefault();
+            deleteConvalidationAndResetSimulation(curriculumId);
+            return false;
+        };
+    } else {
+        deleteForm.action = `/convalidation/${curriculumId}`;
+        deleteModalBody.textContent = '¿Estás seguro de eliminar esta malla externa? Esta acción no se puede deshacer.';
+        deleteForm.onsubmit = null; // Use default form submission
+    }
     
     const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
     modal.show();
+}
+
+async function deleteConvalidationAndResetSimulation(curriculumId) {
+    try {
+        const response = await fetch(`/convalidation/${curriculumId}/reset-simulation`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Clear simulation localStorage
+            localStorage.removeItem('simulation_temporary_changes');
+            console.log('✅ localStorage cleared');
+            
+            // Close modal and reload page
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
+            modal.hide();
+            
+            // Show success message and reload
+            alert(data.message || 'Convalidación eliminada y cambios de simulación reseteados');
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo eliminar la convalidación'));
+        }
+    } catch (error) {
+        console.error('Error deleting convalidation:', error);
+        alert('Error al eliminar la convalidación: ' + error.message);
+    }
 }
 
 function exportReport(curriculumId) {
@@ -64,11 +124,79 @@ document.getElementById('impactConfigForm').addEventListener('submit', function(
 
 function showImpactConfigModal(curriculumId) {
     currentCurriculumId = curriculumId;
-    const modal = new bootstrap.Modal(document.getElementById('impactConfigModal'));
-    modal.show();
     
-    // Cargar total de créditos de la malla
-    loadCurriculumTotalCredits(curriculumId);
+    // Open the analysis modal directly (skip configuration)
+    const analysisModal = new bootstrap.Modal(document.getElementById('impactAnalysisModal'));
+    analysisModal.show();
+    
+    // Reset content and show loading
+    document.getElementById('impactAnalysisContent').innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Analizando...</span>
+            </div>
+            <p class="mt-3">Analizando impacto en estudiantes...</p>
+            <small class="text-muted">Cargando análisis de convalidaciones...</small>
+        </div>
+    `;
+    
+    document.getElementById('exportImpactPdfBtn').style.display = 'none';
+    
+    // Load impact analysis directly (GET request, no parameters needed)
+    loadDirectImpactAnalysis(curriculumId);
+}
+
+/**
+ * Load impact analysis directly without configuration
+ * Uses the same endpoint as the show view
+ */
+function loadDirectImpactAnalysis(curriculumId) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]');
+    if (!csrfToken) {
+        showErrorMessage('Error: Token CSRF no encontrado');
+        return;
+    }
+    
+    // Use GET request to get default analysis
+    fetch(`/convalidation/${curriculumId}/analyze-impact`, {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': csrfToken.getAttribute('content')
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Error HTTP ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            currentImpactResults = data.results;
+            currentCreditLimits = {}; // No custom limits used
+            displayImpactResults(data.results);
+            document.getElementById('exportImpactPdfBtn').style.display = 'inline-block';
+        } else {
+            showErrorMessage(data.message || 'Error al analizar el impacto');
+            document.getElementById('impactAnalysisContent').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${data.message || 'Error al cargar el análisis'}
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('Error loading impact analysis:', error);
+        showErrorMessage('Error de conexión al cargar el análisis: ' + error.message);
+        document.getElementById('impactAnalysisContent').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Error al cargar el análisis: ${error.message}
+            </div>
+        `;
+    });
 }
 
 function loadCurriculumTotalCredits(curriculumId) {
@@ -178,7 +306,7 @@ function runImpactAnalysis() {
         </div>
     `;
     
-    document.getElementById('exportImpactBtn').style.display = 'none';
+    document.getElementById('exportImpactPdfBtn').style.display = 'none';
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]');
     if (!csrfToken) {
@@ -212,8 +340,18 @@ function runImpactAnalysis() {
     .then(data => {
         if (data.success) {
             currentImpactResults = data.results;
+            // Store credit limits for PDF generation
+            currentCreditLimits = {
+                max_free_elective_credits: maxFreeElectiveCredits,
+                max_optional_professional_credits: maxOptionalProfessionalCredits,
+                max_optional_fundamental_credits: maxOptionalFundamentalCredits,
+                max_leveling_credits: maxLevelingCredits,
+                max_required_fundamental_credits: maxRequiredFundamentalCredits,
+                max_required_professional_credits: maxRequiredProfessionalCredits,
+                max_thesis_credits: maxThesisCredits
+            };
             displayImpactResults(data.results);
-            document.getElementById('exportImpactBtn').style.display = 'inline-block';
+            document.getElementById('exportImpactPdfBtn').style.display = 'inline-block';
         } else {
             showErrorMessage(data.message || 'Error al analizar el impacto');
         }
@@ -664,25 +802,58 @@ function clearStudentSearch() {
     }
 }
 
-function exportImpactResults() {
-    if (!currentImpactResults) {
-        showErrorMessage('No hay resultados para exportar');
+function generateImpactPdfReport() {
+    if (!currentImpactResults || !currentCurriculumId) {
+        showErrorMessage('No hay resultados para generar el reporte');
         return;
     }
 
-    const csvContent = generateCSVContent(currentImpactResults);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    
-    if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', `impacto_convalidacion_${new Date().toISOString().split('T')[0]}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
+    // Show loading state
+    const button = document.getElementById('exportImpactPdfBtn');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generando reporte...';
+
+    // Send request to generate PDF report view
+    fetch(`/convalidation/${currentCurriculumId}/impact-report-pdf`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({
+            results: currentImpactResults,
+            credit_limits: currentCreditLimits
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error al generar el reporte');
+        }
+        return response.text();
+    })
+    .then(html => {
+        // Open the report in a new window
+        const newWindow = window.open('', '_blank');
+        if (newWindow) {
+            newWindow.document.write(html);
+            newWindow.document.close();
+        } else {
+            throw new Error('No se pudo abrir la ventana del reporte. Verifique que no esté bloqueando ventanas emergentes');
+        }
+
+        // Reset button
+        button.disabled = false;
+        button.innerHTML = originalText;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showErrorMessage('Error al generar el reporte PDF: ' + error.message);
+        
+        // Reset button
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
 }
 
 function generateCSVContent(results) {
@@ -701,6 +872,25 @@ function showErrorMessage(message) {
     const alertDiv = document.createElement('div');
     alertDiv.className = 'alert alert-danger alert-dismissible fade show';
     alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
+function showSuccessMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success alert-dismissible fade show';
+    alertDiv.innerHTML = `
+        <i class="fas fa-check-circle me-2"></i>
         ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;

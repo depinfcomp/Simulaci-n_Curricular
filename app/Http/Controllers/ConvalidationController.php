@@ -9,9 +9,12 @@ use App\Models\SubjectConvalidation;
 use App\Models\Subject;
 use App\Models\Student;
 use App\Models\StudentConvalidation;
+use App\Models\ConvalidationGroup;
+use App\Models\ConvalidationGroupSubject;
 use App\Services\ExcelImportService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 
 class ConvalidationController extends Controller
 {
@@ -96,12 +99,23 @@ class ConvalidationController extends Controller
      */
     public function show(ExternalCurriculum $externalCurriculum)
     {
-        $externalCurriculum->load(['externalSubjects.convalidation.internalSubject']);
+        $externalCurriculum->load([
+            'externalSubjects.convalidation.internalSubject',
+            'externalSubjects.convalidationGroup.internalSubjects'
+        ]);
         $subjectsBySemester = $externalCurriculum->getConvalidationsBySemester();
         $internalSubjects = Subject::orderBy('semester')->orderBy('name')->get();
         $stats = $externalCurriculum->getStats();
+        
+        // Parse metadata to check if it comes from simulation
+        $metadata = null;
+        if ($externalCurriculum->metadata) {
+            $metadata = is_string($externalCurriculum->metadata) 
+                ? json_decode($externalCurriculum->metadata, true) 
+                : $externalCurriculum->metadata;
+        }
 
-        return view('convalidation.show', compact('externalCurriculum', 'subjectsBySemester', 'internalSubjects', 'stats'));
+        return view('convalidation.show', compact('externalCurriculum', 'subjectsBySemester', 'internalSubjects', 'stats', 'metadata'));
     }
 
     /**
@@ -111,19 +125,28 @@ class ConvalidationController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'external_subject_id' => 'required|exists:external_subjects,id',
-            'convalidation_type' => 'required|in:direct,free_elective,not_convalidated',
+            'convalidation_type' => 'required|in:direct,flexible_component,not_convalidated',
             'internal_subject_code' => 'nullable|exists:subjects,code',
             'notes' => 'nullable|string',
-            'equivalence_percentage' => 'nullable|numeric|min:0|max:100'
+            'component_type' => 'required|in:fundamental_required,professional_required,optional_fundamental,optional_professional,free_elective,thesis,leveling',
+            'create_new_code' => 'nullable|boolean'
         ]);
 
         if ($validator->fails()) {
             return response()->json(['error' => $validator->errors()], 422);
         }
 
-        // Validate that direct convalidations have an internal subject
-        if ($request->convalidation_type === 'direct' && !$request->internal_subject_code) {
+        // Check if we need to create a new placeholder code
+        $createNewCode = $request->input('create_new_code', false);
+
+        // Validate that direct convalidations have an internal subject (unless creating new code)
+        if ($request->convalidation_type === 'direct' && !$request->internal_subject_code && !$createNewCode) {
             return response()->json(['error' => 'Las convalidaciones directas requieren una materia interna'], 422);
+        }
+
+        // Validate that flexible_component type doesn't have an internal subject
+        if ($request->convalidation_type === 'flexible_component' && $request->internal_subject_code) {
+            return response()->json(['error' => 'Los componentes electivos no deben tener una materia interna asignada'], 422);
         }
 
         // Validate that not_convalidated type doesn't have an internal subject
@@ -131,21 +154,102 @@ class ConvalidationController extends Controller
             return response()->json(['error' => 'Las materias no convalidadas no deben tener una materia interna asignada'], 422);
         }
 
+        // Validate that flexible_component has a flexible component_type
+        if ($request->convalidation_type === 'flexible_component') {
+            $flexibleComponents = ['optional_fundamental', 'optional_professional', 'free_elective'];
+            if (!in_array($request->component_type, $flexibleComponents)) {
+                return response()->json(['error' => 'Los componentes electivos deben ser Optativa Fundamental, Optativa Profesional o Libre Elección'], 422);
+            }
+        }
+
         try {
             $externalSubject = ExternalSubject::findOrFail($request->external_subject_id);
 
+            // CRITICAL: Check if there's already a convalidation being created (race condition protection)
+            $existingConvalidation = SubjectConvalidation::where('external_subject_id', $externalSubject->id)->first();
+            if ($existingConvalidation) {
+                \Log::warning("Ya existe una convalidación para external_subject_id: {$externalSubject->id}, eliminando duplicado...");
+            }
+
             // Delete existing convalidation if any
             SubjectConvalidation::where('external_subject_id', $externalSubject->id)->delete();
+
+            // Delete existing component assignment if any
+            \App\Models\ExternalSubjectComponent::where('external_subject_id', $externalSubject->id)->delete();
+
+            $internalSubjectCode = null;
+            $notes = $request->notes ?? '';
+
+            // If we need to create a new placeholder code
+            if ($createNewCode && $request->convalidation_type === 'direct') {
+                $placeholderCode = $this->generateNextPlaceholderCode($request->component_type, $externalSubject->external_curriculum_id);
+                $internalSubjectCode = $placeholderCode;
+                $notes .= "\n\nCódigo placeholder generado automáticamente: {$placeholderCode}";
+            }
+            // If it's a direct convalidation with existing code
+            else if ($request->convalidation_type === 'direct') {
+                $internalSubject = Subject::where('code', $request->internal_subject_code)->first();
+                
+                if ($internalSubject) {
+                    // Check if this is an elective or optional subject
+                    $isElectiveOrOptional = in_array($internalSubject->component_type, [
+                        'free_elective',
+                        'optional_fundamental',
+                        'optional_professional'
+                    ]);
+
+                    if ($isElectiveOrOptional) {
+                        // Check if this specific subject has already been used
+                        $timesUsed = SubjectConvalidation::where('external_curriculum_id', $externalSubject->external_curriculum_id)
+                            ->where('internal_subject_code', $internalSubject->code)
+                            ->count();
+
+                        if ($timesUsed > 0) {
+                            // Try to find the next available subject of the same type
+                            $nextAvailable = $this->getNextAvailableSubject($internalSubject->component_type, $externalSubject->external_curriculum_id);
+                            
+                            if ($nextAvailable) {
+                                $internalSubjectCode = $nextAvailable->code;
+                                $notes .= "\n\nNota: La materia {$internalSubject->code} ya estaba en uso. Se asignó automáticamente {$nextAvailable->code}.";
+                            } else {
+                                // No more subjects available, mark as not convalidated
+                                return response()->json([
+                                    'warning' => true,
+                                    'message' => 'No hay más materias de tipo ' . $internalSubject->component_type . ' disponibles. ¿Desea marcarla como materia nueva?',
+                                    'suggested_action' => 'not_convalidated'
+                                ]);
+                            }
+                        } else {
+                            $internalSubjectCode = $request->internal_subject_code;
+                        }
+                    } else {
+                        $internalSubjectCode = $request->internal_subject_code;
+                    }
+                }
+            }
 
             // Create new convalidation
             $convalidation = SubjectConvalidation::create([
                 'external_curriculum_id' => $externalSubject->external_curriculum_id,
                 'external_subject_id' => $externalSubject->id,
-                'internal_subject_code' => $request->convalidation_type === 'direct' ? $request->internal_subject_code : null,
+                'internal_subject_code' => $internalSubjectCode,
                 'convalidation_type' => $request->convalidation_type,
-                'notes' => $request->notes,
-                'equivalence_percentage' => $request->convalidation_type === 'not_convalidated' ? 0.00 : ($request->equivalence_percentage ?? 100.00),
+                'notes' => $notes,
                 'status' => 'pending'
+            ]);
+
+            // Create component assignment
+            $componentAssignment = \App\Models\ExternalSubjectComponent::create([
+                'external_curriculum_id' => $externalSubject->external_curriculum_id,
+                'external_subject_id' => $externalSubject->id,
+                'component_type' => $request->component_type,
+                'notes' => null
+            ]);
+
+            \Log::info("✅ Convalidación creada exitosamente", [
+                'external_subject_id' => $externalSubject->id,
+                'convalidation_type' => $request->convalidation_type,
+                'component_type' => $request->component_type
             ]);
 
             $convalidation->load('internalSubject');
@@ -158,10 +262,16 @@ class ConvalidationController extends Controller
                 'success' => true,
                 'message' => 'Convalidación creada exitosamente',
                 'convalidation' => $convalidation,
+                'component_assignment' => $componentAssignment,
                 'stats' => $updatedStats
             ]);
 
         } catch (\Exception $e) {
+            \Log::error("❌ Error al crear convalidación: " . $e->getMessage(), [
+                'exception' => $e,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json(['error' => 'Error al crear la convalidación: ' . $e->getMessage()], 500);
         }
     }
@@ -193,16 +303,20 @@ class ConvalidationController extends Controller
         $externalSubjectId = $request->external_subject_id;
         $externalSubject = ExternalSubject::findOrFail($externalSubjectId);
         
-        // Get internal subjects and calculate similarity
-        $internalSubjects = Subject::all();
+        // Get all internal subjects from all tables (subjects, leveling_subjects, elective_subjects)
+        $internalSubjects = $this->getAllInternalSubjects();
         $suggestions = [];
 
         foreach ($internalSubjects as $internal) {
-            $similarity = $this->calculateSimilarity($externalSubject->name, $internal->name);
+            $similarity = $this->calculateSimilarity($externalSubject->name, $internal['name']);
             
             if ($similarity > 0.3) { // 30% similarity threshold
                 $suggestions[] = [
-                    'subject' => $internal,
+                    'code' => $internal['code'],
+                    'name' => $internal['name'],
+                    'credits' => $internal['credits'],
+                    'component_type' => $internal['component_type'],
+                    'source_table' => $internal['source_table'],
                     'similarity' => $similarity,
                     'match_percentage' => round($similarity * 100, 2)
                 ];
@@ -278,6 +392,16 @@ class ConvalidationController extends Controller
     public function destroy(ExternalCurriculum $externalCurriculum)
     {
         try {
+            // Check if this curriculum has simulation metadata (came from /simulation)
+            $hasSimulationSource = false;
+            if ($externalCurriculum->metadata) {
+                $metadata = is_string($externalCurriculum->metadata) 
+                    ? json_decode($externalCurriculum->metadata, true) 
+                    : $externalCurriculum->metadata;
+                
+                $hasSimulationSource = isset($metadata['source']) && $metadata['source'] === 'simulation';
+            }
+            
             // Delete the uploaded file
             if ($externalCurriculum->uploaded_file) {
                 Storage::disk('public')->delete($externalCurriculum->uploaded_file);
@@ -287,12 +411,161 @@ class ConvalidationController extends Controller
             $externalCurriculum->delete();
 
             return redirect()->route('convalidation.index')
-                ->with('success', 'Malla externa eliminada exitosamente');
+                ->with('success', 'Malla externa eliminada exitosamente')
+                ->with('reset_simulation', $hasSimulationSource); // Flag to trigger localStorage clear
 
         } catch (\Exception $e) {
             return redirect()->route('convalidation.index')
                 ->withErrors(['error' => 'Error al eliminar la malla: ' . $e->getMessage()]);
         }
+    }
+    
+    /**
+     * Delete convalidation and reset simulation changes (bidirectional reset)
+     */
+    public function destroyAndResetSimulation(ExternalCurriculum $externalCurriculum)
+    {
+        try {
+            // Delete the uploaded file
+            if ($externalCurriculum->uploaded_file) {
+                Storage::disk('public')->delete($externalCurriculum->uploaded_file);
+            }
+
+            // Delete the curriculum (cascade will handle related records)
+            $externalCurriculum->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Convalidación eliminada. Los cambios en simulación serán reseteados.',
+                'reset_simulation' => true
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Error al eliminar la convalidación: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Reset all convalidations for a specific external curriculum
+     * Deletes all convalidations and component assignments
+     */
+    public function resetConvalidations(ExternalCurriculum $externalCurriculum)
+    {
+        try {
+            // Delete all convalidations for this curriculum
+            $deletedConvalidations = SubjectConvalidation::where('external_curriculum_id', $externalCurriculum->id)->delete();
+            
+            // Delete all component assignments through external_subjects relationship
+            // First get all external subject IDs for this curriculum
+            $externalSubjectIds = $externalCurriculum->externalSubjects()->pluck('id');
+            
+            // Delete component assignments for these subjects
+            $deletedComponents = \App\Models\ExternalSubjectComponent::whereIn('external_subject_id', $externalSubjectIds)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Se eliminaron {$deletedConvalidations} convalidaciones y {$deletedComponents} asignaciones de componentes.",
+                'deleted_convalidations' => $deletedConvalidations,
+                'deleted_components' => $deletedComponents
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Error al restablecer las convalidaciones: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get subjects that are already used in convalidations for a specific component type
+     */
+    public function getUsedSubjects(ExternalCurriculum $externalCurriculum, Request $request)
+    {
+        $componentType = $request->input('component_type');
+        
+        // Get all internal subject codes already used for this component type in this curriculum
+        // We check subject_convalidations table because internal_subject_code is stored there
+        $usedSubjects = \DB::table('subject_convalidations')
+            ->join('external_subjects', 'subject_convalidations.external_subject_id', '=', 'external_subjects.id')
+            ->join('external_subject_components', 'external_subject_components.external_subject_id', '=', 'external_subjects.id')
+            ->where('external_subjects.external_curriculum_id', $externalCurriculum->id)
+            ->where('external_subject_components.component_type', $componentType)
+            ->where('subject_convalidations.convalidation_type', 'direct')
+            ->whereNotNull('subject_convalidations.internal_subject_code')
+            ->pluck('subject_convalidations.internal_subject_code')
+            ->unique()
+            ->values()
+            ->toArray();
+        
+        return response()->json([
+            'usedSubjects' => $usedSubjects
+        ]);
+    }
+
+    /**
+     * Get subjects used ONLY as optativas or free electives
+     * This prevents human errors like selecting #LIBRE-01 when configuring a "Fundamental" component
+     */
+    public function getUsedOptativesAndFree(ExternalCurriculum $externalCurriculum)
+    {
+        // Get internal subject codes used ONLY for optativas and free electives
+        $usedOptativesAndFree = \DB::table('subject_convalidations')
+            ->join('external_subjects', 'subject_convalidations.external_subject_id', '=', 'external_subjects.id')
+            ->join('external_subject_components', 'external_subject_components.external_subject_id', '=', 'external_subjects.id')
+            ->where('external_subjects.external_curriculum_id', $externalCurriculum->id)
+            ->whereIn('external_subject_components.component_type', [
+                'optional_fundamental',
+                'optional_professional',
+                'free_elective'
+            ])
+            ->where('subject_convalidations.convalidation_type', 'direct')
+            ->whereNotNull('subject_convalidations.internal_subject_code')
+            ->pluck('subject_convalidations.internal_subject_code')
+            ->unique()
+            ->values()
+            ->toArray();
+        
+        return response()->json([
+            'usedOptativesAndFree' => $usedOptativesAndFree
+        ]);
+    }
+
+    /**
+     * Generate the next available placeholder code for a component type
+     */
+    private function generateNextPlaceholderCode($componentType, $curriculumId)
+    {
+        // Determine prefix based on component type
+        $prefix = match($componentType) {
+            'free_elective' => '#LIBRE-',
+            'optional_fundamental', 'optional_professional' => '#OPT-',
+            default => '#NEW-'
+        };
+        
+        // Find all existing placeholder codes with this prefix in this curriculum
+        $existingCodes = \DB::table('subject_convalidations')
+            ->join('external_subjects', 'subject_convalidations.external_subject_id', '=', 'external_subjects.id')
+            ->where('external_subjects.external_curriculum_id', $curriculumId)
+            ->where('subject_convalidations.internal_subject_code', 'LIKE', $prefix . '%')
+            ->pluck('subject_convalidations.internal_subject_code')
+            ->toArray();
+        
+        // Extract numbers from existing codes
+        $numbers = array_map(function($code) use ($prefix) {
+            return (int) str_replace($prefix, '', $code);
+        }, $existingCodes);
+        
+        // Find the next available number (start from 01)
+        $nextNumber = 1;
+        while (in_array($nextNumber, $numbers)) {
+            $nextNumber++;
+        }
+        
+        // Format with leading zeros
+        return $prefix . str_pad($nextNumber, 2, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -332,20 +605,38 @@ class ConvalidationController extends Controller
             $convalidations = SubjectConvalidation::where('external_curriculum_id', $externalCurriculum->id)
                 ->with(['externalSubject', 'internalSubject'])
                 ->get();
+            
+            // Get N:N convalidation groups
+            $nnGroups = \App\Models\ConvalidationGroup::where('external_curriculum_id', $externalCurriculum->id)
+                ->with(['externalSubject', 'internalSubjects'])
+                ->get();
 
             // Load external curriculum subjects if not already loaded
             if (!$externalCurriculum->relationLoaded('externalSubjects')) {
                 $externalCurriculum->load('externalSubjects');
             }
 
-            // Separate direct, free elective, and not convalidated convalidations
+            // Separate direct, flexible component, and not convalidated convalidations
             $directConvalidations = $convalidations->where('convalidation_type', 'direct');
-            $freeElectiveConvalidations = $convalidations->where('convalidation_type', 'free_elective');
+            $flexibleConvalidations = $convalidations->where('convalidation_type', 'flexible_component');
             $notConvalidatedConvalidations = $convalidations->where('convalidation_type', 'not_convalidated');
 
             // Get all subjects from original curriculum
             $originalSubjects = Subject::with(['prerequisites', 'requiredFor'])->get()->keyBy('code');
             $totalOriginalSubjects = $originalSubjects->count();
+
+            // Get REAL credit limits from the convalidation configuration
+            // These are the actual component limits defined in the external curriculum
+            $convalidatedCredits = $externalCurriculum->getCreditsByComponent();
+            $realCreditLimits = [
+                'max_fundamental_required' => $convalidatedCredits['fundamental_required'] ?? 0,
+                'max_professional_required' => $convalidatedCredits['professional_required'] ?? 0,
+                'max_optional_fundamental' => $convalidatedCredits['optional_fundamental'] ?? 0,
+                'max_optional_professional' => $convalidatedCredits['optional_professional'] ?? 0,
+                'max_free_elective' => $convalidatedCredits['free_elective'] ?? 0,
+                'max_leveling' => $convalidatedCredits['leveling'] ?? 0,
+                'max_thesis' => $convalidatedCredits['thesis'] ?? 0,
+            ];
 
             $results = [
                 'total_students' => $students->count(),
@@ -355,9 +646,10 @@ class ConvalidationController extends Controller
                 'students_with_reduced_progress' => 0,
                 'affected_percentage' => 0,
                 'average_progress_change' => 0,
-                'total_convalidated_subjects' => $directConvalidations->count(),
+                'total_convalidated_subjects' => $directConvalidations->count() + $nnGroups->count(),
                 'direct_convalidations_count' => $directConvalidations->count(),
-                'free_electives_count' => $freeElectiveConvalidations->count(),
+                'nn_groups_count' => $nnGroups->count(),
+                'flexible_convalidations_count' => $flexibleConvalidations->count(),
                 'additional_subjects_required' => $notConvalidatedConvalidations->count(),
                 'total_credits_lost' => $notConvalidatedConvalidations->sum(function($conv) { 
                     return $conv->externalSubject->credits ?? 0; 
@@ -369,7 +661,7 @@ class ConvalidationController extends Controller
                 ],
                 'student_details' => [],
                 'subject_impact' => [],
-                'configuration' => $creditLimits,
+                'configuration' => $realCreditLimits,
                 'credits_by_component' => [
                     'fundamental_required' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
                     'fundamental_optional' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
@@ -378,7 +670,14 @@ class ConvalidationController extends Controller
                     'leveling' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
                     'thesis' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
                     'free_elective' => ['used' => 0, 'overflow' => 0, 'excess' => 0],
-                ]
+                ],
+                // Credits for progress comparison (same as "Progreso de Carrera")
+                // These are the exact values shown in the dual progress bars
+                'original_assigned_credits' => $externalCurriculum->getStats()['original_curriculum_stats']['assigned_credits'] ?? 0,
+                'new_convalidated_credits' => $externalCurriculum->getStats()['new_curriculum_stats']['convalidated_credits'] ?? 0,
+                // Keep these for the component breakdown table
+                'original_curriculum_credits' => \App\Models\Subject::getCreditsByComponent(),
+                'convalidated_credits_by_component' => $convalidatedCredits,
             ];
 
             $totalProgressChange = 0;
@@ -389,10 +688,11 @@ class ConvalidationController extends Controller
                     $impact = $this->calculateStudentConvalidationImpactWithComponentLimits(
                         $student, 
                         $directConvalidations, 
-                        $freeElectiveConvalidations,
+                        $flexibleConvalidations,
                         $notConvalidatedConvalidations,
+                        $nnGroups,
                         $externalCurriculum,
-                        $creditLimits,
+                        $realCreditLimits,
                         $originalSubjects,
                         $totalOriginalSubjects
                     );
@@ -420,9 +720,9 @@ class ConvalidationController extends Controller
                         'original_progress' => round($impact['original_progress'] ?? 0, 1),
                         'new_progress' => round($impact['new_progress'] ?? 0, 1),
                         'progress_change' => round($impact['progress_change'] ?? 0, 1),
-                        'convalidated_subjects_count' => $impact['convalidated_subjects_count'] ?? 0,
-                        'new_subjects_count' => $impact['new_subjects_count'] ?? 0,
-                        'lost_credits_count' => $impact['lost_credits_count'] ?? 0,
+                        'convalidated_subjects' => $impact['convalidated_subjects_count'] ?? 0,
+                        'new_subjects' => $impact['new_subjects_count'] ?? 0,
+                        'total_convalidated_credits' => $impact['total_valid_credits'] ?? 0,
                         'convalidation_details' => $impact['convalidation_details'] ?? [],
                         'progress_explanation' => $impact['progress_explanation'] ?? 'Sin explicación disponible'
                     ];
@@ -442,6 +742,9 @@ class ConvalidationController extends Controller
             $results['average_progress_change'] = $results['affected_students'] > 0 
                 ? round($totalProgressChange / $results['affected_students'], 1)
                 : 0;
+
+            // Calculate convalidated credits by component - use the same method as the main view
+            $results['convalidated_credits_by_component'] = $externalCurriculum->getCreditsByComponent();
 
             return response()->json([
                 'success' => true,
@@ -762,8 +1065,9 @@ class ConvalidationController extends Controller
     private function calculateStudentConvalidationImpactWithComponentLimits(
         Student $student,
         $directConvalidations,
-        $freeElectiveConvalidations,
+        $flexibleConvalidations,
         $notConvalidatedConvalidations,
+        $nnGroups,
         $externalCurriculum,
         array $creditLimits,
         $originalSubjects,
@@ -773,12 +1077,17 @@ class ConvalidationController extends Controller
             // Get student's passed subjects
             $passedSubjects = $student->subjects->where('pivot.status', 'passed')->keyBy('code');
             
-            // Calculate original progress
-            $originalProgress = ($passedSubjects->count() / max($totalOriginalSubjects, 1)) * 100;
+            // Use the student's actual imported progress percentage (already calculated)
+            $originalProgress = $student->progress_percentage ?? 0;
             
-            // Get new curriculum size
+            // Get new curriculum size (EXCLUDING leveling subjects for progress calculation)
             $externalSubjects = $externalCurriculum->externalSubjects ?? collect();
-            $newTotalSubjects = max($externalSubjects->count(), 1);
+            $newTotalSubjects = $externalSubjects->filter(function($subject) {
+                // Exclude leveling subjects from total count for progress calculation
+                $component = $subject->assigned_component ?? '';
+                return $component !== 'leveling';
+            })->count();
+            $newTotalSubjects = max($newTotalSubjects, 1);
             
             // Initialize credit counters by component
             $componentCredits = [
@@ -792,7 +1101,8 @@ class ConvalidationController extends Controller
             ];
             
             $overflowCredits = []; // Credits that exceed component limits
-            $convalidatedCount = 0;
+            $convalidatedCount = 0; // Subjects that count toward progress (excludes leveling)
+            $convalidatedCountIncludingLeveling = 0; // Total convalidated including leveling
             $convalidationDetails = [];
             
             // Process direct convalidations
@@ -826,7 +1136,13 @@ class ConvalidationController extends Controller
                     
                     if ($accepted > 0) {
                         $componentCredits[$component] += $accepted;
-                        $convalidatedCount++;
+                        $convalidatedCountIncludingLeveling++;
+                        
+                        // Only count toward progress if NOT leveling
+                        if ($component !== 'leveling') {
+                            $convalidatedCount++;
+                        }
+                        
                         $convalidationDetails[] = [
                             'type' => 'direct_partial',
                             'subject' => $internalSubject->name,
@@ -845,12 +1161,150 @@ class ConvalidationController extends Controller
                 } else {
                     // Fits within limit
                     $componentCredits[$component] += $credits;
-                    $convalidatedCount++;
+                    $convalidatedCountIncludingLeveling++;
+                    
+                    // Only count toward progress if NOT leveling
+                    if ($component !== 'leveling') {
+                        $convalidatedCount++;
+                    }
+                    
                     $convalidationDetails[] = [
                         'type' => 'direct',
                         'subject' => $internalSubject->name,
                         'component' => $component,
                         'credits' => $credits,
+                    ];
+                }
+            }
+            
+            // Process N:N convalidation groups
+            foreach ($nnGroups as $group) {
+                if (!$group->externalSubject || !$group->internalSubjects || $group->internalSubjects->isEmpty()) {
+                    continue;
+                }
+                
+                $externalSubjectCode = $group->externalSubject->code;
+                
+                // IMPORTANT: Groups N:N work backwards from direct convalidations
+                // The student has OLD subjects (internal) that convalidate to a NEW subject (external)
+                // So we DON'T check if student has the external subject - we check if they have the internal subjects
+                
+                // Get group configuration
+                $equivalenceType = $group->equivalence_type; // 'all', 'any', 'credits'
+                $equivalencePercentage = $group->equivalence_percentage ?? 100;
+                $componentType = $group->component_type;
+                
+                // Check if student meets the group requirements (has the OLD internal subjects)
+                $meetsRequirements = false;
+                $matchedSubjects = [];
+                $totalGroupCredits = 0;
+                $studentMatchedCredits = 0;
+                
+                foreach ($group->internalSubjects as $internalSubject) {
+                    $totalGroupCredits += $internalSubject->credits ?? 0;
+                    
+                    if ($passedSubjects->has($internalSubject->code)) {
+                        $matchedSubjects[] = $internalSubject;
+                        $studentMatchedCredits += $internalSubject->credits ?? 0;
+                    }
+                }
+                
+                // Determine if requirements are met
+                if ($equivalenceType === 'all') {
+                    // Student must have ALL internal subjects
+                    $meetsRequirements = count($matchedSubjects) === $group->internalSubjects->count();
+                } elseif ($equivalenceType === 'any') {
+                    // Student must have at least ONE internal subject
+                    $meetsRequirements = count($matchedSubjects) > 0;
+                } elseif ($equivalenceType === 'credits') {
+                    // Student must have percentage of credits
+                    $requiredCredits = ($totalGroupCredits * $equivalencePercentage) / 100;
+                    $meetsRequirements = $studentMatchedCredits >= $requiredCredits;
+                }
+                
+                if (!$meetsRequirements) {
+                    continue;
+                }
+                
+                // Student meets requirements: they have the OLD internal subjects
+                // So they GET the NEW external subject in the new curriculum
+                // The credit value is simply the external subject's credits
+                $credits = $group->externalSubject->credits ?? 0;
+                
+                // Calculate informational balance (for reporting purposes)
+                $oldCreditsUsed = 0;
+                foreach ($matchedSubjects as $matchedSubject) {
+                    $oldCreditsUsed += $matchedSubject->credits ?? 0;
+                }
+                $netCredits = $credits - $oldCreditsUsed;
+                
+                // Map component_type to internal component key
+                $componentMap = [
+                    'fundamental_required' => 'fundamental_required',
+                    'professional_required' => 'professional_required',
+                    'optional_fundamental' => 'fundamental_optional',
+                    'optional_professional' => 'professional_optional',
+                    'free_elective' => 'free_elective',
+                    'thesis' => 'thesis',
+                    'leveling' => 'leveling',
+                ];
+                
+                $component = $componentMap[$componentType] ?? 'free_elective';
+                $limit = $this->getComponentLimit($component, $creditLimits);
+                $isLeveling = ($component === 'leveling');
+                
+                // Check if adding these credits exceeds the component limit
+                if ($limit !== null && $componentCredits[$component] + $credits > $limit) {
+                    // Calculate overflow
+                    $overflow = ($componentCredits[$component] + $credits) - $limit;
+                    $accepted = $credits - $overflow;
+                    
+                    if ($accepted > 0) {
+                        $componentCredits[$component] += $accepted;
+                        $convalidatedCountIncludingLeveling++;
+                        
+                        if (!$isLeveling) {
+                            $convalidatedCount++;
+                        }
+                        
+                        $convalidationDetails[] = [
+                            'type' => 'nn_group_partial',
+                            'subject' => $group->group_name,
+                            'component' => $component,
+                            'credits_accepted' => $accepted,
+                            'credits_overflow' => $overflow,
+                            'matched_subjects' => implode(', ', array_map(fn($s) => $s->name, $matchedSubjects)),
+                            'old_credits_used' => $oldCreditsUsed,
+                            'new_credits' => $credits,
+                            'net_credits' => $netCredits,
+                        ];
+                    }
+                    
+                    // Add overflow to pending overflow list
+                    $overflowCredits[] = [
+                        'credits' => $overflow,
+                        'subject' => $group->group_name,
+                        'original_component' => $component,
+                    ];
+                } else {
+                    // Fits within limit
+                    $componentCredits[$component] += $credits;
+                    $convalidatedCountIncludingLeveling++;
+                    
+                    if (!$isLeveling) {
+                        $convalidatedCount++;
+                    }
+                    
+                    $convalidationDetails[] = [
+                        'type' => 'nn_group',
+                        'subject' => $group->group_name,
+                        'component' => $component,
+                        'credits' => $credits,
+                        'equivalence_type' => $equivalenceType,
+                        'matched_subjects' => implode(', ', array_map(fn($s) => $s->name, $matchedSubjects)),
+                        'old_credits_used' => $oldCreditsUsed,
+                        'new_credits' => $credits,
+                        'net_credits' => $netCredits,
                     ];
                 }
             }
@@ -901,8 +1355,8 @@ class ConvalidationController extends Controller
                 }
             }
             
-            // Process free elective convalidations
-            foreach ($freeElectiveConvalidations as $convalidation) {
+            // Process flexible component convalidations (optativas y electivas)
+            foreach ($flexibleConvalidations as $convalidation) {
                 if (!$convalidation->externalSubject) {
                     continue;
                 }
@@ -914,46 +1368,56 @@ class ConvalidationController extends Controller
                 }
                 
                 $credits = $convalidation->externalSubject->credits ?? 3;
+                $componentType = $convalidation->component_type; // professional_optional, fundamental_optional, free_elective
                 
-                // Check if fits in free elective limit
-                if ($componentCredits['free_elective'] + $credits <= $freeElectiveLimit) {
-                    $componentCredits['free_elective'] += $credits;
-                    $convalidatedCount++;
-                    $convalidationDetails[] = [
-                        'type' => 'free_elective',
-                        'subject' => $convalidation->externalSubject->name,
-                        'credits' => $credits,
-                    ];
-                } else {
-                    // Partial or excess
-                    $remaining = $freeElectiveLimit - $componentCredits['free_elective'];
-                    if ($remaining > 0) {
-                        $componentCredits['free_elective'] += $remaining;
+                // Map component_type to internal component key
+                $componentMap = [
+                    'fundamental_optional' => 'fundamental_optional',
+                    'professional_optional' => 'professional_optional',
+                    'free_elective' => 'free_elective',
+                ];
+                
+                $component = $componentMap[$componentType] ?? 'free_elective';
+                $limit = $this->getComponentLimit($component, $creditLimits);
+                
+                // Check if fits within component limit
+                if ($limit !== null && $componentCredits[$component] + $credits > $limit) {
+                    // Partial or overflow
+                    $overflow = ($componentCredits[$component] + $credits) - $limit;
+                    $accepted = $credits - $overflow;
+                    
+                    if ($accepted > 0) {
+                        $componentCredits[$component] += $accepted;
+                        $convalidatedCountIncludingLeveling++;
                         $convalidatedCount++;
                         
-                        $excessCredits[] = [
-                            'credits' => $credits - $remaining,
-                            'subject' => $convalidation->externalSubject->name,
-                        ];
-                        
                         $convalidationDetails[] = [
-                            'type' => 'free_elective_partial',
+                            'type' => 'flexible_partial',
                             'subject' => $convalidation->externalSubject->name,
-                            'credits_accepted' => $remaining,
-                            'credits_excess' => $credits - $remaining,
-                        ];
-                    } else {
-                        $excessCredits[] = [
-                            'credits' => $credits,
-                            'subject' => $convalidation->externalSubject->name,
-                        ];
-                        
-                        $convalidationDetails[] = [
-                            'type' => 'excess',
-                            'subject' => $convalidation->externalSubject->name,
-                            'credits' => $credits,
+                            'component' => $component,
+                            'credits_accepted' => $accepted,
+                            'credits_overflow' => $overflow,
                         ];
                     }
+                    
+                    // Add overflow to pending overflow list
+                    $overflowCredits[] = [
+                        'credits' => $overflow,
+                        'subject' => $convalidation->externalSubject->name,
+                        'original_component' => $component,
+                    ];
+                } else {
+                    // Fits within limit
+                    $componentCredits[$component] += $credits;
+                    $convalidatedCountIncludingLeveling++;
+                    $convalidatedCount++;
+                    
+                    $convalidationDetails[] = [
+                        'type' => 'flexible',
+                        'subject' => $convalidation->externalSubject->name,
+                        'component' => $component,
+                        'credits' => $credits,
+                    ];
                 }
             }
             
@@ -961,8 +1425,125 @@ class ConvalidationController extends Controller
             $totalValidCredits = array_sum($componentCredits);
             $totalExcessCredits = array_sum(array_column($excessCredits, 'credits'));
             
-            // Calculate new progress (based on valid credits)
-            $newProgress = ($convalidatedCount / $newTotalSubjects) * 100;
+            // Calculate new progress based on CREDITS (not subject count)
+            // We need to account for:
+            // 1. Student's original approved credits
+            // 2. Credits from their academic history that were convalidated
+            // 3. Credits NOT in their history (homologations, external credits, etc.)
+            
+            $studentApprovedCredits = $student->approved_credits ?? 0;
+            $originalTotalCredits = ($studentApprovedCredits > 0 && $originalProgress > 0) 
+                ? ($studentApprovedCredits * 100) / $originalProgress 
+                : 167; // Default fallback (plan viejo)
+            
+            // Get NEW curriculum total credits (excluding leveling) for percentage calculation
+            $newCurriculumCredits = $externalCurriculum->getCreditsByComponent();
+            $newTotalCredits = 0;
+            foreach ($newCurriculumCredits as $component => $credits) {
+                if ($component !== 'leveling' && $component !== 'pending') {
+                    $newTotalCredits += $credits;
+                }
+            }
+            $newTotalCredits = max($newTotalCredits, 1); // Avoid division by zero
+            
+            // Calculate credits from passed subjects (subjects in their history)
+            $creditsFromHistory = $passedSubjects->sum('credits');
+            
+            // Calculate credits NOT in history (difference between approved_credits and sum of subjects)
+            // These are likely: optativas, electivas, libre elección, homologaciones, etc.
+            $creditsNotInHistory = max(0, $studentApprovedCredits - $creditsFromHistory);
+            
+            // Automatically distribute credits NOT in history to flexible components
+            // Priority: professional_optional → fundamental_optional → free_elective → excess
+            if ($creditsNotInHistory > 0) {
+                $remainingCredits = $creditsNotInHistory;
+                
+                // Try to add to professional_optional (disciplinares optativas)
+                $professionalOptionalLimit = $this->getComponentLimit('professional_optional', $creditLimits);
+                if ($professionalOptionalLimit !== null && $remainingCredits > 0) {
+                    $available = $professionalOptionalLimit - $componentCredits['professional_optional'];
+                    if ($available > 0) {
+                        $toAdd = min($remainingCredits, $available);
+                        $componentCredits['professional_optional'] += $toAdd;
+                        $remainingCredits -= $toAdd;
+                        $convalidatedCount += 1;
+                        
+                        $convalidationDetails[] = [
+                            'type' => 'auto_flexible',
+                            'subject' => 'Créditos optativas/electivas no en historial',
+                            'component' => 'professional_optional',
+                            'credits' => $toAdd,
+                            'note' => 'Auto-convalidación de créditos flexibles'
+                        ];
+                    }
+                }
+                
+                // Try to add to fundamental_optional (fundamentales optativas)
+                $fundamentalOptionalLimit = $this->getComponentLimit('fundamental_optional', $creditLimits);
+                if ($fundamentalOptionalLimit !== null && $remainingCredits > 0) {
+                    $available = $fundamentalOptionalLimit - $componentCredits['fundamental_optional'];
+                    if ($available > 0) {
+                        $toAdd = min($remainingCredits, $available);
+                        $componentCredits['fundamental_optional'] += $toAdd;
+                        $remainingCredits -= $toAdd;
+                        $convalidatedCount += 1;
+                        
+                        $convalidationDetails[] = [
+                            'type' => 'auto_flexible',
+                            'subject' => 'Créditos optativas/electivas no en historial',
+                            'component' => 'fundamental_optional',
+                            'credits' => $toAdd,
+                            'note' => 'Auto-convalidación de créditos flexibles'
+                        ];
+                    }
+                }
+                
+                // Try to add to free_elective (libre elección)
+                $freeElectiveLimit = $creditLimits['max_free_elective_credits'] ?? 36;
+                if ($remainingCredits > 0) {
+                    $available = $freeElectiveLimit - $componentCredits['free_elective'];
+                    if ($available > 0) {
+                        $toAdd = min($remainingCredits, $available);
+                        $componentCredits['free_elective'] += $toAdd;
+                        $remainingCredits -= $toAdd;
+                        $convalidatedCount += 1;
+                        
+                        $convalidationDetails[] = [
+                            'type' => 'auto_flexible',
+                            'subject' => 'Créditos de libre elección no en historial',
+                            'component' => 'free_elective',
+                            'credits' => $toAdd,
+                            'note' => 'Auto-convalidación de créditos flexibles'
+                        ];
+                    }
+                }
+                
+                // Remaining credits become excess (don't count toward progress)
+                if ($remainingCredits > 0) {
+                    $excessCredits[] = [
+                        'credits' => $remainingCredits,
+                        'subject' => 'Créditos excedentes no en historial',
+                        'note' => 'Exceden los límites de componentes flexibles'
+                    ];
+                    
+                    $convalidationDetails[] = [
+                        'type' => 'excess',
+                        'subject' => 'Créditos excedentes no en historial',
+                        'credits' => $remainingCredits,
+                        'note' => 'No cuentan para avance (exceden límites)'
+                    ];
+                }
+            }
+            
+            // Recalculate total valid credits after adding credits not in history
+            $totalValidCredits = array_sum($componentCredits);
+            $totalExcessCredits = array_sum(array_column($excessCredits, 'credits'));
+            
+            // Effective credits = total valid credits (already includes auto-distributed credits)
+            $effectiveCredits = $totalValidCredits;
+            
+            // Calculate percentage based on NEW curriculum total credits (sin nivelación)
+            $newProgress = ($effectiveCredits / $newTotalCredits) * 100;
             $progressChange = $newProgress - $originalProgress;
             
             // Count new subjects required
@@ -1073,13 +1654,13 @@ class ConvalidationController extends Controller
     private function getComponentLimit(string $component, array $creditLimits): ?int
     {
         $map = [
-            'fundamental_required' => 'max_required_fundamental_credits',
-            'fundamental_optional' => 'max_optional_fundamental_credits',
-            'professional_required' => 'max_required_professional_credits',
-            'professional_optional' => 'max_optional_professional_credits',
-            'leveling' => 'max_leveling_credits',
-            'thesis' => 'max_thesis_credits',
-            'free_elective' => 'max_free_elective_credits',
+            'fundamental_required' => 'max_fundamental_required',
+            'fundamental_optional' => 'max_optional_fundamental',
+            'professional_required' => 'max_professional_required',
+            'professional_optional' => 'max_optional_professional',
+            'leveling' => 'max_leveling',
+            'thesis' => 'max_thesis',
+            'free_elective' => 'max_free_elective',
         ];
         
         $key = $map[$component] ?? null;
@@ -1089,8 +1670,8 @@ class ConvalidationController extends Controller
         
         $limit = $creditLimits[$key] ?? null;
         
-        // null means no limit
-        return $limit !== null && $limit !== '' ? (int)$limit : null;
+        // null means no limit (or 0 means no limit for that component)
+        return $limit !== null && $limit !== '' && $limit > 0 ? (int)$limit : null;
     }
 
     /**
@@ -1264,6 +1845,20 @@ class ConvalidationController extends Controller
             $name = $request->input('name');
             $institution = $request->input('institution', 'Simulación Curricular');
 
+            // DEBUG: Log incoming data
+            \Log::info('=== SAVE MODIFIED CURRICULUM DEBUG ===', [
+                'name' => $name,
+                'total_semesters' => count($curriculumData),
+                'changes_count' => count($changes),
+                'changes_summary' => collect($changes)->groupBy('type')->map->count(),
+                'sample_change' => !empty($changes) ? $changes[0] : null,
+                'changes_sample' => array_slice($changes, 0, 3)
+            ]);
+
+            // Build a map of changes by subject code for easy lookup
+            // simulationChanges structure: [{subject_code, type, new_value, old_value, ...}]
+            $changesMap = collect($changes)->keyBy('subject_code');
+
             // Calculate total subjects
             $totalSubjects = 0;
             foreach ($curriculumData as $semester => $subjects) {
@@ -1287,27 +1882,161 @@ class ConvalidationController extends Controller
             ]);
 
             // Process curriculum data and create external subjects
+            \Log::info('Starting to process curriculum subjects...');
+            $processedCount = 0;
+            $changeTypeCounts = ['added' => 0, 'removed' => 0, 'modified' => 0, 'moved' => 0, 'unchanged' => 0];
+            
             foreach ($curriculumData as $semester => $subjects) {
+                \Log::info("Processing semester {$semester} with " . count($subjects) . " subjects");
+                
                 foreach ($subjects as $subjectData) {
-                    // Prepare additional_data with information about prerequisites and simulation details
+                    $subjectCode = $subjectData['code'];
+                    $processedCount++;
+                    
+                    // Sample first 3 subjects for detailed logging
+                    if ($processedCount <= 3) {
+                        \Log::info("Sample subject data:", [
+                            'code' => $subjectCode,
+                            'name' => $subjectData['name'],
+                            'semester' => $semester,
+                            'isRemoved' => $subjectData['isRemoved'] ?? 'not set',
+                            'isAdded' => $subjectData['isAdded'] ?? 'not set',
+                            'all_keys' => array_keys($subjectData)
+                        ]);
+                    }
+                    
+                    // Determine change type based on multiple sources
+                    $changeType = 'unchanged';
+                    $originalSemester = null;
+                    $changeDetails = [];
+                    
+                    // Check if subject is marked as removed in the frontend
+                    if (isset($subjectData['isRemoved']) && $subjectData['isRemoved']) {
+                        $changeType = 'removed';
+                    }
+                    // Check if subject is marked as added in the frontend
+                    elseif (isset($subjectData['isAdded']) && $subjectData['isAdded']) {
+                        $changeType = 'added';
+                    }
+                    // Check simulationChanges array for this subject
+                    else {
+                        $changeInfo = $changesMap->get($subjectCode);
+                        if ($changeInfo) {
+                            $infoType = $changeInfo['type'] ?? '';
+                            
+                            // Map simulation change types
+                            if ($infoType === 'added') {
+                                $changeType = 'added';
+                            } elseif ($infoType === 'removed') {
+                                $changeType = 'removed';
+                            } elseif ($infoType === 'semester') {
+                                $changeType = 'moved';
+                                $originalSemester = $changeInfo['old_value'] ?? null;
+                            } elseif ($infoType === 'prerequisites' || $infoType === 'edit') {
+                                $changeType = 'modified';
+                            }
+                        }
+                    }
+                    
+                    // DEBUG: Log change type detection
+                    \Log::info("Processing subject: {$subjectCode} - {$subjectData['name']}", [
+                        'semester' => $semester,
+                        'isRemoved_flag' => $subjectData['isRemoved'] ?? false,
+                        'isAdded_flag' => $subjectData['isAdded'] ?? false,
+                        'has_change_in_map' => $changesMap->has($subjectCode),
+                        'detected_changeType' => $changeType
+                    ]);
+                    
+                    // Build change details based on type
+                    switch ($changeType) {
+                        case 'added':
+                            $changeDetails = [
+                                'added_reason' => 'Nueva materia agregada en simulación',
+                                'added_at' => now()->toISOString()
+                            ];
+                            break;
+
+                        case 'removed':
+                            $changeDetails = [
+                                'removed_reason' => 'Materia eliminada en simulación',
+                                'removed_at' => now()->toISOString()
+                            ];
+                            break;
+
+                        case 'moved':
+                            $changeDetails = [
+                                'old_semester' => $originalSemester,
+                                'new_semester' => $semester,
+                                'moved_at' => now()->toISOString()
+                            ];
+                            break;
+
+                        case 'modified':
+                            $changeInfo = $changesMap->get($subjectCode);
+                            $changeDetails = [
+                                'modifications' => $changeInfo['new_value'] ?? [],
+                                'old_value' => $changeInfo['old_value'] ?? null,
+                                'modified_at' => now()->toISOString()
+                            ];
+                            break;
+                    }
+
+                    // Get credits from actual subject data in the database if available
+                    $credits = $subjectData['credits'] ?? 3;
+                    
+                    // Try to get credits from the original subject if not in subjectData
+                    if (!isset($subjectData['credits']) || $credits === 3) {
+                        $originalSubject = Subject::where('code', $subjectCode)->first();
+                        if ($originalSubject) {
+                            $credits = $originalSubject->credits;
+                        }
+                    }
+
+                    // Prepare additional_data with comprehensive information
                     $additionalData = [
                         'prerequisites' => $subjectData['prerequisites'] ?? [],
-                        'is_added_in_simulation' => $subjectData['isAdded'] ?? false,
+                        'is_added_in_simulation' => ($changeType === 'added'),
+                        'is_removed_in_simulation' => ($changeType === 'removed'),
+                        'is_modified_in_simulation' => ($changeType === 'modified'),
+                        'is_moved_in_simulation' => ($changeType === 'moved'),
                         'original_description' => $subjectData['description'] ?? null,
-                        'source' => 'simulation'
+                        'source' => 'simulation',
+                        'classroom_hours' => $subjectData['classroom_hours'] ?? null,
+                        'student_hours' => $subjectData['student_hours'] ?? null,
+                        'type' => $subjectData['type'] ?? null
                     ];
 
                     ExternalSubject::create([
                         'external_curriculum_id' => $externalCurriculum->id,
-                        'code' => $subjectData['code'],
+                        'code' => $subjectCode,
                         'name' => $subjectData['name'],
-                        'semester' => (int) $subjectData['semester'],
-                        'credits' => $subjectData['credits'] ?? 3, // Default to 3 credits if not specified
+                        'semester' => (int) $semester,
+                        'credits' => $credits,
                         'description' => $subjectData['description'] ?? $subjectData['name'],
-                        'additional_data' => $additionalData
+                        'additional_data' => $additionalData,
+                        'change_type' => $changeType !== 'unchanged' ? $changeType : null,
+                        'original_semester' => $originalSemester,
+                        'change_details' => !empty($changeDetails) ? $changeDetails : null
                     ]);
+                    
+                    // DEBUG: Log what was actually saved
+                    if ($changeType === 'removed' || $changeType === 'added') {
+                        \Log::info("✅ Saved subject with change_type:", [
+                            'code' => $subjectCode,
+                            'change_type_variable' => $changeType,
+                            'change_type_saved' => ($changeType !== 'unchanged' ? $changeType : null)
+                        ]);
+                    }
+                    
+                    // Count change types
+                    $changeTypeCounts[$changeType]++;
                 }
             }
+            
+            \Log::info('Finished processing curriculum', [
+                'total_processed' => $processedCount,
+                'change_type_counts' => $changeTypeCounts
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -1318,6 +2047,7 @@ class ConvalidationController extends Controller
 
         } catch (\Exception $e) {
             \Log::error('Error saving modified curriculum: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
             
             return response()->json([
                 'success' => false,
@@ -1596,6 +2326,974 @@ class ConvalidationController extends Controller
             
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+        }
+    }
+
+    /**
+     * Show the component assignment view for an external curriculum.
+     */
+    public function assignComponents($curriculumId)
+    {
+        $curriculum = ExternalCurriculum::with('externalSubjects.assignedComponent')
+            ->findOrFail($curriculumId);
+
+        // Get available component types
+        $componentTypes = [
+            'fundamental_required' => 'Fundamental Obligatoria',
+            'professional_required' => 'Profesional Obligatoria',
+            'optional_fundamental' => 'Optativa Fundamental',
+            'optional_professional' => 'Optativa Profesional',
+            'free_elective' => 'Libre Elección',
+            'thesis' => 'Trabajo de Grado',
+            'leveling' => 'Nivelación'
+        ];
+
+        return view('convalidation.assign-components', compact('curriculum', 'componentTypes'));
+    }
+
+    /**
+     * Store component assignment for an external subject.
+     */
+    public function storeComponentAssignment(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'external_subject_id' => 'required|exists:external_subjects,id',
+            'component_type' => 'required|in:fundamental_required,professional_required,optional_fundamental,optional_professional,free_elective,thesis,leveling',
+            'notes' => 'nullable|string|max:500'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()], 422);
+        }
+
+        try {
+            $externalSubject = ExternalSubject::findOrFail($request->external_subject_id);
+
+            // Delete existing assignment if any
+            \App\Models\ExternalSubjectComponent::where('external_subject_id', $externalSubject->id)->delete();
+
+            // Create new assignment
+            $assignment = \App\Models\ExternalSubjectComponent::create([
+                'external_curriculum_id' => $externalSubject->external_curriculum_id,
+                'external_subject_id' => $externalSubject->id,
+                'component_type' => $request->component_type,
+                'notes' => $request->notes
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Componente asignado exitosamente',
+                'assignment' => $assignment
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Show the simulation analysis with credit sums by component.
+     */
+    public function showSimulationAnalysis($curriculumId)
+    {
+        $curriculum = ExternalCurriculum::with(['externalSubjects.assignedComponent'])
+            ->findOrFail($curriculumId);
+
+        // Calculate credit sums by component
+        $creditsByComponent = [];
+        $componentTypes = [
+            'fundamental_required',
+            'professional_required',
+            'optional_fundamental',
+            'optional_professional',
+            'free_elective',
+            'thesis',
+            'leveling'
+        ];
+
+        foreach ($componentTypes as $type) {
+            $creditsByComponent[$type] = $curriculum->externalSubjects()
+                ->whereHas('assignedComponent', function($query) use ($type) {
+                    $query->where('component_type', $type);
+                })
+                ->sum('credits');
+        }
+
+        // Get component limits for reference
+        $componentLimits = [
+            'fundamental_required' => 39,
+            'professional_required' => 79,
+            'optional_fundamental' => 6,
+            'optional_professional' => 9,
+            'free_elective' => 28,
+            'thesis' => 6,
+            'leveling' => null // No limit
+        ];
+
+        return view('convalidation.simulation-analysis', compact(
+            'curriculum',
+            'creditsByComponent',
+            'componentLimits'
+        ));
+    }
+
+    /**
+     * Create a new simulation based on component assignments.
+     */
+    public function createSimulation(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'external_curriculum_id' => 'required|exists:external_curriculums,id',
+            'simulation_name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'leveling_credits' => 'nullable|integer|min:0'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()], 422);
+        }
+
+        try {
+            $curriculum = ExternalCurriculum::findOrFail($request->external_curriculum_id);
+
+            // Calculate actual credits by component from assignments
+            $componentCredits = [];
+            $componentTypes = [
+                'fundamental_required',
+                'professional_required',
+                'optional_fundamental',
+                'optional_professional',
+                'free_elective',
+                'thesis',
+                'leveling'
+            ];
+
+            foreach ($componentTypes as $type) {
+                $sum = $curriculum->externalSubjects()
+                    ->whereHas('assignedComponent', function($query) use ($type) {
+                        $query->where('component_type', $type);
+                    })
+                    ->sum('credits');
+                
+                $componentCredits[$type] = $sum;
+            }
+
+            // Validate leveling credits (can only increase, not decrease)
+            $calculatedLevelingCredits = $componentCredits['leveling'];
+            $requestedLevelingCredits = $request->leveling_credits ?? $calculatedLevelingCredits;
+
+            if ($requestedLevelingCredits < $calculatedLevelingCredits) {
+                return response()->json([
+                    'error' => "Los créditos de nivelación no pueden ser menores a {$calculatedLevelingCredits}"
+                ], 422);
+            }
+
+            // Update leveling credits if increased
+            $componentCredits['leveling'] = $requestedLevelingCredits;
+
+            // Create simulation
+            $simulation = \App\Models\ConvalidationSimulation::create([
+                'external_curriculum_id' => $curriculum->id,
+                'simulation_name' => $request->simulation_name,
+                'description' => $request->description,
+                'fundamental_required_credits' => $componentCredits['fundamental_required'],
+                'professional_required_credits' => $componentCredits['professional_required'],
+                'optional_fundamental_credits' => $componentCredits['optional_fundamental'],
+                'optional_professional_credits' => $componentCredits['optional_professional'],
+                'free_elective_credits' => $componentCredits['free_elective'],
+                'thesis_credits' => $componentCredits['thesis'],
+                'leveling_credits' => $componentCredits['leveling'],
+                'status' => 'draft'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Simulación creada exitosamente',
+                'simulation' => $simulation,
+                'redirect' => route('convalidation.simulation.show', $simulation->id)
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Update leveling credits for a simulation.
+     */
+    public function updateLevelingCredits(Request $request, $simulationId)
+    {
+        $validator = Validator::make($request->all(), [
+            'leveling_credits' => 'required|integer|min:0'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()], 422);
+        }
+
+        try {
+            $simulation = \App\Models\ConvalidationSimulation::findOrFail($simulationId);
+
+            // Get original calculated leveling credits from component assignments
+            $calculatedLevelingCredits = $simulation->externalCurriculum->externalSubjects()
+                ->whereHas('assignedComponent', function($query) {
+                    $query->where('component_type', 'leveling');
+                })
+                ->sum('credits');
+
+            // Validate that new value is not less than calculated
+            if ($request->leveling_credits < $calculatedLevelingCredits) {
+                return response()->json([
+                    'error' => "Los créditos de nivelación no pueden ser menores a {$calculatedLevelingCredits} (suma de materias asignadas como nivelación)"
+                ], 422);
+            }
+
+            // Update simulation
+            $simulation->update([
+                'leveling_credits' => $request->leveling_credits
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Créditos de nivelación actualizados exitosamente',
+                'simulation' => $simulation
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get the next available subject for a given component type.
+     * Returns null if no subjects are available.
+     */
+    /**
+     * Get the next available subject of a specific component type that hasn't been used yet.
+     * Searches across subjects, leveling_subjects, and elective_subjects tables.
+     * 
+     * @param string $componentType
+     * @param int $externalCurriculumId
+     * @return mixed|null Subject model or null if none available
+     */
+    private function getNextAvailableSubject($componentType, $externalCurriculumId)
+    {
+        $subjects = collect();
+
+        // Get subjects based on component type
+        switch ($componentType) {
+            case 'leveling':
+                // Search in leveling_subjects table
+                $subjects = \App\Models\LevelingSubject::all();
+                break;
+
+            case 'optional_fundamental':
+                // Search in elective_subjects with type optativa_fundamental
+                $subjects = \App\Models\ElectiveSubject::where('elective_type', 'optativa_fundamental')
+                    ->where('is_active', true)
+                    ->get();
+                break;
+
+            case 'optional_professional':
+                // Search in elective_subjects with type optativa_profesional
+                $subjects = \App\Models\ElectiveSubject::where('elective_type', 'optativa_profesional')
+                    ->where('is_active', true)
+                    ->get();
+                break;
+
+            case 'free_elective':
+            case 'fundamental_required':
+            case 'professional_required':
+            case 'thesis':
+                // Search in main subjects table using the 'type' field
+                // Map component_type back to 'type' field values
+                $typeMapping = [
+                    'free_elective' => 'libre_eleccion',
+                    'fundamental_required' => 'fundamental',
+                    'professional_required' => 'profesional',
+                    'thesis' => 'trabajo_grado',
+                ];
+                
+                $typeValue = $typeMapping[$componentType] ?? null;
+                if ($typeValue) {
+                    $subjects = Subject::where('type', $typeValue)->get();
+                }
+                break;
+        }
+
+        // For each subject, check if it's already been used in a convalidation for this curriculum
+        foreach ($subjects as $subject) {
+            $timesUsed = SubjectConvalidation::where('external_curriculum_id', $externalCurriculumId)
+                ->where('internal_subject_code', $subject->code)
+                ->count();
+
+            // If not used yet, return this subject
+            if ($timesUsed === 0) {
+                return $subject;
+            }
+        }
+
+        // No available subjects found
+        return null;
+    }
+
+    /**
+     * Check if a code is a placeholder.
+     * Placeholders start with # or are generic codes that shouldn't match directly.
+     * 
+     * @param string $code
+     * @return bool
+     */
+    private function isPlaceholderCode($code)
+    {
+        // Placeholders start with #
+        if (strpos($code, '#') === 0) {
+            return true;
+        }
+
+        // Additional placeholder patterns if needed
+        // e.g., codes that are clearly generic like "CODIGO-01", "LIBRE-01", etc.
+        
+        return false;
+    }
+
+    /**
+     * Get all internal subjects from all tables (subjects, leveling_subjects, elective_subjects)
+     * Returns a collection with normalized component_type for each subject
+     * 
+     * @return \Illuminate\Support\Collection
+     */
+    private function getAllInternalSubjects()
+    {
+        $allSubjects = collect();
+
+        // 1. Get subjects from main 'subjects' table
+        $mainSubjects = Subject::all()->map(function ($subject) {
+            return [
+                'code' => $subject->code,
+                'name' => $subject->name,
+                'credits' => $subject->credits,
+                'component_type' => $subject->component, // Uses the accessor
+                'source_table' => 'subjects',
+                'model' => $subject
+            ];
+        });
+        $allSubjects = $allSubjects->merge($mainSubjects);
+
+        // 2. Get leveling subjects
+        $levelingSubjects = \App\Models\LevelingSubject::all()->map(function ($subject) {
+            return [
+                'code' => $subject->code,
+                'name' => $subject->name,
+                'credits' => $subject->credits,
+                'component_type' => 'leveling',
+                'source_table' => 'leveling_subjects',
+                'model' => $subject
+            ];
+        });
+        $allSubjects = $allSubjects->merge($levelingSubjects);
+
+        // 3. Get elective subjects
+        $electiveSubjects = \App\Models\ElectiveSubject::where('is_active', true)->get()->map(function ($subject) {
+            // Map elective_type to component_type
+            $componentType = match($subject->elective_type) {
+                'optativa_fundamental' => 'optional_fundamental',
+                'optativa_profesional' => 'optional_professional',
+                default => 'free_elective'
+            };
+
+            return [
+                'code' => $subject->code,
+                'name' => $subject->name,
+                'credits' => $subject->credits,
+                'component_type' => $componentType,
+                'source_table' => 'elective_subjects',
+                'model' => $subject
+            ];
+        });
+        $allSubjects = $allSubjects->merge($electiveSubjects);
+
+        return $allSubjects;
+    }
+
+    /**
+     * Bulk convalidation: automatically match external subjects with internal subjects.
+     */
+    public function bulkConvalidation(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'external_curriculum_id' => 'required|exists:external_curriculums,id'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()], 422);
+        }
+
+        try {
+            $curriculum = ExternalCurriculum::findOrFail($request->external_curriculum_id);
+            $externalSubjects = $curriculum->externalSubjects()
+                ->whereDoesntHave('convalidation')
+                ->where(function($query) {
+                    // Exclude removed subjects from bulk convalidation
+                    $query->whereNull('change_type')
+                          ->orWhere('change_type', '!=', 'removed');
+                })
+                ->get();
+
+            // Get all internal subjects from all tables (subjects, leveling_subjects, elective_subjects)
+            $internalSubjects = $this->getAllInternalSubjects();
+            $results = [];
+
+            foreach ($externalSubjects as $externalSubject) {
+                // Skip placeholders - don't process them in bulk convalidation
+                if ($this->isPlaceholderCode($externalSubject->code)) {
+                    continue; // Skip this subject completely
+                }
+
+                $result = [
+                    'external_subject' => [
+                        'id' => $externalSubject->id,
+                        'code' => $externalSubject->code,
+                        'name' => $externalSubject->name,
+                        'credits' => $externalSubject->credits
+                    ],
+                    'internal_subject' => null,
+                    'component_type' => null,
+                    'method' => null,
+                    'status' => 'skipped',
+                    'message' => 'Sin coincidencias'
+                ];
+
+                // Try to find a match
+                $matchedSubject = null;
+                $matchMethod = null;
+
+                // 1. Try exact code match
+                $codeMatch = $internalSubjects->firstWhere('code', $externalSubject->code);
+                if ($codeMatch) {
+                    $matchedSubject = $codeMatch;
+                    $matchMethod = 'code';
+                }
+                
+                // 2. If no code match, try name similarity (≥80%)
+                if (!$matchedSubject) {
+                    $bestMatch = null;
+                    $bestSimilarity = 0;
+
+                    foreach ($internalSubjects as $internalSubject) {
+                        similar_text(
+                            strtolower($externalSubject->name),
+                            strtolower($internalSubject['name']),
+                            $similarity
+                        );
+
+                        if ($similarity > $bestSimilarity && $similarity >= 80) {
+                            $bestSimilarity = $similarity;
+                            $bestMatch = $internalSubject;
+                        }
+                    }
+
+                    if ($bestMatch) {
+                        $matchedSubject = $bestMatch;
+                        $matchMethod = 'name';
+                    }
+                }
+
+                // If we found a match, create the convalidation
+                if ($matchedSubject) {
+                    try {
+                        // Get the component type from the matched subject (now properly resolved)
+                        $componentType = $matchedSubject['component_type'];
+
+                        // Skip electives and free electives - these MUST be manually convalidated
+                        $isElectiveOrFree = in_array($componentType, [
+                            'free_elective',
+                            'optional_fundamental',
+                            'optional_professional'
+                        ]);
+
+                        if ($isElectiveOrFree) {
+                            $result['status'] = 'skipped';
+                            $result['message'] = 'Materia optativa/libre - Debe convalidarse manualmente';
+                            $result['component_type'] = $componentType;
+                            $result['internal_subject'] = [
+                                'code' => $matchedSubject['code'],
+                                'name' => $matchedSubject['name'],
+                                'credits' => $matchedSubject['credits']
+                            ];
+                            $results[] = $result;
+                            continue; // Skip to next subject
+                        }
+
+                        // Check if this is an elective or optional subject (this check is now redundant but kept for safety)
+                        $isElectiveOrOptional = in_array($componentType, [
+                            'free_elective',
+                            'optional_fundamental',
+                            'optional_professional'
+                        ]);
+
+                        // If it's an elective/optional, check if it's already used
+                        if ($isElectiveOrOptional) {
+                            $timesUsed = SubjectConvalidation::where('external_curriculum_id', $curriculum->id)
+                                ->where('internal_subject_code', $matchedSubject['code'])
+                                ->count();
+
+                            // If already used, try to find the next available subject of the same type
+                            if ($timesUsed > 0) {
+                                $nextAvailable = $this->getNextAvailableSubject($componentType, $curriculum->id);
+                                
+                                if ($nextAvailable) {
+                                    // Use the next available subject - convert model to array format
+                                    $matchedSubject = [
+                                        'code' => $nextAvailable->code,
+                                        'name' => $nextAvailable->name,
+                                        'credits' => $nextAvailable->credits,
+                                        'component_type' => $componentType,
+                                        'source_table' => 'subjects',
+                                        'model' => $nextAvailable
+                                    ];
+                                } else {
+                                    // No more subjects available, mark as not convalidated
+                                    SubjectConvalidation::create([
+                                        'external_curriculum_id' => $curriculum->id,
+                                        'external_subject_id' => $externalSubject->id,
+                                        'internal_subject_code' => null,
+                                        'convalidation_type' => 'not_convalidated',
+                                        'notes' => 'No hay más materias ' . $componentType . ' disponibles. Marcada como materia nueva.',
+                                        'status' => 'pending'
+                                    ]);
+
+                                    // Create component assignment
+                                    \App\Models\ExternalSubjectComponent::create([
+                                        'external_curriculum_id' => $curriculum->id,
+                                        'external_subject_id' => $externalSubject->id,
+                                        'component_type' => $componentType,
+                                        'notes' => 'Sin materias disponibles - Materia nueva'
+                                    ]);
+
+                                    $result['component_type'] = $componentType;
+                                    $result['method'] = 'auto';
+                                    $result['status'] = 'success';
+                                    $result['message'] = 'Marcada como no convalidada (sin ' . $componentType . ' disponibles)';
+                                    $results[] = $result;
+                                    continue;
+                                }
+                            }
+                        }
+
+                        // Create convalidation
+                        SubjectConvalidation::create([
+                            'external_curriculum_id' => $curriculum->id,
+                            'external_subject_id' => $externalSubject->id,
+                            'internal_subject_code' => $matchedSubject['code'],
+                            'convalidation_type' => 'direct',
+                            'notes' => 'Convalidación masiva automática por ' . ($matchMethod === 'code' ? 'código exacto' : 'similitud de nombre'),
+                            'status' => 'pending'
+                        ]);
+
+                        // Create component assignment
+                        \App\Models\ExternalSubjectComponent::create([
+                            'external_curriculum_id' => $curriculum->id,
+                            'external_subject_id' => $externalSubject->id,
+                            'component_type' => $componentType,
+                            'notes' => 'Asignado automáticamente'
+                        ]);
+
+                        $result['internal_subject'] = [
+                            'code' => $matchedSubject['code'],
+                            'name' => $matchedSubject['name'],
+                            'credits' => $matchedSubject['credits']
+                        ];
+                        $result['component_type'] = $componentType;
+                        $result['method'] = $matchMethod;
+                        $result['status'] = 'success';
+                        $result['message'] = 'Convalidada exitosamente';
+
+                    } catch (\Exception $e) {
+                        $result['status'] = 'error';
+                        $result['message'] = 'Error al crear convalidación: ' . $e->getMessage();
+                    }
+                }
+
+                $results[] = $result;
+            }
+
+            return response()->json([
+                'success' => true,
+                'results' => $results,
+                'summary' => [
+                    'total' => count($results),
+                    'success' => count(array_filter($results, fn($r) => $r['status'] === 'success')),
+                    'error' => count(array_filter($results, fn($r) => $r['status'] === 'error'))
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error en convalidación masiva: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Calculate convalidated credits by component from configured convalidations
+     */
+    private function calculateConvalidatedCreditsByComponent(ExternalCurriculum $externalCurriculum)
+    {
+        $creditsByComponent = [
+            'fundamental_required' => 0,
+            'professional_required' => 0,
+            'optional_fundamental' => 0,
+            'optional_professional' => 0,
+            'free_elective' => 0,
+            'thesis' => 0,
+            'leveling' => 0,
+        ];
+
+        // Get all convalidations for this curriculum
+        $convalidations = $externalCurriculum->convalidations()
+            ->with(['externalSubject', 'internalSubject', 'externalSubject.assignedComponent'])
+            ->get();
+
+        foreach ($convalidations as $convalidation) {
+            $componentType = null;
+            $credits = 0;
+
+            if ($convalidation->convalidation_type === 'direct' && $convalidation->internalSubject) {
+                // For direct convalidations, use internal subject credits and component
+                $componentType = $convalidation->internalSubject->component ?? null;
+                $credits = $convalidation->internalSubject->credits ?? 0;
+            } elseif ($convalidation->convalidation_type === 'flexible_component' && $convalidation->externalSubject) {
+                // For flexible components, use component_type from convalidation
+                $componentType = $convalidation->component_type ?? null;
+                $credits = $convalidation->externalSubject->credits ?? 0;
+            }
+
+            // Add credits to the corresponding component
+            if ($componentType && isset($creditsByComponent[$componentType])) {
+                $creditsByComponent[$componentType] += $credits;
+            }
+        }
+
+        return $creditsByComponent;
+    }
+
+    /**
+     * Generate a comprehensive PDF report of the impact analysis
+     */
+    public function generateImpactReportPdf(Request $request, ExternalCurriculum $externalCurriculum)
+    {
+        try {
+            $data = $request->json()->all();
+            $results = $data['results'] ?? [];
+            $creditLimits = $data['credit_limits'] ?? [];
+
+            // Get curriculum stats
+            $stats = $externalCurriculum->getStats();
+            
+            // Get all convalidations for this curriculum
+            $convalidations = $externalCurriculum->convalidations()
+                ->with(['externalSubject', 'internalSubject'])
+                ->where('convalidation_type', 'direct')
+                ->get();
+            
+            // Get N:N convalidation groups
+            $nnGroups = \App\Models\ConvalidationGroup::where('external_curriculum_id', $externalCurriculum->id)
+                ->with(['externalSubject', 'internalSubjects'])
+                ->get();
+            
+            // Prepare data for the view
+            $reportData = [
+                'curriculum' => $externalCurriculum,
+                'results' => $results,
+                'credit_limits' => $creditLimits,
+                'stats' => $stats,
+                'convalidations' => $convalidations,
+                'nnGroups' => $nnGroups,
+                'generated_at' => now()->format('d/m/Y H:i:s'),
+            ];
+
+            // Return HTML view optimized for PDF printing
+            return view('convalidation.impact-report-pdf', $reportData);
+
+        } catch (\Exception $e) {
+            \Log::error('Error generating impact report PDF', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al generar el reporte: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all convalidation groups for an external curriculum
+     */
+    public function getConvalidationGroups(ExternalCurriculum $externalCurriculum)
+    {
+        try {
+            $groups = \App\Models\ConvalidationGroup::where('external_curriculum_id', $externalCurriculum->id)
+                ->with(['externalSubject', 'internalSubjects'])
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'groups' => $groups
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener grupos: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Store a new convalidation group (N:N relationship)
+     */
+    public function storeConvalidationGroup(Request $request)
+    {
+        // Log incoming request data for debugging
+        \Log::info('Creating N:N group - Request data:', $request->all());
+        
+        $validator = Validator::make($request->all(), [
+            'external_curriculum_id' => 'required|exists:external_curriculums,id',
+            'external_subject_id' => 'required|exists:external_subjects,id',
+            'group_name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'equivalence_type' => 'required|in:all,any,credits',
+            'equivalence_percentage' => 'nullable|numeric|min:0|max:100',
+            'component_type' => 'required|in:fundamental_required,professional_required,optional_fundamental,optional_professional,free_elective,thesis,leveling',
+            'internal_subject_codes' => 'required|array|min:1',
+            'internal_subject_codes.*' => 'required|exists:subjects,code'
+        ]);
+
+        if ($validator->fails()) {
+            \Log::error('Validation failed for N:N group:', [
+                'errors' => $validator->errors()->toArray(),
+                'request_data' => $request->all()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Create the convalidation group
+            $group = \App\Models\ConvalidationGroup::create([
+                'external_curriculum_id' => $request->external_curriculum_id,
+                'external_subject_id' => $request->external_subject_id,
+                'group_name' => $request->group_name,
+                'description' => $request->description,
+                'equivalence_type' => $request->equivalence_type,
+                'equivalence_percentage' => $request->equivalence_percentage ?? 100,
+                'component_type' => $request->component_type,
+                'metadata' => $request->metadata ?? []
+            ]);
+
+            // Attach internal subjects to the group
+            foreach ($request->internal_subject_codes as $index => $subjectCode) {
+                \App\Models\ConvalidationGroupSubject::create([
+                    'convalidation_group_id' => $group->id,
+                    'internal_subject_code' => $subjectCode,
+                    'sort_order' => $index,
+                    'weight' => 1.0,
+                    'notes' => null
+                ]);
+            }
+
+            // Load relationships for response
+            $group->load(['externalSubject', 'internalSubjects']);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Grupo de convalidación creado exitosamente',
+                'group' => $group
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error creating convalidation group: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al crear el grupo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update a convalidation group
+     */
+    public function updateConvalidationGroup(Request $request, $groupId)
+    {
+        $validator = Validator::make($request->all(), [
+            'group_name' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+            'equivalence_type' => 'nullable|in:all,any,credits',
+            'equivalence_percentage' => 'nullable|numeric|min:0|max:100',
+            'internal_subject_codes' => 'nullable|array'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $group = \App\Models\ConvalidationGroup::findOrFail($groupId);
+
+            // Update basic fields
+            $group->update([
+                'group_name' => $request->group_name ?? $group->group_name,
+                'description' => $request->description ?? $group->description,
+                'equivalence_type' => $request->equivalence_type ?? $group->equivalence_type,
+                'equivalence_percentage' => $request->equivalence_percentage ?? $group->equivalence_percentage
+            ]);
+
+            // Update internal subjects if provided
+            if ($request->has('internal_subject_codes')) {
+                // Delete existing associations
+                \App\Models\ConvalidationGroupSubject::where('convalidation_group_id', $group->id)->delete();
+
+                // Create new associations
+                foreach ($request->internal_subject_codes as $index => $subjectCode) {
+                    \App\Models\ConvalidationGroupSubject::create([
+                        'convalidation_group_id' => $group->id,
+                        'internal_subject_code' => $subjectCode,
+                        'sort_order' => $index,
+                        'weight' => 1.0
+                    ]);
+                }
+            }
+
+            $group->load(['externalSubject', 'internalSubjects']);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Grupo actualizado exitosamente',
+                'group' => $group
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar el grupo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete a convalidation group
+     */
+    public function destroyConvalidationGroup($groupId)
+    {
+        try {
+            $group = \App\Models\ConvalidationGroup::findOrFail($groupId);
+            $group->delete(); // Cascade will delete related records
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Grupo eliminado exitosamente'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar el grupo: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get the original curriculum state (before changes)
+     * This returns external subjects with change_type != 'removed'
+     */
+    public function getOriginalCurriculumState($curriculumId)
+    {
+        try {
+            $curriculum = ExternalCurriculum::findOrFail($curriculumId);
+            
+            // Get all external subjects excluding removed ones
+            $subjects = $curriculum->externalSubjects()
+                ->where(function($query) {
+                    $query->whereNull('change_type')
+                          ->orWhere('change_type', '!=', 'removed');
+                })
+                ->get()
+                ->map(function($subject) {
+                    return [
+                        'id' => $subject->id,
+                        'code' => $subject->code,
+                        'name' => $subject->name,
+                        'credits' => $subject->credits,
+                        'semester' => $subject->semester,
+                        'change_type' => $subject->change_type
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'subjects' => $subjects
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener el estado original: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all internal subjects for API (UNAL curriculum)
+     * Used for selecting equivalences in N:N groups
+     */
+    public function getInternalSubjectsForApi()
+    {
+        try {
+            $subjects = Subject::select('code', 'name', 'credits', 'semester', 'type')
+                ->orderBy('semester')
+                ->orderBy('code')
+                ->get()
+                ->map(function($subject) {
+                    return [
+                        'code' => $subject->code,
+                        'name' => $subject->name,
+                        'credits' => $subject->credits,
+                        'semester' => $subject->semester,
+                        'type' => $subject->type
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'subjects' => $subjects
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener las materias internas: ' . $e->getMessage()
+            ], 500);
         }
     }
 }

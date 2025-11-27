@@ -9,11 +9,7 @@
                 <div>
                     <a href="{{ route('import.index') }}" class="btn btn-success me-2">
                         <i class="fas fa-file-excel me-2"></i>
-                        Importar Malla desde Excel
-                    </a>
-                    <a href="{{ route('convalidation.create') }}" class="btn btn-primary">
-                        <i class="fas fa-upload me-2"></i>
-                        Realizar Convalidación
+                        Importar Malla
                     </a>
                 </div>
             </div>
@@ -137,7 +133,7 @@
                                             <td>
                                                 <div class="d-flex gap-1">
                                                     <span class="badge bg-success">{{ $stats['direct_convalidations'] }} directas</span>
-                                                    <span class="badge bg-info">{{ $stats['free_electives'] }} libres</span>
+                                                    <span class="badge bg-info">{{ $stats['flexible_components'] }} electivos</span>
                                                 </div>
                                             </td>
                                             <td style="width: 200px;">
@@ -167,20 +163,8 @@
                                                         <i class="fas fa-edit"></i>
                                                     </a>
                                                     <button type="button" 
-                                                            class="btn btn-sm btn-outline-warning"
-                                                            onclick="showImpactConfigModal({{ $curriculum->id }})"
-                                                            title="Analizar impacto en estudiantes">
-                                                        <i class="fas fa-users"></i>
-                                                    </button>
-                                                    <button type="button" 
-                                                            class="btn btn-sm btn-outline-info"
-                                                            onclick="exportReport({{ $curriculum->id }})"
-                                                            title="Exportar reporte">
-                                                        <i class="fas fa-download"></i>
-                                                    </button>
-                                                    <button type="button" 
                                                             class="btn btn-sm btn-outline-danger"
-                                                            onclick="deleteCurriculum({{ $curriculum->id }})"
+                                                            onclick="deleteCurriculum({{ $curriculum->id }}, {{ json_encode($curriculum->metadata) }})"
                                                             title="Eliminar malla">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
@@ -196,7 +180,7 @@
                             <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
                             <h5>No hay mallas curriculares externas</h5>
                             <p class="text-muted">Comienza cargando una malla curricular externa desde Excel</p>
-                            <a href="{{ route('convalidation.create') }}" class="btn btn-primary">
+                            <a href="{{ route('import.index') }}" class="btn btn-primary">
                                 <i class="fas fa-upload me-2"></i>
                                 Cargar Primera Malla
                             </a>
@@ -256,9 +240,9 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                <button type="button" class="btn btn-primary" id="exportImpactBtn" style="display: none;" onclick="exportImpactResults()">
-                    <i class="fas fa-download me-1"></i>
-                    Exportar Resultados
+                <button type="button" class="btn btn-danger" id="exportImpactPdfBtn" style="display: none;" onclick="generateImpactPdfReport()">
+                    <i class="fas fa-file-pdf me-1"></i>
+                    Generar Reporte PDF
                 </button>
             </div>
         </div>

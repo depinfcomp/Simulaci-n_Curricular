@@ -38,10 +38,24 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         Route::post('/', [ConvalidationController::class, 'store'])->name('convalidation.store');
         Route::get('/{externalCurriculum}', [ConvalidationController::class, 'show'])->name('convalidation.show');
         Route::delete('/{externalCurriculum}', [ConvalidationController::class, 'destroy'])->name('convalidation.destroy');
+        Route::delete('/{externalCurriculum}/reset-simulation', [ConvalidationController::class, 'destroyAndResetSimulation'])->name('convalidation.destroy-reset');
         Route::get('/{externalCurriculum}/export', [ConvalidationController::class, 'exportReport'])->name('convalidation.export');
         
-        // New route for impact analysis
-        Route::post('/{externalCurriculum}/analyze-impact', [ConvalidationController::class, 'analyzeConvalidationImpact'])->name('convalidation.analyze-impact');
+        // Reset all convalidations for a curriculum
+        Route::post('/{externalCurriculum}/reset', [ConvalidationController::class, 'resetConvalidations'])->name('convalidation.reset');
+        
+        // Get subjects already used for a component type
+        Route::get('/{externalCurriculum}/used-subjects', [ConvalidationController::class, 'getUsedSubjects'])->name('convalidation.used-subjects');
+        
+        // Get subjects used ONLY as optativas/free electives (to block them globally)
+        Route::get('/{externalCurriculum}/used-optatives-and-free', [ConvalidationController::class, 'getUsedOptativesAndFree'])->name('convalidation.used-optatives-free');
+        
+        // Routes for impact analysis (GET for viewing, POST for custom parameters)
+        Route::get('/{externalCurriculum}/analyze-impact', [ConvalidationController::class, 'analyzeConvalidationImpact'])->name('convalidation.analyze-impact');
+        Route::post('/{externalCurriculum}/analyze-impact', [ConvalidationController::class, 'analyzeConvalidationImpact']);
+        
+        // Route to generate PDF report of impact analysis
+        Route::post('/{externalCurriculum}/impact-report-pdf', [ConvalidationController::class, 'generateImpactReportPdf'])->name('convalidation.impact-report-pdf');
         
         // Route to get total credits from external curriculum
         Route::get('/{externalCurriculum}/total-credits', [ConvalidationController::class, 'getTotalCredits'])->name('convalidation.total-credits');
@@ -60,9 +74,31 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         Route::delete('/convalidation/{convalidation}', [ConvalidationController::class, 'destroyConvalidation'])->name('convalidation.destroy-convalidation');
         Route::get('/suggestions', [ConvalidationController::class, 'getSuggestions'])->name('convalidation.suggestions');
         
+        // Bulk convalidation
+        Route::post('/bulk-convalidation', [ConvalidationController::class, 'bulkConvalidation'])->name('convalidation.bulk-convalidation');
+        
+        // Component assignment routes
+        Route::get('/{externalCurriculum}/assign-components', [ConvalidationController::class, 'assignComponents'])->name('convalidation.assign-components');
+        Route::post('/component-assignment', [ConvalidationController::class, 'storeComponentAssignment'])->name('convalidation.store-component');
+        
+        // N:N Convalidation Groups (one external subject = multiple internal subjects)
+        Route::get('/{externalCurriculum}/groups', [ConvalidationController::class, 'getConvalidationGroups'])->name('convalidation.groups.index');
+        Route::post('/groups', [ConvalidationController::class, 'storeConvalidationGroup'])->name('convalidation.groups.store');
+        Route::put('/groups/{group}', [ConvalidationController::class, 'updateConvalidationGroup'])->name('convalidation.groups.update');
+        Route::delete('/groups/{group}', [ConvalidationController::class, 'destroyConvalidationGroup'])->name('convalidation.groups.destroy');
+        Route::get('/{externalCurriculum}/original-state', [ConvalidationController::class, 'getOriginalCurriculumState'])->name('convalidation.original-state');
+        
+        // Simulation routes
+        Route::get('/{externalCurriculum}/simulation-analysis', [ConvalidationController::class, 'showSimulationAnalysis'])->name('convalidation.simulation-analysis');
+        Route::post('/simulation/create', [ConvalidationController::class, 'createSimulation'])->name('convalidation.simulation.create');
+        Route::put('/simulation/{simulation}/leveling', [ConvalidationController::class, 'updateLevelingCredits'])->name('convalidation.simulation.update-leveling');
+        
         // Save modified curriculum from simulation
         Route::post('/save-modified-curriculum', [ConvalidationController::class, 'saveModifiedCurriculum'])->name('convalidation.save-modified-curriculum');
     });
+    
+    // API routes for internal subjects (used by N:N groups)
+    Route::get('/api/subjects/all', [ConvalidationController::class, 'getInternalSubjectsForApi'])->name('api.subjects.all');
 
     // Import curriculum wizard routes
     Route::prefix('import-curriculum')->name('import.')->group(function () {

@@ -431,21 +431,49 @@ document.addEventListener('DOMContentLoaded', function() {
     function initializeTotalCredits() {
         careerCredits = 0;
         totalCredits = 0;
+        let removedCount = 0;
+        let removedCareerCredits = 0;
+        let removedTotalCredits = 0;
+        
         document.querySelectorAll('.subject-card').forEach(card => {
             const creditsElement = card.querySelector('.info-box:first-child .info-value');
             if (creditsElement) {
                 const credits = parseInt(creditsElement.textContent) || 0;
-                totalCredits += credits;
-                
-                // Check if it's a leveling subject
                 const subjectCode = card.dataset.subjectId;
                 const subjectType = card.dataset.type;
                 const isLeveling = isLevelingSubject(subjectCode, subjectType);
-                if (!isLeveling) {
-                    careerCredits += credits;
+                
+                // Check if subject is marked as removed
+                const isRemoved = card.classList.contains('removed-subject');
+                
+                if (isRemoved) {
+                    // Track removed subjects for logging only
+                    removedCount++;
+                    removedTotalCredits += credits;
+                    if (!isLeveling) {
+                        removedCareerCredits += credits;
+                    }
+                    console.log(`🗑️ Removed subject: ${subjectCode} (-${credits} credits${isLeveling ? ' [leveling]' : ''})`);
+                } else {
+                    // ONLY count non-removed subjects
+                    totalCredits += credits;
+                    
+                    // Leveling subjects only count in total, not career
+                    if (!isLeveling) {
+                        careerCredits += credits;
+                    }
                 }
             }
         });
+        
+        if (removedCount > 0) {
+            console.log(`📊 Credit calculation:`);
+            console.log(`   Total credits (excluding removed): ${totalCredits}`);
+            console.log(`   Career credits (excluding removed): ${careerCredits}`);
+            console.log(`   Removed from total: ${removedTotalCredits} (${removedCount} subjects)`);
+            console.log(`   Removed from career: ${removedCareerCredits}`);
+        }
+        
         updateCreditsDisplay();
     }
     
@@ -621,6 +649,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     break;
             }
         });
+        
+        // ✅ CRITICAL: Recalculate credits after restoring changes
+        // This ensures removed subjects are excluded from totals
+        initializeTotalCredits();
         
         // Update credits display
         updateCreditsDisplay();
@@ -2327,11 +2359,38 @@ document.addEventListener('DOMContentLoaded', function() {
                     semesterBadge.textContent = `Semestre ${change.old_value}`;
                 }
             }
+        } else if (change.type === 'removed') {
+            // Restore removed subject
+            const card = document.querySelector(`[data-subject-id="${change.subject_code}"]`);
+            if (card) {
+                card.classList.remove('removed-subject');
+                card.style.opacity = '1';
+                card.style.pointerEvents = 'auto';
+                card.style.border = '';
+                card.style.boxShadow = '';
+                card.setAttribute('data-removed', 'false');
+                
+                // Remove strikethrough from name
+                const nameElement = card.querySelector('.subject-name');
+                if (nameElement) {
+                    nameElement.style.textDecoration = '';
+                    nameElement.style.color = '';
+                }
+                
+                // Remove "Eliminada" badge
+                const removedBadge = card.querySelector('.badge.bg-danger');
+                if (removedBadge && removedBadge.textContent === 'Eliminada') {
+                    removedBadge.remove();
+                }
+            }
         }
         
         // Remove change from array
         simulationChanges.splice(index, 1);
         updateSimulationStatus();
+        
+        // Recalculate credits (in case a removed subject was un-removed)
+        initializeTotalCredits();
         
         // Close modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('changesModal'));
@@ -2481,6 +2540,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 clearStoredChanges();
                 
                 updateSimulationStatus();
+                
+                // Recalculate credits to show accurate totals
+                initializeTotalCredits();
                 
                 // Close modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('changesModal'));
@@ -3191,6 +3253,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Confirm delete subject
     window.confirmDeleteSubject = function(subjectId) {
+        console.log(`🎯 confirmDeleteSubject called with ID: ${subjectId}`);
+        
         // Close modal
         const modalElement = document.getElementById('deleteSubjectModal');
         if (modalElement) {
@@ -3202,9 +3266,19 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Find subject card
         const card = document.querySelector(`[data-subject-id="${subjectId}"]`);
+        console.log(`🔍 Card found:`, card);
+        
         if (card) {
+            // Check if already marked as removed
+            if (card.classList.contains('removed-subject')) {
+                console.warn(`⚠️ Subject ${subjectId} is already marked as removed, skipping...`);
+                return;
+            }
+            
             const subjectName = card.querySelector('.subject-name')?.textContent || subjectId;
             const subjectType = card.dataset.type;
+            
+            console.log(`📝 Subject details: ${subjectName}, type: ${subjectType}`);
             
             // Apply removal preview style
             applyRemovedStyle(card);
@@ -3226,6 +3300,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update simulation status
             updateSimulationStatus();
             
+            // Recalculate credits (removed subjects will subtract credits)
+            console.log(`💳 Recalculating credits after removal...`);
+            initializeTotalCredits();
+            
             // Run automatic impact analysis
             setTimeout(() => {
                 analyzeImpact();
@@ -3233,6 +3311,8 @@ document.addEventListener('DOMContentLoaded', function() {
             updateSimulationStatus();
             
             showSuccessMessage(`Materia marcada para eliminación. Recuerda guardar los cambios.`);
+        } else {
+            console.error(`❌ Card not found for subject: ${subjectId}`);
         }
     };
     
@@ -4201,18 +4281,46 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!semesterColumn) continue;
             
             const subjects = Array.from(semesterColumn.querySelectorAll('.subject-card')).map(card => {
-                // Try to extract credits from existing data or default to null
-                const creditsElement = card.querySelector('.subject-credits');
-                const credits = creditsElement ? parseInt(creditsElement.textContent) : null;
+                // Extract credits from multiple possible sources
+                let credits = 3; // Default value
+                
+                // Try 1: From data attribute (most reliable)
+                if (card.dataset.credits) {
+                    credits = parseInt(card.dataset.credits);
+                }
+                // Try 2: From visible credit display
+                else {
+                    const creditsElement = card.querySelector('.subject-credits');
+                    if (creditsElement) {
+                        const creditsText = creditsElement.textContent.trim();
+                        const parsedCredits = parseInt(creditsText);
+                        if (!isNaN(parsedCredits)) {
+                            credits = parsedCredits;
+                        }
+                    }
+                }
+                
+                // Extract other metadata
+                const classroomHours = card.dataset.classroomHours ? parseInt(card.dataset.classroomHours) : null;
+                const studentHours = card.dataset.studentHours ? parseInt(card.dataset.studentHours) : null;
+                const subjectType = card.dataset.type || null;
+                const subjectCode = card.dataset.subjectId;
+                
+                // Check if this subject was removed
+                const isRemoved = card.classList.contains('removed-subject');
                 
                 return {
-                    code: card.dataset.subjectId,
-                    name: card.querySelector('.subject-name').textContent.trim(),
-                    prerequisites: card.dataset.prerequisites.split(',').filter(p => p.trim()),
+                    code: subjectCode,
+                    name: card.querySelector('.subject-name')?.textContent.trim() || 'Sin nombre',
+                    prerequisites: card.dataset.prerequisites ? card.dataset.prerequisites.split(',').filter(p => p.trim()) : [],
                     semester: semester,
                     credits: credits,
+                    classroom_hours: classroomHours,
+                    student_hours: studentHours,
+                    type: subjectType,
                     isAdded: card.classList.contains('added-subject'),
-                    description: card.title || card.querySelector('.subject-name').textContent.trim()
+                    isRemoved: isRemoved,
+                    description: card.title || card.querySelector('.subject-name')?.textContent.trim() || 'Sin descripción'
                 };
             });
             
@@ -4576,9 +4684,9 @@ document.addEventListener('DOMContentLoaded', function() {
      * Save current curriculum as a new version
      */
     window.saveCurrentCurriculum = function() {
-        // Check if there are added or removed subjects
-        const hasAddedSubjects = simulationChanges.some(c => c.type === 'added');
-        const hasRemovedSubjects = simulationChanges.some(c => c.type === 'removed');
+        // Check if there are added or removed subjects that haven't been exported yet
+        const hasAddedSubjects = simulationChanges.some(c => c.type === 'added' && !c.exported);
+        const hasRemovedSubjects = simulationChanges.some(c => c.type === 'removed' && !c.exported);
         
         if (hasAddedSubjects || hasRemovedSubjects) {
             // Show info message and redirect to convalidation
@@ -4628,6 +4736,20 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
+                            // Save the curriculum ID to prevent duplicate exports
+                            if (data.curriculum_id) {
+                                localStorage.setItem('current_external_curriculum_id', data.curriculum_id);
+                                console.log('Saved external curriculum ID for convalidation:', data.curriculum_id);
+                                
+                                // Mark all added/removed changes as exported
+                                simulationChanges.forEach(change => {
+                                    if (change.type === 'added' || change.type === 'removed') {
+                                        change.exported = true;
+                                    }
+                                });
+                                saveChangesToStorage();
+                            }
+                            
                             showSuccessMessage('Malla exportada. Redirigiendo a convalidación...');
                             
                             // Store pending save flag in sessionStorage
@@ -4671,7 +4793,7 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                 // Gather all current curriculum data
                 const curriculumData = {
                     subjects: [],
-                    changes: window.simulationChanges || {}
+                    changes: window.simulationChanges || []  // Should be an array, not an object
                 };
 
                 // Collect all subjects with their current state
@@ -4681,6 +4803,10 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                         card.dataset.prerequisites.split(',').map(p => p.trim()).filter(p => p) : 
                         [];
 
+                    // ✅ CRITICAL: Include isAdded and isRemoved flags
+                    const isAdded = card.classList.contains('added-subject');
+                    const isRemoved = card.classList.contains('removed-subject');
+
                     curriculumData.subjects.push({
                         code: card.dataset.subjectId,
                         name: card.querySelector('.subject-name')?.textContent.trim(),
@@ -4689,7 +4815,9 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                         type: card.dataset.type,
                         prerequisites: prerequisites,
                         description: card.title || '',
-                        display_order: Array.from(card.parentElement.children).indexOf(card) + 1
+                        display_order: Array.from(card.parentElement.children).indexOf(card) + 1,
+                        isAdded: isAdded,      // ✅ Flag para materias nuevas
+                        isRemoved: isRemoved   // ✅ Flag para materias eliminadas
                     });
                 });
 
@@ -4718,6 +4846,9 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                         
                         // Clear from localStorage
                         clearStoredChanges();
+                        
+                        // Clear external curriculum ID since we successfully saved
+                        localStorage.removeItem('current_external_curriculum_id');
                         
                         updateSimulationStatus();
                         
@@ -4845,10 +4976,14 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
             card.style.cursor = 'default';
         });
 
-        // Disable buttons
-        document.querySelectorAll('.curriculum-controls button:not(#versionSelector)').forEach(btn => {
+        // Disable buttons (except version selector and dropdown)
+        document.querySelectorAll('.curriculum-controls button').forEach(btn => {
+            // Keep version selector button enabled
+            if (btn.closest('.dropdown') || btn.id === 'versionSelector') {
+                return;
+            }
+            // Keep export button enabled
             if (btn.textContent.includes('Exportar')) {
-                // Keep export button enabled
                 return;
             }
             btn.disabled = true;
@@ -5161,6 +5296,12 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
      * This shows the user that the subject is marked for deletion
      */
     function applyRemovedStyle(card) {
+        const subjectCode = card.dataset.subjectId || 'unknown';
+        console.log(`🔴 Applying removed style to: ${subjectCode}`);
+        
+        // Add removed-subject class for credit calculation
+        card.classList.add('removed-subject');
+        
         // Set opacity and disable interactions
         card.style.opacity = '0.5';
         card.style.pointerEvents = 'none';

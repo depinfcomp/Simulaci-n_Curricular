@@ -15,15 +15,13 @@ class SubjectConvalidation extends Model
         'internal_subject_code',
         'convalidation_type',
         'notes',
-        'equivalence_percentage',
         'status',
         'approved_by',
         'approved_at'
     ];
 
     protected $casts = [
-        'approved_at' => 'datetime',
-        'equivalence_percentage' => 'decimal:2'
+        'approved_at' => 'datetime'
     ];
 
     /**
@@ -67,11 +65,11 @@ class SubjectConvalidation extends Model
     }
 
     /**
-     * Check if this is a free elective convalidation.
+     * Check if this is a flexible component convalidation (optativas/libre elección).
      */
-    public function isFreeElective()
+    public function isFlexibleComponent()
     {
-        return $this->convalidation_type === 'free_elective';
+        return $this->convalidation_type === 'flexible_component';
     }
 
     /**
@@ -89,8 +87,8 @@ class SubjectConvalidation extends Model
     {
         if ($this->isDirect() && $this->internalSubject) {
             return $this->internalSubject->name;
-        } elseif ($this->isFreeElective()) {
-            return 'Libre Elección';
+        } elseif ($this->isFlexibleComponent()) {
+            return 'Componente Electivo';
         } elseif ($this->isNotConvalidated()) {
             return 'No Convalidada (Crédito Perdido)';
         }
@@ -104,7 +102,7 @@ class SubjectConvalidation extends Model
     {
         return match($this->convalidation_type) {
             'direct' => 'Convalidación Directa',
-            'free_elective' => 'Libre Elección',
+            'flexible_component' => 'Componente Electivo',
             'not_convalidated' => 'Materia Nueva',
             default => $this->convalidation_type
         };
