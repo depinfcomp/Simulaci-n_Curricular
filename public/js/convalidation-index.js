@@ -838,9 +838,6 @@ function generateImpactPdfReport() {
         if (newWindow) {
             newWindow.document.write(html);
             newWindow.document.close();
-            
-            // Show success message
-            showSuccessMessage('Reporte generado. Use Ctrl+P o Cmd+P en la nueva ventana para imprimir como PDF');
         } else {
             throw new Error('No se pudo abrir la ventana del reporte. Verifique que no esté bloqueando ventanas emergentes');
         }

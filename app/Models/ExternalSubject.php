@@ -44,6 +44,14 @@ class ExternalSubject extends Model
     }
 
     /**
+     * Get the N:N convalidation group this subject belongs to (as the NEW subject).
+     */
+    public function convalidationGroup()
+    {
+        return $this->hasOne(ConvalidationGroup::class);
+    }
+
+    /**
      * Get the assigned component for this external subject.
      */
     public function assignedComponent()
@@ -56,7 +64,7 @@ class ExternalSubject extends Model
      */
     public function isConvalidated()
     {
-        return $this->convalidation !== null;
+        return $this->convalidation !== null || $this->convalidationGroup !== null;
     }
 
     /**
@@ -75,7 +83,33 @@ class ExternalSubject extends Model
      */
     public function getConvalidationStatus()
     {
-        if (!$this->isConvalidated()) {
+        // Check if subject is part of an N:N group
+        if ($this->convalidationGroup) {
+            $group = $this->convalidationGroup;
+            $group->load('internalSubjects'); // Eager load internal subjects
+            
+            return [
+                'status' => 'approved',
+                'type' => 'nn_group',
+                'internal_subject' => null,
+                'notes' => null,
+                'group_name' => $group->group_name,
+                'equivalence_type' => $group->equivalence_type,
+                'equivalence_percentage' => $group->equivalence_percentage,
+                'component_type' => $group->component_type,
+                'internal_subjects' => $group->internalSubjects->map(function($subject) {
+                    return [
+                        'id' => $subject->id,
+                        'code' => $subject->code,
+                        'name' => $subject->name,
+                        'credits' => $subject->credits
+                    ];
+                })->toArray()
+            ];
+        }
+        
+        // Check if subject has a direct convalidation
+        if (!$this->convalidation) {
             return [
                 'status' => 'pending',
                 'type' => null,

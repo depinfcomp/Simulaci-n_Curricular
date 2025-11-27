@@ -243,7 +243,12 @@
                                                 @php
                                                     $convalidationStatus = $subject->getConvalidationStatus();
                                                     $isConvalidated = $subject->isConvalidated();
+                                                    
+                                                    // Get component type from subject, or from N:N group if applicable
                                                     $componentType = $subject->getComponentType();
+                                                    if (!$componentType && $convalidationStatus['type'] === 'nn_group') {
+                                                        $componentType = $convalidationStatus['component_type'] ?? null;
+                                                    }
                                                     
                                                     // Map component types to colors (same as in Subject model)
                                                     $componentColors = [
@@ -313,6 +318,11 @@
                                                         data-internal-subject-name="{{ $convalidationStatus['internal_subject']->name }}"
                                                         data-internal-subject-code="{{ $convalidationStatus['internal_subject']->code }}"
                                                         data-internal-credits="{{ $convalidationStatus['internal_subject']->credits }}"
+                                                    @endif
+                                                    @if($isConvalidated && $convalidationStatus['type'] === 'nn_group')
+                                                        data-group-name="{{ $convalidationStatus['group_name'] ?? 'Grupo N:N' }}"
+                                                        data-equivalence-type="{{ $convalidationStatus['equivalence_type'] ?? 'all' }}"
+                                                        data-internal-subjects="{{ json_encode($convalidationStatus['internal_subjects'] ?? []) }}"
                                                     @endif
                                                     @if($componentType)
                                                         data-component-type="{{ $componentType }}"
@@ -448,12 +458,21 @@
                                                                     Grupo N:N
                                                                 </button>
                                                                 @if($isConvalidated)
-                                                                    <button type="button" 
-                                                                            class="btn btn-outline-danger"
-                                                                            onclick="removeConvalidation({{ $subject->convalidation->id }})"
-                                                                            title="Eliminar convalidación">
-                                                                        <i class="fas fa-trash"></i>
-                                                                    </button>
+                                                                    @if($convalidationStatus['type'] === 'nn_group' && $subject->convalidationGroup)
+                                                                        <button type="button" 
+                                                                                class="btn btn-outline-danger"
+                                                                                onclick="removeNNGroup({{ $subject->convalidationGroup->id }})"
+                                                                                title="Eliminar grupo N:N">
+                                                                            <i class="fas fa-trash"></i>
+                                                                        </button>
+                                                                    @elseif($subject->convalidation)
+                                                                        <button type="button" 
+                                                                                class="btn btn-outline-danger"
+                                                                                onclick="removeConvalidation({{ $subject->convalidation->id }})"
+                                                                                title="Eliminar convalidación">
+                                                                            <i class="fas fa-trash"></i>
+                                                                        </button>
+                                                                    @endif
                                                                 @endif
                                                             </div>
                                                         @endif

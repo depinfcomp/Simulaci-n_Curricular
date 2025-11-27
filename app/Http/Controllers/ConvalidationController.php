@@ -99,7 +99,10 @@ class ConvalidationController extends Controller
      */
     public function show(ExternalCurriculum $externalCurriculum)
     {
-        $externalCurriculum->load(['externalSubjects.convalidation.internalSubject']);
+        $externalCurriculum->load([
+            'externalSubjects.convalidation.internalSubject',
+            'externalSubjects.convalidationGroup.internalSubjects'
+        ]);
         $subjectsBySemester = $externalCurriculum->getConvalidationsBySemester();
         $internalSubjects = Subject::orderBy('semester')->orderBy('name')->get();
         $stats = $externalCurriculum->getStats();
