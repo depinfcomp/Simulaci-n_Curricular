@@ -40,9 +40,6 @@ permissions() {
     chmod +x ./docker.sh
     chmod +x ./docker/init_db.sh
     chmod +x ./docker/php/entrypoint.sh
-    chmod +x ./import_academic_history.sh
-    chmod +x ./test_import.sh
-    chmod +x ./test_import_docker.sh
     print_status "Execute permissions set successfully"
 }
 
@@ -61,9 +58,6 @@ setup() {
     chmod +x ./docker.sh
     chmod +x ./docker/init_db.sh
     chmod +x ./docker/php/entrypoint.sh
-    chmod +x ./import_academic_history.sh
-    chmod +x ./test_import.sh
-    chmod +x ./test_import_docker.sh
     
     # Build and start containers
     print_status "Building and starting containers..."
