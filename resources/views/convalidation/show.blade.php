@@ -840,8 +840,11 @@
                         <div class="col-md-3">
                             <div class="card border-primary">
                                 <div class="card-body text-center">
-                                    <h6 class="text-muted small">Progreso Ajustado</h6>
-                                    <h3 class="text-primary mb-0" id="impact-progress-percentage">0%</h3>
+                                    <h6 class="text-muted small">Cambio Promedio (Absoluto)</h6>
+                                    <h3 class="text-primary mb-1" id="impact-progress-percentage">0%</h3>
+                                    <small class="text-muted" id="impact-progress-range" style="font-size: 0.75rem;">
+                                        Min: <span id="impact-min-change">0</span>% | Max: <span id="impact-max-change">0</span>%
+                                    </small>
                                 </div>
                             </div>
                         </div>

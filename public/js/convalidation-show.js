@@ -1274,6 +1274,14 @@ function renderImpactAnalysis(results) {
     document.getElementById('impact-progress-percentage').textContent = 
         (results.average_progress_change || 0).toFixed(1) + '%';
     
+    // Show min and max progress change
+    if (results.min_progress_change !== null && results.max_progress_change !== null) {
+        document.getElementById('impact-min-change').textContent = 
+            (results.min_progress_change || 0).toFixed(1);
+        document.getElementById('impact-max-change').textContent = 
+            (results.max_progress_change || 0).toFixed(1);
+    }
+    
     // Credits by component - use new data structure
     renderCreditsByComponent(
         results.convalidated_credits_by_component || {}, 

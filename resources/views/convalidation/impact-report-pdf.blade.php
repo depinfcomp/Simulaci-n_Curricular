@@ -263,8 +263,12 @@
             </div>
             
             <div class="info-card {{ ($results['average_progress_change'] ?? 0) >= 0 ? 'success' : 'danger' }}">
-                <span class="value">{{ ($results['average_progress_change'] ?? 0) > 0 ? '+' : '' }}{{ number_format($results['average_progress_change'] ?? 0, 1) }}%</span>
-                <span class="label">Cambio Promedio</span>
+                <span class="value">{{ number_format($results['average_progress_change'] ?? 0, 1) }}%</span>
+                <span class="label">Cambio Promedio (Absoluto)</span>
+                <small style="font-size: 10px; color: #7f8c8d; display: block; margin-top: 3px;">
+                    Min: {{ number_format($results['min_progress_change'] ?? 0, 1) }}% | 
+                    Max: {{ number_format($results['max_progress_change'] ?? 0, 1) }}%
+                </small>
             </div>
             
             <div class="info-card {{ ($results['affected_percentage'] ?? 0) > 50 ? 'danger' : 'success' }}">
@@ -470,17 +474,14 @@
         
         <div class="summary-box">
             <h3>Interpretación de Resultados</h3>
-            <p><strong>Progreso Ajustado Promedio:</strong> 
-                @if(($results['average_progress_change'] ?? 0) > 0)
-                    <span style="color: #27ae60;">+{{ number_format($results['average_progress_change'], 1) }}%</span> 
-                    - Los estudiantes en promedio mejoran su progreso académico con la nueva malla.
-                @elseif(($results['average_progress_change'] ?? 0) < 0)
-                    <span style="color: #e74c3c;">{{ number_format($results['average_progress_change'], 1) }}%</span> 
-                    - Los estudiantes en promedio pierden progreso académico con la nueva malla.
-                @else
-                    <span style="color: #95a5a6;">0%</span> 
-                    - La nueva malla no afecta significativamente el progreso promedio.
-                @endif
+            <p><strong>Variación Promedio del Progreso (Valor Absoluto):</strong> 
+                <span style="color: #3498db;">{{ number_format($results['average_progress_change'], 1) }}%</span> 
+                - En promedio, el progreso de los estudiantes varía en esta magnitud con la nueva malla.
+            </p>
+            
+            <p><strong>Rango de Variación:</strong>
+                Mínimo: <span style="color: {{ ($results['min_progress_change'] ?? 0) < 0 ? '#e74c3c' : '#27ae60' }};">{{ number_format($results['min_progress_change'] ?? 0, 1) }}%</span> | 
+                Máximo: <span style="color: {{ ($results['max_progress_change'] ?? 0) < 0 ? '#e74c3c' : '#27ae60' }};">{{ number_format($results['max_progress_change'] ?? 0, 1) }}%</span>
             </p>
             
             <p><strong>Impacto General:</strong>
@@ -496,12 +497,12 @@
             </p>
             
             <p><strong>Recomendación:</strong>
-                @if(($results['average_progress_change'] ?? 0) > 0 && ($results['affected_percentage'] ?? 0) > 50)
-                    La nueva malla parece beneficiosa para la mayoría de estudiantes. Se recomienda su implementación.
-                @elseif(($results['average_progress_change'] ?? 0) < 0 && ($results['affected_percentage'] ?? 0) > 50)
-                    La nueva malla perjudica a la mayoría de estudiantes. Se recomienda revisar las convalidaciones antes de implementar.
+                @if(($results['average_progress_change'] ?? 0) < 5 && ($results['affected_percentage'] ?? 0) < 50)
+                    El impacto es bajo y homogéneo. La nueva malla puede implementarse con ajustes menores.
+                @elseif(($results['average_progress_change'] ?? 0) > 15 || ($results['affected_percentage'] ?? 0) > 75)
+                    El impacto es significativo. Se recomienda revisar casos individuales y ajustar convalidaciones.
                 @else
-                    El impacto es mixto. Se recomienda analizar casos individuales antes de tomar una decisión.
+                    El impacto es moderado. Se recomienda evaluar casos específicos antes de la implementación final.
                 @endif
             </p>
         </div>

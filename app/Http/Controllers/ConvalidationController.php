@@ -646,6 +646,8 @@ class ConvalidationController extends Controller
                 'students_with_reduced_progress' => 0,
                 'affected_percentage' => 0,
                 'average_progress_change' => 0,
+                'min_progress_change' => null,
+                'max_progress_change' => null,
                 'total_convalidated_subjects' => $directConvalidations->count() + $nnGroups->count(),
                 'direct_convalidations_count' => $directConvalidations->count(),
                 'nn_groups_count' => $nnGroups->count(),
@@ -681,6 +683,8 @@ class ConvalidationController extends Controller
             ];
 
             $totalProgressChange = 0;
+            $totalAbsoluteProgressChange = 0;
+            $progressChanges = [];
             $subjectImpactMap = [];
 
             foreach ($students as $student) {
@@ -713,6 +717,8 @@ class ConvalidationController extends Controller
                     }
 
                     $totalProgressChange += $impact['progress_change'] ?? 0;
+                    $totalAbsoluteProgressChange += abs($impact['progress_change'] ?? 0);
+                    $progressChanges[] = $impact['progress_change'] ?? 0;
                         
                     $results['student_details'][] = [
                         'student_id' => $student->id,
@@ -739,9 +745,16 @@ class ConvalidationController extends Controller
                 ? round(($results['affected_students'] / $results['total_students']) * 100, 1)
                 : 0;
 
+            // Calculate average progress change in ABSOLUTE VALUE
             $results['average_progress_change'] = $results['affected_students'] > 0 
-                ? round($totalProgressChange / $results['affected_students'], 1)
+                ? round($totalAbsoluteProgressChange / $results['affected_students'], 1)
                 : 0;
+
+            // Calculate min and max progress change
+            if (!empty($progressChanges)) {
+                $results['min_progress_change'] = round(min($progressChanges), 1);
+                $results['max_progress_change'] = round(max($progressChanges), 1);
+            }
 
             // Calculate convalidated credits by component - use the same method as the main view
             $results['convalidated_credits_by_component'] = $externalCurriculum->getCreditsByComponent();
