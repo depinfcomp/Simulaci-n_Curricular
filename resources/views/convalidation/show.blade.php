@@ -334,7 +334,7 @@
                                                         data-internal-credits="{{ $convalidationStatus['internal_subject']->credits }}"
                                                     @endif
                                                     @if($isConvalidated && $convalidationStatus['type'] === 'nn_group')
-                                                        data-group-name="{{ $convalidationStatus['group_name'] ?? 'Grupo N:N' }}"
+                                                        data-group-name="{{ $convalidationStatus['group_name'] ?? 'Convalidación Múltiple' }}"
                                                         data-equivalence-type="{{ $convalidationStatus['equivalence_type'] ?? 'all' }}"
                                                         data-internal-subjects="{{ json_encode($convalidationStatus['internal_subjects'] ?? []) }}"
                                                     @endif
@@ -456,9 +456,9 @@
                                                                             data-component-type="{{ $componentType }}"
                                                                             data-notes="{{ $subject->convalidation->notes ?? '' }}"
                                                                         @endif
-                                                                        title="Configurar convalidación 1:1">
+                                                                        title="Configurar convalidación 1 a 1 entre materias">
                                                                     <i class="fas fa-cog me-1"></i>
-                                                                    Conv. 1:1
+                                                                    Conv. Individual
                                                                 </button>
                                                                 <button type="button" 
                                                                         class="btn btn-outline-success nn-group-config-btn"
@@ -467,26 +467,18 @@
                                                                         data-subject-code="{{ $subject->code }}"
                                                                         data-subject-credits="{{ $subject->credits }}"
                                                                         data-change-type="{{ $subject->change_type ?? 'unchanged' }}"
-                                                                        title="Configurar grupo N:N (1 = múltiples)">
+                                                                        title="Configurar grupo de convalidación múltiple (1 externa = múltiples internas)">
                                                                     <i class="fas fa-layer-group me-1"></i>
-                                                                    Grupo N:N
+                                                                    Conv. Múltiple
                                                                 </button>
-                                                                @if($isConvalidated)
-                                                                    @if($convalidationStatus['type'] === 'nn_group' && $subject->convalidationGroup)
-                                                                        <button type="button" 
-                                                                                class="btn btn-outline-danger"
-                                                                                onclick="removeNNGroup({{ $subject->convalidationGroup->id }})"
-                                                                                title="Eliminar grupo N:N">
-                                                                            <i class="fas fa-trash"></i>
-                                                                        </button>
-                                                                    @elseif($subject->convalidation)
-                                                                        <button type="button" 
-                                                                                class="btn btn-outline-danger"
-                                                                                onclick="removeConvalidation({{ $subject->convalidation->id }})"
-                                                                                title="Eliminar convalidación">
-                                                                            <i class="fas fa-trash"></i>
-                                                                        </button>
-                                                                    @endif
+                                                                @if($isConvalidated && $convalidationStatus['type'] !== 'nn_group')
+                                                                    {{-- Botón para eliminar convalidación individual (N:N se maneja por JavaScript) --}}
+                                                                    <button type="button" 
+                                                                            class="btn btn-outline-danger"
+                                                                            onclick="removeConvalidation({{ $subject->convalidation->id }})"
+                                                                            title="Eliminar convalidación individual">
+                                                                        <i class="fas fa-trash"></i>
+                                                                    </button>
                                                                 @endif
                                                             </div>
                                                         @endif

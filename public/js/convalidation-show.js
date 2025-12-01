@@ -1573,7 +1573,7 @@ function renderSubjectMapping(results) {
             
         } else if (convalidationType === 'nn_group') {
             // N:N Group convalidation - show group info
-            const groupName = row.dataset.groupName || 'Grupo N:N';
+            const groupName = row.dataset.groupName || 'Conv. Múltiple';
             const equivalenceType = row.dataset.equivalenceType || 'all';
             const componentType = row.dataset.componentType;
             
@@ -1594,7 +1594,7 @@ function renderSubjectMapping(results) {
                 console.error('Error parsing internal subjects:', e);
             }
             
-            console.log('  Tipo: GRUPO N:N');
+            console.log('  Tipo: CONV. MÚLTIPLE');
             console.log('    → Nombre grupo:', groupName);
             console.log('    → Tipo equivalencia:', equivalenceType);
             console.log('    → Componente:', componentType);
@@ -1608,7 +1608,7 @@ function renderSubjectMapping(results) {
             convalidationInfo = `
                 <div class="text-info">
                     <i class="fas fa-layer-group me-1"></i>
-                    <strong>Grupo N:N</strong> 
+                    <strong>Conv. Múltiple</strong> 
                     <span class="badge bg-info">${equivalenceLabels[equivalenceType] || equivalenceType}</span><br>
                     <small class="text-muted fst-italic">${groupName}</small>
                     ${internalSubjectsList}
