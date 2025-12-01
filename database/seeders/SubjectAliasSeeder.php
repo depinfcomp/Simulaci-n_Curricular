@@ -9,9 +9,25 @@ use App\Models\SubjectAlias;
 class SubjectAliasSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Seeds the subject_aliases table with historical subject code mappings. This handles subjects
+     * that have changed codes over time, allowing the system to recognize both old and new codes
+     * when importing historical student records or processing convalidations.
      * 
-     * Agrega alias de materias que han cambiado de código a lo largo de los años
+     * Use cases:
+     * - Importing academic histories with old subject codes from previous years
+     * - Processing transfer credits from students who took courses under old codes
+     * - Maintaining backward compatibility with legacy systems
+     * - Supporting curriculum transitions where subjects were renamed/recoded
+     * 
+     * Example: '4200924' (old code) → '4200915' (current code for "Programación con tecnologías web")
+     * 
+     * The seeder:
+     * - Truncates the table for clean re-seeding (development only)
+     * - Verifies subject existence before creating aliases
+     * - Provides console output for tracking alias creation
+     * - Checks both subjects and elective_subjects tables for valid references
+     * 
+     * To add new aliases, simply add entries to the $aliases array following the format shown.
      */
     public function run(): void
     {

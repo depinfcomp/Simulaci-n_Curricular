@@ -8,7 +8,23 @@ use App\Models\ElectiveSubject;
 class ElectiveSubjectSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Seeds the elective_subjects table with optional subjects that students can choose from to
+     * fulfill their optional fundamental and optional professional credit requirements.
+     * 
+     * This seeder includes:
+     * - OPTATIVAS FUNDAMENTALES (Optional Fundamental - Orange): General education electives
+     *   including advanced mathematics, physics, statistics, and other foundational subjects
+     * - OPTATIVAS PROFESIONALES (Optional Professional - Green): Specialized technical electives
+     *   including advanced topics in networks, security, AI, databases, software engineering, etc.
+     * 
+     * Each elective includes:
+     * - Complete course information (credits, hours, semester recommendation)
+     * - Detailed description with objectives and methodology
+     * - Attendance requirements (typically 80%)
+     * - Active status flag to indicate if currently offered
+     * 
+     * Students must complete a specific number of credits from each elective type to graduate,
+     * as defined by the curriculum credit limits configuration.
      */
     public function run(): void
     {

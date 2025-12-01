@@ -8,18 +8,21 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
+     * 
+     * Creates the students table which stores basic student information
+     * and their calculated academic metrics.
      */
     public function up(): void
     {
         Schema::create('students', function (Blueprint $table) {
-            $table->id()->comment('Auto-incrementable ID');
-            $table->string('document', 20)->unique()->comment('Student ID document number');
+            $table->id()->comment('Auto-incrementing primary key');
+            $table->string('document', 20)->unique()->comment('Unique student identification document number');
             
-            // Academic metrics (calculated by StudentMetricsService)
-            $table->integer('total_credits_taken')->default(0)->comment('Total credits attempted (all subjects)');
-            $table->integer('approved_credits')->default(0)->comment('Credits that count toward degree');
-            $table->decimal('average_grade', 4, 2)->default(0)->comment('Weighted average grade');
-            $table->decimal('progress_percentage', 5, 2)->default(0)->comment('Academic progress percentage (0-100)');
+            // Academic metrics calculated by StudentMetricsService
+            $table->integer('total_credits_taken')->default(0)->comment('Total credits attempted across all subjects including failed ones');
+            $table->integer('approved_credits')->default(0)->comment('Total approved credits that count toward degree completion');
+            $table->decimal('average_grade', 4, 2)->default(0)->comment('Weighted average grade (0.00 to 5.00 scale)');
+            $table->decimal('progress_percentage', 5, 2)->default(0)->comment('Academic progress percentage toward degree completion (0.00 to 100.00)');
             
             $table->timestamps();
         });
@@ -27,6 +30,8 @@ return new class extends Migration
 
     /**
      * Reverse the migrations.
+     * 
+     * Drops the students table.
      */
     public function down(): void
     {

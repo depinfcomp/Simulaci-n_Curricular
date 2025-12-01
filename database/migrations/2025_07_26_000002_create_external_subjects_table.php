@@ -7,27 +7,41 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Run the migrations.
+     * Creates the external_subjects table which stores subjects from external (target) curricula.
+     * These subjects are used as targets for convalidation (course equivalency mapping) from the
+     * original curriculum. Tracks subject changes during curriculum evolution (added, removed, moved).
      */
     public function up(): void
     {
         Schema::create('external_subjects', function (Blueprint $table) {
-            $table->id()->comment('Auto-incrementable ID');
-            $table->foreignId('external_curriculum_id')->constrained()->onDelete('cascade')->comment('Foreign key to external_curriculums');
-            $table->string('code')->comment('External subject code');
-            $table->string('name')->comment('External subject name');
-            $table->integer('credits')->comment('Academic credits');
-            $table->integer('semester')->comment('Semester in external curriculum');
-            $table->text('description')->nullable()->comment('Subject description');
-            $table->json('additional_data')->nullable()->comment('Additional data from Excel import');
+            $table->id()->comment('Unique identifier for this external subject');
+            $table->foreignId('external_curriculum_id')->constrained()->onDelete('cascade')->comment('Foreign key to external_curriculums table defining which curriculum this subject belongs to');
+            $table->string('code')->comment('External subject code identifier (unique within each curriculum)');
+            $table->string('name')->comment('External subject full name');
+            $table->integer('credits')->comment('Number of academic credits this subject is worth');
+            $table->integer('semester')->comment('Recommended semester number in the curriculum sequence');
+            $table->text('description')->nullable()->comment('Detailed subject description including learning objectives and content');
+            $table->json('additional_data')->nullable()->comment('Additional metadata from Excel import (prerequisite codes, extra attributes, etc.)');
+            
+            // Change tracking fields (tracks curriculum evolution)
+            $table->enum('change_type', ['added', 'removed', 'modified', 'moved', 'unchanged'])
+                  ->nullable()
+                  ->comment('Type of change made during curriculum simulation: added (new subject), removed (deleted subject), modified (content changed), moved (semester changed), unchanged (no modifications)');
+            $table->integer('original_semester')
+                  ->nullable()
+                  ->comment('Original semester before any modifications (used to track moved subjects)');
+            $table->json('change_details')
+                  ->nullable()
+                  ->comment('Detailed information about the change including modified fields (prerequisites, credits, name, etc.) stored as JSON object');
+            
             $table->timestamps();
             
-            $table->unique(['external_curriculum_id', 'code']); // One code per curriculum
+            $table->unique(['external_curriculum_id', 'code'])->comment('Ensures each subject code is unique within its curriculum');
         });
     }
 
     /**
-     * Reverse the migrations.
+     * Drops the external_subjects table.
      */
     public function down(): void
     {

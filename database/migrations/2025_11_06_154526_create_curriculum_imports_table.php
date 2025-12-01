@@ -7,56 +7,58 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Run the migrations.
+     * Creates the curriculum_imports table which tracks the multi-step process of importing curriculum
+     * data from Excel files. This table manages the workflow from file upload through automatic column
+     * detection, manual mapping, validation, data completion, and final import execution.
      */
     public function up(): void
     {
         Schema::create('curriculum_imports', function (Blueprint $table) {
-            $table->id();
-            $table->string('original_filename')->comment('Nombre del archivo Excel original');
-            $table->string('stored_path')->comment('Ruta donde se guardó el archivo');
+            $table->id()->comment('Unique identifier for this import operation');
+            $table->string('original_filename')->comment('Original filename of the uploaded Excel file as provided by the user');
+            $table->string('stored_path')->comment('Server file path where the uploaded Excel file is stored (relative to storage directory)');
             $table->enum('status', [
-                'uploaded',      // Archivo subido, esperando análisis
-                'analyzing',     // Detectando formato y columnas
-                'mapping',       // Usuario mapeando columnas manualmente
-                'validating',    // Validando datos detectados
-                'filling',       // Completando datos faltantes
-                'confirmed',     // Listo para importar
-                'importing',     // Proceso de importación en curso
-                'completed',     // Importación exitosa
-                'failed'         // Falló en algún paso
-            ])->default('uploaded')->comment('Estado del proceso de importación');
+                'uploaded',      // File uploaded successfully, awaiting analysis
+                'analyzing',     // System is analyzing file format and detecting columns
+                'mapping',       // User is manually mapping columns to database fields
+                'validating',    // System is validating the mapped data
+                'filling',       // User is completing missing or invalid data
+                'confirmed',     // Data validated and ready for import
+                'importing',     // Import process is actively running
+                'completed',     // Import finished successfully
+                'failed'         // Import failed at some step
+            ])->default('uploaded')->comment('Current status of the import workflow');
             
-            // Metadatos del análisis automático
-            $table->integer('header_row')->nullable()->comment('Fila donde están los encabezados (0-indexed)');
-            $table->integer('data_start_row')->nullable()->comment('Fila donde empiezan los datos (0-indexed)');
-            $table->integer('total_rows')->nullable()->comment('Total de filas con datos');
+            // Automatic analysis metadata
+            $table->integer('header_row')->nullable()->comment('Zero-indexed row number where column headers are located in the Excel file');
+            $table->integer('data_start_row')->nullable()->comment('Zero-indexed row number where actual data begins (typically header_row + 1)');
+            $table->integer('total_rows')->nullable()->comment('Total number of data rows found in the Excel file');
             
-            // Mapeo de columnas (JSON)
-            $table->json('column_mapping')->nullable()->comment('Mapeo de columnas Excel a campos: {"A":"code", "B":"name", ...}');
-            $table->json('detected_columns')->nullable()->comment('Columnas detectadas automáticamente con confianza');
-            $table->json('required_fields_status')->nullable()->comment('Estado de campos requeridos: {"code": true, "name": true, ...}');
+            // Column mapping data (stored as JSON)
+            $table->json('column_mapping')->nullable()->comment('User-confirmed mapping from Excel columns to database fields stored as JSON object, e.g., {"A":"code", "B":"name", "C":"credits"}');
+            $table->json('detected_columns')->nullable()->comment('Automatically detected column mappings with confidence scores, e.g., [{"column":"A", "field":"code", "confidence":0.95}]');
+            $table->json('required_fields_status')->nullable()->comment('Status of required fields mapping stored as JSON, e.g., {"code": true, "name": true, "credits": false} indicating which required fields are mapped');
             
-            // Datos procesados
-            $table->json('preview_data')->nullable()->comment('Primeras 10 filas para preview');
-            $table->json('validation_errors')->nullable()->comment('Errores de validación por fila');
-            $table->json('missing_data_rows')->nullable()->comment('Filas que requieren completar datos');
+            // Processed data
+            $table->json('preview_data')->nullable()->comment('First 10 rows of data for user preview before import, stored as JSON array of row objects');
+            $table->json('validation_errors')->nullable()->comment('Validation errors grouped by row number, e.g., {"5": ["Invalid credit value"], "12": ["Missing subject name"]}');
+            $table->json('missing_data_rows')->nullable()->comment('Row numbers that have missing required data and need user intervention to complete');
             
-            // Resultado de la importación
-            $table->integer('subjects_imported')->default(0)->comment('Cantidad de materias importadas');
-            $table->json('import_summary')->nullable()->comment('Resumen de la importación');
-            $table->text('error_message')->nullable()->comment('Mensaje de error si falló');
+            // Import results
+            $table->integer('subjects_imported')->default(0)->comment('Total number of subjects successfully imported into the database');
+            $table->json('import_summary')->nullable()->comment('Detailed summary of import results including counts, warnings, and statistics stored as JSON');
+            $table->text('error_message')->nullable()->comment('Detailed error message if the import process failed at any step');
             
-            // Plantilla usada
-            $table->string('template_name')->nullable()->comment('Nombre de plantilla si se usó una');
+            // Template support
+            $table->string('template_name')->nullable()->comment('Name of the predefined template used for this import (if any), for tracking common import formats');
             
             $table->timestamps();
-            $table->softDeletes();
+            $table->softDeletes()->comment('Soft delete timestamp to allow recovery of import records');
         });
     }
 
     /**
-     * Reverse the migrations.
+     * Drops the curriculum_imports table.
      */
     public function down(): void
     {

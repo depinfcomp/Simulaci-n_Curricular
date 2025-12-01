@@ -8,52 +8,52 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * Run the migrations.
-     * 
-     * Add indexes to speed up academic history import queries
+     * Adds performance indexes to student_subject and students tables to optimize academic history
+     * import operations. These indexes significantly speed up duplicate detection, student lookups,
+     * status filtering, and date range queries during bulk imports and exports.
      */
     public function up(): void
     {
         Schema::table('student_subject', function (Blueprint $table) {
-            // Index for finding records by student during import
+            // Index for quickly finding all enrollments by a specific student during import operations
             if (!$this->indexExists('student_subject', 'idx_student_subject_student_doc')) {
                 $table->index('student_document', 'idx_student_subject_student_doc');
             }
             
-            // Compound index for duplicate detection (student + subject)
+            // Compound index for efficient duplicate detection when checking if a student is already enrolled in a subject
             if (!$this->indexExists('student_subject', 'idx_student_subject_duplicate')) {
                 $table->index(['student_document', 'subject_code'], 'idx_student_subject_duplicate');
             }
             
-            // Index for date range queries during export
+            // Index for date range queries during export operations and audit trails
             if (!$this->indexExists('student_subject', 'idx_student_subject_created')) {
                 $table->index('created_at', 'idx_student_subject_created');
             }
             
-            // Index for status filtering
+            // Index for filtering enrollments by status (enrolled, passed, failed, withdrawn)
             if (!$this->indexExists('student_subject', 'idx_student_subject_status')) {
                 $table->index('status', 'idx_student_subject_status');
             }
         });
         
         Schema::table('students', function (Blueprint $table) {
-            // Index for document lookup (case-insensitive searches)
+            // Index for fast student document lookup during imports (supports case-insensitive searches)
             if (!$this->indexExists('students', 'idx_students_document')) {
                 $table->index('document', 'idx_students_document');
             }
             
-            // Index for date range queries during export
+            // Index for date range queries during exports and finding recently updated student records
             if (!$this->indexExists('students', 'idx_students_updated')) {
                 $table->index('updated_at', 'idx_students_updated');
             }
         });
         
-        // Note: subjects, elective_subjects, and leveling_subjects already have
-        // code indexes from their original migrations, no need to add more
+        // Note: subjects, elective_subjects, and leveling_subjects tables already have
+        // code indexes from their original create migrations, no additional indexes needed
     }
 
     /**
-     * Reverse the migrations.
+     * Removes the performance indexes added in the up() method, reverting tables to their original state.
      */
     public function down(): void
     {
@@ -83,7 +83,12 @@ return new class extends Migration
     }
     
     /**
-     * Check if an index exists on a table
+     * Checks if an index exists on a PostgreSQL table by querying the pg_indexes system catalog.
+     * This prevents errors when trying to create an index that already exists.
+     * 
+     * @param string $table Table name to check
+     * @param string $indexName Index name to look for
+     * @return bool True if index exists, false otherwise
      */
     private function indexExists(string $table, string $indexName): bool
     {

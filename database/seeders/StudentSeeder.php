@@ -10,7 +10,27 @@ use Illuminate\Support\Facades\DB;
 class StudentSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Seeds the students table with 100 simulated students with realistic academic progress.
+     * 
+     * IMPORTANT: This seeder is commented out in DatabaseSeeder because real student data should
+     * be imported from CSV files to reflect actual academic records. Use this seeder only for
+     * testing and development purposes.
+     * 
+     * What this seeder does:
+     * - Creates 100 students with sequential document numbers (0000000001 to 0000000100)
+     * - Simulates different progress levels from new (1-2 semesters) to graduating (9-10 semesters)
+     * - Enrolls students in subjects respecting prerequisite requirements
+     * - Generates realistic pass/fail patterns (varies by student level)
+     * - Automatically calculates and updates progress percentages
+     * 
+     * Progress level distribution:
+     * - 20% new students (semesters 1-2, 80% pass rate)
+     * - 25% early students (semesters 3-4, 70% pass rate)
+     * - 25% mid students (semesters 5-6, 60% pass rate)
+     * - 20% advanced students (semesters 7-8, 50% pass rate)
+     * - 10% final students (semesters 9-10, 40% pass rate)
+     * 
+     * The seeder clears existing student data before running.
      */
     public function run(): void
     {

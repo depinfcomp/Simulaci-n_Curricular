@@ -8,30 +8,35 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * Run the migrations.
+     * Updates the convalidation_type enum in subject_convalidations table by replacing 'free_elective'
+     * with 'flexible_component'. This terminology change better reflects that these credits can be
+     * assigned flexibly to various components based on student needs and component limits, not just
+     * to free electives.
      */
     public function up(): void
     {
-        // For PostgreSQL, we need to use raw SQL to modify the enum
-        // Replace 'free_elective' with 'flexible_component' in the enum
+        // For PostgreSQL, use raw SQL to modify enum constraint
+        // Step 1: Remove the existing enum constraint
         DB::statement("ALTER TABLE subject_convalidations DROP CONSTRAINT IF EXISTS subject_convalidations_convalidation_type_check");
+        
+        // Step 2: Change column to VARCHAR temporarily to allow value updates
         DB::statement("ALTER TABLE subject_convalidations ALTER COLUMN convalidation_type TYPE VARCHAR(50)");
         
-        // Update existing 'free_elective' values to 'flexible_component'
+        // Step 3: Update existing 'free_elective' values to new 'flexible_component' terminology
         DB::table('subject_convalidations')
             ->where('convalidation_type', 'free_elective')
             ->update(['convalidation_type' => 'flexible_component']);
         
-        // Recreate the constraint with the new enum values
+        // Step 4: Recreate the constraint with the new enum values
         DB::statement("ALTER TABLE subject_convalidations ADD CONSTRAINT subject_convalidations_convalidation_type_check CHECK (convalidation_type IN ('direct', 'flexible_component', 'not_convalidated'))");
     }
 
     /**
-     * Reverse the migrations.
+     * Reverts the enum change back to the original 'free_elective' terminology.
      */
     public function down(): void
     {
-        // Revert back to the old enum
+        // Revert the enum change
         DB::statement("ALTER TABLE subject_convalidations DROP CONSTRAINT IF EXISTS subject_convalidations_convalidation_type_check");
         
         // Update 'flexible_component' back to 'free_elective'
@@ -39,7 +44,7 @@ return new class extends Migration
             ->where('convalidation_type', 'flexible_component')
             ->update(['convalidation_type' => 'free_elective']);
         
-        // Recreate the old constraint
+        // Recreate the original constraint with old values
         DB::statement("ALTER TABLE subject_convalidations ADD CONSTRAINT subject_convalidations_convalidation_type_check CHECK (convalidation_type IN ('direct', 'free_elective', 'not_convalidated'))");
     }
 };

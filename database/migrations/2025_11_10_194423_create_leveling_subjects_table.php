@@ -7,29 +7,30 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Run the migrations.
+     * Creates the leveling_subjects table which stores subjects that students must take to meet
+     * prerequisite requirements when entering a program. These are remedial or preparatory courses
+     * taken before or alongside regular curriculum subjects.
      */
     public function up(): void
     {
         Schema::create('leveling_subjects', function (Blueprint $table) {
-            $table->id();
-            $table->string('code', 10)->unique()->comment('Subject code - Unique identifier');
-            $table->string('name')->comment('Subject name');
-            $table->integer('credits')->comment('Academic credits');
-            $table->integer('classroom_hours')->default(0)->comment('Classroom hours per week');
-            $table->integer('student_hours')->default(0)->comment('Student independent work hours per week');
-            $table->text('description')->nullable()->comment('Subject description');
-            $table->boolean('is_active')->default(true)->comment('Whether the subject is currently offered');
+            $table->id()->comment('Unique identifier for this leveling subject');
+            $table->string('code', 10)->unique()->comment('Subject code - unique identifier across all leveling subjects');
+            $table->string('name')->comment('Full name of the leveling subject');
+            $table->integer('credits')->comment('Number of academic credits this subject is worth');
+            $table->integer('classroom_hours')->default(0)->comment('Number of classroom contact hours per week with instructor');
+            $table->integer('student_hours')->default(0)->comment('Number of independent student work hours per week (homework, study, projects)');
+            $table->text('description')->nullable()->comment('Detailed description of subject content, learning objectives, and prerequisites');
+            // Note: is_active field removed - not needed for current implementation (all leveling subjects are considered active)
             $table->timestamps();
             
-            // Indexes for performance
-            $table->index('is_active');
-            $table->index('code');
+            // Index for performance on code lookups
+            $table->index('code')->comment('Index for quick code-based queries');
         });
     }
 
     /**
-     * Reverse the migrations.
+     * Drops the leveling_subjects table.
      */
     public function down(): void
     {
