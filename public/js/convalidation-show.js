@@ -1288,8 +1288,102 @@ function renderImpactAnalysis(results) {
         results.original_curriculum_credits || {}
     );
     
+    // Render students preview table
+    renderStudentsPreview(results.student_details || []);
+    
     // Subject mapping - show configured convalidations
     renderSubjectMapping(results);
+}
+
+// Global variables for sorting
+let currentStudentData = [];
+let currentSortColumn = null;
+let currentSortDirection = 'none'; // 'none', 'asc', 'desc'
+
+function renderStudentsPreview(studentDetails) {
+    currentStudentData = studentDetails;
+    updateStudentsTable();
+}
+
+function updateStudentsTable() {
+    const tbody = document.getElementById('impact-students-preview');
+    tbody.innerHTML = '';
+    
+    if (!currentStudentData || currentStudentData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay datos disponibles</td></tr>';
+        return;
+    }
+    
+    currentStudentData.forEach(student => {
+        const change = student.progress_change || 0;
+        const badgeClass = change > 0 ? 'success' : (change < 0 ? 'danger' : 'secondary');
+        const symbol = change > 0 ? '+' : '';
+        
+        const row = `
+            <tr>
+                <td>${student.document || 'N/A'}</td>
+                <td class="text-center"><strong>${(student.original_progress || 0).toFixed(1)}%</strong></td>
+                <td class="text-center"><strong>${(student.new_progress || 0).toFixed(1)}%</strong></td>
+                <td class="text-center">
+                    <span class="badge bg-${badgeClass}">${symbol}${change.toFixed(1)}%</span>
+                </td>
+                <td class="text-center">${student.convalidated_subjects || 0}</td>
+                <td class="text-center">${student.new_subjects || 0}</td>
+                <td class="text-center"><strong>${student.total_convalidated_credits || 0}</strong></td>
+            </tr>
+        `;
+        tbody.innerHTML += row;
+    });
+}
+
+function sortStudentTable(column) {
+    // Cycle through: none -> asc -> desc -> none
+    if (currentSortColumn === column) {
+        if (currentSortDirection === 'none') {
+            currentSortDirection = 'desc'; // Mayor a menor
+        } else if (currentSortDirection === 'desc') {
+            currentSortDirection = 'asc'; // Menor a mayor
+        } else {
+            currentSortDirection = 'none'; // Sin filtro
+        }
+    } else {
+        currentSortColumn = column;
+        currentSortDirection = 'desc'; // Start with descending (mayor a menor)
+    }
+    
+    // Reset all icons
+    document.getElementById('sort-icon-original').className = 'fas fa-sort';
+    document.getElementById('sort-icon-new').className = 'fas fa-sort';
+    document.getElementById('sort-icon-change').className = 'fas fa-sort';
+    
+    // Update current icon
+    let iconId = '';
+    if (column === 'original_progress') iconId = 'sort-icon-original';
+    else if (column === 'new_progress') iconId = 'sort-icon-new';
+    else if (column === 'progress_change') iconId = 'sort-icon-change';
+    
+    if (currentSortDirection === 'none') {
+        document.getElementById(iconId).className = 'fas fa-sort';
+        // Restore original order from currentImpactResults
+        currentStudentData = [...(currentImpactResults.student_details || [])];
+    } else {
+        document.getElementById(iconId).className = currentSortDirection === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+        
+        // Sort the data
+        currentStudentData.sort((a, b) => {
+            const aVal = parseFloat(a[column]) || 0;
+            const bVal = parseFloat(b[column]) || 0;
+            
+            if (currentSortDirection === 'asc') {
+                return aVal - bVal; // Menor a mayor
+            } else {
+                return bVal - aVal; // Mayor a menor
+            }
+        });
+    }
+    
+    // Update the table
+    updateStudentsTable();
 }
 
 function renderCreditsByComponent(convalidatedCredits, originalCredits) {
@@ -1578,6 +1672,12 @@ function generateImpactPdfReportFromShow() {
     button.disabled = true;
     button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Generando reporte...';
 
+    // Use the currently sorted student data
+    const resultsToSend = {
+        ...currentImpactResults,
+        student_details: currentStudentData // Use the sorted array
+    };
+
     // Send request to generate PDF report view
     fetch(`/convalidation/${window.externalCurriculumId}/impact-report-pdf`, {
         method: 'POST',
@@ -1586,7 +1686,7 @@ function generateImpactPdfReportFromShow() {
             'X-CSRF-TOKEN': window.csrfToken
         },
         body: JSON.stringify({
-            results: currentImpactResults,
+            results: resultsToSend,
             credit_limits: {} // Empty for now, can be added later if needed
         })
     })

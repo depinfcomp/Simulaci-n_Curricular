@@ -2,6 +2,20 @@
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('css/convalidation-nn-groups.css') }}?v={{ time() }}">
+    <style>
+        /* Sort button styles */
+        .table thead button.btn-link {
+            color: #6c757d;
+            text-decoration: none;
+        }
+        .table thead button.btn-link:hover {
+            color: #0d6efd;
+        }
+        .table thead .sticky-top {
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
 @endpush
 
 @section('content')
@@ -873,6 +887,56 @@
                                         <!-- Populated by JavaScript -->
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Students Preview Table with Sorting -->
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas fa-users me-2"></i>
+                                Vista Previa de Estudiantes
+                            </h6>
+                            <small class="text-muted">Ordenar antes de exportar PDF</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-hover">
+                                    <thead class="sticky-top bg-white">
+                                        <tr>
+                                            <th>Documento</th>
+                                            <th class="text-center">
+                                                Progreso Original
+                                                <button class="btn btn-sm btn-link p-0 ms-1" onclick="sortStudentTable('original_progress')" title="Ordenar">
+                                                    <i class="fas fa-sort" id="sort-icon-original"></i>
+                                                </button>
+                                            </th>
+                                            <th class="text-center">
+                                                Progreso Nuevo
+                                                <button class="btn btn-sm btn-link p-0 ms-1" onclick="sortStudentTable('new_progress')" title="Ordenar">
+                                                    <i class="fas fa-sort" id="sort-icon-new"></i>
+                                                </button>
+                                            </th>
+                                            <th class="text-center">
+                                                Cambio
+                                                <button class="btn btn-sm btn-link p-0 ms-1" onclick="sortStudentTable('progress_change')" title="Ordenar">
+                                                    <i class="fas fa-sort" id="sort-icon-change"></i>
+                                                </button>
+                                            </th>
+                                            <th class="text-center">Convalidadas</th>
+                                            <th class="text-center">Nuevas</th>
+                                            <th class="text-center">Créditos</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="impact-students-preview">
+                                        <!-- Populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="text-muted small mt-2">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Haz clic en los iconos <i class="fas fa-sort"></i> para ordenar. El orden se aplicará al PDF.
                             </div>
                         </div>
                     </div>
