@@ -380,14 +380,105 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const STORAGE_KEY = 'simulation_temporary_changes';
     const CURRICULUM_ID = 'simulation'; // Fixed ID for the main simulation
+    const BASE_VERSION_KEY = 'current_base_curriculum_version';
+    
+    // Get or initialize the base curriculum version
+    function getBaseCurriculumVersion() {
+        try {
+            const stored = localStorage.getItem(BASE_VERSION_KEY);
+            if (!stored) {
+                // Initialize with version 1 (original curriculum)
+                const initialVersion = {
+                    version_number: 1,
+                    version_id: 'original',
+                    description: 'Malla curricular original del sistema',
+                    created_at: new Date().toISOString(),
+                    convalidations: [] // Array of curriculum IDs linked to this base version
+                };
+                localStorage.setItem(BASE_VERSION_KEY, JSON.stringify(initialVersion));
+                console.log('Initialized base curriculum version:', initialVersion);
+                return initialVersion;
+            }
+            return JSON.parse(stored);
+        } catch (error) {
+            console.error('Error getting base curriculum version:', error);
+            return null;
+        }
+    }
+    
+    // Update the base curriculum version
+    function updateBaseCurriculumVersion(versionData) {
+        try {
+            localStorage.setItem(BASE_VERSION_KEY, JSON.stringify(versionData));
+            console.log('Updated base curriculum version:', versionData);
+        } catch (error) {
+            console.error('Error updating base curriculum version:', error);
+        }
+    }
+    
+    // Add a convalidation to the current base version
+    function addConvalidationToBaseVersion(curriculumId, redirectUrl) {
+        try {
+            const baseVersion = getBaseCurriculumVersion();
+            if (!baseVersion) return;
+            
+            // Check if this convalidation already exists
+            const existingIndex = baseVersion.convalidations.findIndex(c => c.curriculum_id === curriculumId);
+            
+            if (existingIndex >= 0) {
+                // Update existing convalidation
+                baseVersion.convalidations[existingIndex] = {
+                    curriculum_id: curriculumId,
+                    redirect_url: redirectUrl,
+                    created_at: baseVersion.convalidations[existingIndex].created_at,
+                    updated_at: new Date().toISOString()
+                };
+                console.log('🔄 Updated existing convalidation:', curriculumId);
+            } else {
+                // Add new convalidation
+                baseVersion.convalidations.push({
+                    curriculum_id: curriculumId,
+                    redirect_url: redirectUrl,
+                    created_at: new Date().toISOString()
+                });
+                console.log('➕ Added new convalidation to base version:', curriculumId);
+            }
+            
+            updateBaseCurriculumVersion(baseVersion);
+        } catch (error) {
+            console.error('Error adding convalidation to base version:', error);
+        }
+    }
+    
+    // Create a new base curriculum version (when saving permanently)
+    function createNewBaseCurriculumVersion(versionNumber, versionId, description) {
+        try {
+            const newVersion = {
+                version_number: versionNumber,
+                version_id: versionId,
+                description: description || `Versión ${versionNumber} de la malla curricular`,
+                created_at: new Date().toISOString(),
+                convalidations: []
+            };
+            updateBaseCurriculumVersion(newVersion);
+            console.log('🆕 Created new base curriculum version:', newVersion);
+            return newVersion;
+        } catch (error) {
+            console.error('Error creating new base version:', error);
+            return null;
+        }
+    }
     
     // Save changes to localStorage
     function saveChangesToStorage() {
         try {
+            const baseVersion = getBaseCurriculumVersion();
             const storageData = {
                 changes: simulationChanges,
                 timestamp: new Date().toISOString(),
-                curriculumId: CURRICULUM_ID
+                curriculumId: CURRICULUM_ID,
+                base_version: baseVersion.version_number,
+                base_version_id: baseVersion.version_id
             };
             const jsonData = JSON.stringify(storageData);
             localStorage.setItem(STORAGE_KEY, jsonData);
@@ -422,10 +513,72 @@ document.addEventListener('DOMContentLoaded', function() {
     function clearStoredChanges() {
         try {
             localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem('current_external_curriculum_id');
+            localStorage.removeItem('convalidation_redirect_url');
+            // NOTE: We do NOT remove BASE_VERSION_KEY - it persists across sessions
         } catch (error) {
             console.error('Error limpiando cambios:', error);
         }
     }
+    
+    // Get all convalidations for the current base version
+    function getCurrentBaseConvalidations() {
+        const baseVersion = getBaseCurriculumVersion();
+        return baseVersion ? baseVersion.convalidations : [];
+    }
+    
+    // Display base version info in the UI (optional - can be called from console or UI)
+    window.showBaseVersionInfo = function() {
+        const baseVersion = getBaseCurriculumVersion();
+        if (!baseVersion) {
+            console.error('No base version found');
+            return;
+        }
+        
+        console.group(' Información de Versión Base');
+        console.log('Versión:', baseVersion.version_number);
+        console.log('ID:', baseVersion.version_id);
+        console.log('Descripción:', baseVersion.description);
+        console.log('Creada:', new Date(baseVersion.created_at).toLocaleString('es-ES'));
+        console.log('Convalidaciones vinculadas:', baseVersion.convalidations.length);
+        
+        if (baseVersion.convalidations.length > 0) {
+            console.group('Lista de Convalidaciones:');
+            baseVersion.convalidations.forEach((conv, index) => {
+                console.log(`${index + 1}. ID: ${conv.curriculum_id}`);
+                console.log(`   URL: ${conv.redirect_url}`);
+                console.log(`   Creada: ${new Date(conv.created_at).toLocaleString('es-ES')}`);
+                if (conv.updated_at) {
+                    console.log(`   Actualizada: ${new Date(conv.updated_at).toLocaleString('es-ES')}`);
+                }
+                console.log('');
+            });
+            console.groupEnd();
+        }
+        console.groupEnd();
+        
+        return baseVersion;
+    };
+    
+    // Clear all convalidations from current base version (useful for testing/debugging)
+    window.clearBaseVersionConvalidations = function() {
+        const baseVersion = getBaseCurriculumVersion();
+        if (!baseVersion) {
+            console.error('No base version found');
+            return false;
+        }
+        
+        const count = baseVersion.convalidations.length;
+        if (count === 0) {
+            console.log('No hay convalidaciones para limpiar');
+            return true;
+        }
+        
+        baseVersion.convalidations = [];
+        updateBaseCurriculumVersion(baseVersion);
+        console.log(`${count} convalidación(es) eliminada(s) de la versión base ${baseVersion.version_number}`);
+        return true;
+    };
     
     // Initialize total credits from all visible cards
     function initializeTotalCredits() {
@@ -453,7 +606,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (!isLeveling) {
                         removedCareerCredits += credits;
                     }
-                    console.log(`🗑️ Removed subject: ${subjectCode} (-${credits} credits${isLeveling ? ' [leveling]' : ''})`);
+                    console.log(`Removed subject: ${subjectCode} (-${credits} credits${isLeveling ? ' [leveling]' : ''})`);
                 } else {
                     // ONLY count non-removed subjects
                     totalCredits += credits;
@@ -467,7 +620,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         if (removedCount > 0) {
-            console.log(`📊 Credit calculation:`);
+            console.log(`Credit calculation:`);
             console.log(`   Total credits (excluding removed): ${totalCredits}`);
             console.log(`   Career credits (excluding removed): ${careerCredits}`);
             console.log(`   Removed from total: ${removedTotalCredits} (${removedCount} subjects)`);
@@ -492,6 +645,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize on page load
     initializeTotalCredits();
+    
+    // Initialize base curriculum version on page load
+    const currentBaseVersion = getBaseCurriculumVersion();
+    console.log('Versión base actual:', currentBaseVersion);
+    console.log(`Total de convalidaciones vinculadas: ${currentBaseVersion.convalidations.length}`);
+    if (currentBaseVersion.convalidations.length > 0) {
+        console.log('Convalidaciones:', currentBaseVersion.convalidations);
+    }
     
     // Restore temporary changes from localStorage
     restoreTemporaryChanges();
@@ -650,7 +811,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // ✅ CRITICAL: Recalculate credits after restoring changes
+        // CRITICAL: Recalculate credits after restoring changes
         // This ensures removed subjects are excluded from totals
         initializeTotalCredits();
         
@@ -1236,17 +1397,101 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Reset simulation to original state
     window.resetSimulation = function() {
+        // Get current base version info to show in confirmation
+        const baseVersion = getBaseCurriculumVersion();
+        const convalidationsCount = baseVersion ? baseVersion.convalidations.length : 0;
+        
+        // Build detailed confirmation message
+        let confirmMessage = '¿Está seguro de que desea resetear todos los cambios?<br><br>';
+        confirmMessage += '<div class="text-start"><small class="text-muted">';
+        confirmMessage += '<strong>Esto eliminará:</strong><br>';
+        confirmMessage += '• Todos los cambios temporales en la malla<br>';
+        
+        if (convalidationsCount > 0) {
+            confirmMessage += `• <span class="text-danger">${convalidationsCount} convalidación(es)</span> vinculada(s) a la versión actual<br>`;
+            confirmMessage += '<br><strong class="text-danger">Las convalidaciones se eliminarán permanentemente porque se generaron a partir de cambios que están siendo descartados.</strong><br>';
+        }
+        
+        confirmMessage += '<br>La página se recargará para restaurar el estado original.';
+        confirmMessage += '</small></div>';
+        
         showConfirmModal(
-            '¿Está seguro de que desea resetear todos los cambios? Esto eliminará todos los cambios temporales y recargará la página.',
+            confirmMessage,
             function() {
-                // Clear all temporary changes
-                simulationChanges = [];
+                console.log('Reseteando simulación...');
+                console.log('Estado ANTES del reset:');
                 
-                // Clear from localStorage
-                clearStoredChanges();
+                // Get current base version
+                const currentBase = getBaseCurriculumVersion();
+                console.log('   - Versión base:', currentBase);
+                console.log('   - Convalidaciones antes:', currentBase ? currentBase.convalidations.length : 0);
                 
-                // Reload the page to restore original state
-                window.location.reload();
+                // If there are convalidations, delete them from the backend
+                if (convalidationsCount > 0 && currentBase && currentBase.convalidations.length > 0) {
+                    const curriculumIds = currentBase.convalidations.map(c => c.curriculum_id);
+                    console.log('Eliminando convalidaciones del backend:', curriculumIds);
+                    
+                    // Show loading indicator
+                    const loadingModal = showLoadingModal('Eliminando convalidaciones...');
+                    
+                    // Delete from backend
+                    fetch('/convalidation/delete-multiple', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            curriculum_ids: curriculumIds
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        hideLoadingModal(loadingModal);
+                        
+                        if (data.success) {
+                            console.log(`${data.deleted_count} convalidación(es) eliminada(s) del backend`);
+                            
+                            // Clear from localStorage
+                            currentBase.convalidations = [];
+                            updateBaseCurriculumVersion(currentBase);
+                            
+                            // Clear all temporary changes
+                            simulationChanges = [];
+                            clearStoredChanges();
+                            
+                            console.log('Reset completado. Recargando página...');
+                            window.location.reload();
+                        } else {
+                            throw new Error(data.message || 'Error al eliminar convalidaciones');
+                        }
+                    })
+                    .catch(error => {
+                        hideLoadingModal(loadingModal);
+                        console.error('Error eliminando convalidaciones:', error);
+                        showAlertModal(
+                            `Error al eliminar convalidaciones del servidor: ${error.message}<br><br>` +
+                            'Los cambios locales se limpiarán de todas formas.',
+                            'error',
+                            'Error al Eliminar'
+                        );
+                        
+                        // Even if backend fails, clear localStorage
+                        currentBase.convalidations = [];
+                        updateBaseCurriculumVersion(currentBase);
+                        simulationChanges = [];
+                        clearStoredChanges();
+                        
+                        setTimeout(() => window.location.reload(), 2000);
+                    });
+                } else {
+                    // No convalidations to delete, just clear local data
+                    simulationChanges = [];
+                    clearStoredChanges();
+                    console.log('Reset completado. Recargando página...');
+                    window.location.reload();
+                }
             },
             'warning',
             'Resetear Simulación',
@@ -1268,18 +1513,30 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // Get convalidations count
+        const baseVersion = getBaseCurriculumVersion();
+        const convalidationsCount = baseVersion ? baseVersion.convalidations.length : 0;
+        
+        // Build confirmation message
+        let confirmMessage = `¿Desea descartar ${meaningfulChanges.length} cambio(s) temporal(es)?<br><br>`;
+        confirmMessage += '<div class="text-start">';
+        confirmMessage += '<small class="text-muted">';
+        confirmMessage += 'Esto eliminará:<br>';
+        confirmMessage += `• ${simulationChanges.filter(c => c.type === 'added').length} materia(s) agregada(s)<br>`;
+        confirmMessage += `• ${simulationChanges.filter(c => c.type === 'removed').length} materia(s) marcada(s) para eliminar<br>`;
+        confirmMessage += `• ${simulationChanges.filter(c => c.type === 'semester').length} cambio(s) de semestre<br>`;
+        confirmMessage += `• ${simulationChanges.filter(c => c.type === 'prerequisites').length} cambio(s) de prerrequisitos<br>`;
+        
+        if (convalidationsCount > 0) {
+            confirmMessage += `• <span class="text-danger">${convalidationsCount} convalidación(es)</span> vinculada(s)<br>`;
+        }
+        
+        confirmMessage += '</small>';
+        confirmMessage += '</div><br>';
+        confirmMessage += '<strong>Los cambios se descartarán sin recargar la página.</strong>';
+        
         showConfirmModal(
-            `¿Desea descartar ${meaningfulChanges.length} cambio(s) temporal(es)?<br><br>` +
-            '<div class="text-start">' +
-            '<small class="text-muted">' +
-            'Esto eliminará:<br>' +
-            `• ${simulationChanges.filter(c => c.type === 'added').length} materia(s) agregada(s)<br>` +
-            `• ${simulationChanges.filter(c => c.type === 'removed').length} materia(s) marcada(s) para eliminar<br>` +
-            `• ${simulationChanges.filter(c => c.type === 'semester').length} cambio(s) de semestre<br>` +
-            `• ${simulationChanges.filter(c => c.type === 'prerequisites').length} cambio(s) de prerrequisitos<br>` +
-            '</small>' +
-            '</div><br>' +
-            '<strong>Los cambios se descartarán sin recargar la página.</strong>',
+            confirmMessage,
             function() {
                 discardChangesWithoutReload();
             },
@@ -1350,6 +1607,42 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Clear changes array
         simulationChanges = [];
+        
+        // Clear convalidations from backend and localStorage
+        const baseVersion = getBaseCurriculumVersion();
+        if (baseVersion && baseVersion.convalidations.length > 0) {
+            const convalidationsCount = baseVersion.convalidations.length;
+            const curriculumIds = baseVersion.convalidations.map(c => c.curriculum_id);
+            
+            console.log(`Eliminando ${convalidationsCount} convalidación(es) del backend...`);
+            
+            // Delete from backend (async, but don't wait)
+            fetch('/convalidation/delete-multiple', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    curriculum_ids: curriculumIds
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log(`${data.deleted_count} convalidación(es) eliminada(s) del backend`);
+                }
+            })
+            .catch(error => {
+                console.error('Error eliminando convalidaciones del backend:', error);
+            });
+            
+            // Clear from localStorage immediately
+            baseVersion.convalidations = [];
+            updateBaseCurriculumVersion(baseVersion);
+            console.log(`${convalidationsCount} convalidación(es) eliminada(s) del localStorage`);
+        }
         
         // Clear from localStorage
         clearStoredChanges();
@@ -4654,7 +4947,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     data.versions.forEach(version => {
                         const date = new Date(version.created_at).toLocaleDateString('es-ES');
-                        const isCurrent = version.is_current ? ' ⭐' : '';
+                        const isCurrent = version.is_current ? ' ' : '';
                         items += `
                             <li>
                                 <div class="dropdown-item d-flex justify-content-between align-items-center p-0">
@@ -4750,6 +5043,19 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                                 saveChangesToStorage();
                             }
                             
+                            // Save the redirect URL to localStorage for future reference
+                            if (data.redirect_url) {
+                                localStorage.setItem('convalidation_redirect_url', data.redirect_url);
+                                console.log('Saved convalidation redirect URL:', data.redirect_url);
+                            }
+                            
+                            // Link this convalidation to the current base curriculum version
+                            if (data.curriculum_id && data.redirect_url) {
+                                addConvalidationToBaseVersion(data.curriculum_id, data.redirect_url);
+                                const baseVersion = getBaseCurriculumVersion();
+                                console.log(`Convalidación vinculada a la versión base ${baseVersion.version_number} (${baseVersion.version_id})`);
+                            }
+                            
                             showSuccessMessage('Malla exportada. Redirigiendo a convalidación...');
                             
                             // Store pending save flag in sessionStorage
@@ -4803,7 +5109,7 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                         card.dataset.prerequisites.split(',').map(p => p.trim()).filter(p => p) : 
                         [];
 
-                    // ✅ CRITICAL: Include isAdded and isRemoved flags
+                    // CRITICAL: Include isAdded and isRemoved flags
                     const isAdded = card.classList.contains('added-subject');
                     const isRemoved = card.classList.contains('removed-subject');
 
@@ -4816,8 +5122,8 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                         prerequisites: prerequisites,
                         description: card.title || '',
                         display_order: Array.from(card.parentElement.children).indexOf(card) + 1,
-                        isAdded: isAdded,      // ✅ Flag para materias nuevas
-                        isRemoved: isRemoved   // ✅ Flag para materias eliminadas
+                        isAdded: isAdded,      // Flag para materias nuevas
+                        isRemoved: isRemoved   // Flag para materias eliminadas
                     });
                 });
 
@@ -4847,8 +5153,20 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                         // Clear from localStorage
                         clearStoredChanges();
                         
-                        // Clear external curriculum ID since we successfully saved
+                        // Clear external curriculum ID and redirect URL since we successfully saved
                         localStorage.removeItem('current_external_curriculum_id');
+                        localStorage.removeItem('convalidation_redirect_url');
+                        
+                        // Create a new base curriculum version since we saved permanently
+                        const currentBase = getBaseCurriculumVersion();
+                        const newVersionNumber = currentBase.version_number + 1;
+                        const newVersionId = data.version_id || `v${newVersionNumber}_${Date.now()}`;
+                        createNewBaseCurriculumVersion(
+                            newVersionNumber,
+                            newVersionId,
+                            description || `Versión ${newVersionNumber} - ${new Date().toLocaleDateString('es-ES')}`
+                        );
+                        console.log(`🆕 Nueva versión base creada: v${newVersionNumber}. Las futuras convalidaciones se vincularán a esta versión.`);
                         
                         updateSimulationStatus();
                         
@@ -5297,7 +5615,7 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
      */
     function applyRemovedStyle(card) {
         const subjectCode = card.dataset.subjectId || 'unknown';
-        console.log(`🔴 Applying removed style to: ${subjectCode}`);
+        console.log(`Applying removed style to: ${subjectCode}`);
         
         // Add removed-subject class for credit calculation
         card.classList.add('removed-subject');

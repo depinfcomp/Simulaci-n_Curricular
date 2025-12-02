@@ -95,6 +95,9 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         
         // Save modified curriculum from simulation
         Route::post('/save-modified-curriculum', [ConvalidationController::class, 'saveModifiedCurriculum'])->name('convalidation.save-modified-curriculum');
+        
+        // Delete multiple convalidations by IDs (for reset functionality)
+        Route::post('/delete-multiple', [ConvalidationController::class, 'deleteMultipleConvalidations'])->name('convalidation.delete-multiple');
     });
     
     // API routes for internal subjects (used by N:N groups)

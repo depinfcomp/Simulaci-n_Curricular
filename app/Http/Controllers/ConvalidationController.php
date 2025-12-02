@@ -286,8 +286,7 @@ class ConvalidationController extends Controller
             $convalidation->delete();
 
             return response()->json([
-                'success' => true,
-                'message' => 'Convalidación eliminada exitosamente'
+                'success' => true
             ]);
 
         } catch (\Exception $e) {
@@ -436,7 +435,7 @@ class ConvalidationController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Convalidación eliminada. Los cambios en simulación serán reseteados.',
+                'message' => 'Convalidación eliminada exitosamente.',
                 'reset_simulation' => true
             ]);
 
@@ -3306,6 +3305,68 @@ class ConvalidationController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener las materias internas: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete multiple external curriculums by their IDs
+     * Used when resetting simulation to clean up convalidations
+     */
+    public function deleteMultipleConvalidations(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'curriculum_ids' => 'required|array',
+                'curriculum_ids.*' => 'required|integer|exists:external_curriculums,id'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Datos de validación incorrectos',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $curriculumIds = $request->input('curriculum_ids');
+            $deletedCount = 0;
+
+            DB::beginTransaction();
+
+            foreach ($curriculumIds as $curriculumId) {
+                $curriculum = ExternalCurriculum::find($curriculumId);
+                
+                if ($curriculum) {
+                    // Delete related data using proper relationship names
+                    $curriculum->externalSubjects()->delete();
+                    $curriculum->convalidations()->delete();
+                    $curriculum->convalidationGroups()->delete();
+                    
+                    // Delete the curriculum itself
+                    $curriculum->delete();
+                    $deletedCount++;
+                    
+                    \Log::info("Deleted external curriculum: {$curriculumId}");
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$deletedCount} convalidación(es) eliminada(s) exitosamente",
+                'deleted_count' => $deletedCount
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error deleting multiple convalidations: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar las convalidaciones: ' . $e->getMessage()
             ], 500);
         }
     }

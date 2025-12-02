@@ -57,8 +57,7 @@ async function deleteConvalidationAndResetSimulation(curriculumId) {
             const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
             modal.hide();
             
-            // Show success message and reload
-            alert(data.message || 'Convalidación eliminada y cambios de simulación reseteados');
+            // Reload page
             window.location.reload();
         } else {
             alert('Error: ' + (data.error || 'No se pudo eliminar la convalidación'));
