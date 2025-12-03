@@ -433,7 +433,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     created_at: baseVersion.convalidations[existingIndex].created_at,
                     updated_at: new Date().toISOString()
                 };
-                console.log('🔄 Updated existing convalidation:', curriculumId);
+                console.log('Updated existing convalidation:', curriculumId);
             } else {
                 // Add new convalidation
                 baseVersion.convalidations.push({
@@ -461,7 +461,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 convalidations: []
             };
             updateBaseCurriculumVersion(newVersion);
-            console.log('🆕 Created new base curriculum version:', newVersion);
+            console.log('Created new base curriculum version:', newVersion);
             return newVersion;
         } catch (error) {
             console.error('Error creating new base version:', error);
@@ -3546,7 +3546,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Confirm delete subject
     window.confirmDeleteSubject = function(subjectId) {
-        console.log(`🎯 confirmDeleteSubject called with ID: ${subjectId}`);
+        console.log(`confirmDeleteSubject called with ID: ${subjectId}`);
         
         // Close modal
         const modalElement = document.getElementById('deleteSubjectModal');
@@ -3559,19 +3559,19 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Find subject card
         const card = document.querySelector(`[data-subject-id="${subjectId}"]`);
-        console.log(`🔍 Card found:`, card);
+        console.log(`Card found:`, card);
         
         if (card) {
             // Check if already marked as removed
             if (card.classList.contains('removed-subject')) {
-                console.warn(`⚠️ Subject ${subjectId} is already marked as removed, skipping...`);
+                console.warn(`Subject ${subjectId} is already marked as removed, skipping...`);
                 return;
             }
             
             const subjectName = card.querySelector('.subject-name')?.textContent || subjectId;
             const subjectType = card.dataset.type;
             
-            console.log(`📝 Subject details: ${subjectName}, type: ${subjectType}`);
+            console.log(`Subject details: ${subjectName}, type: ${subjectType}`);
             
             // Apply removal preview style
             applyRemovedStyle(card);
@@ -3605,7 +3605,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             showSuccessMessage(`Materia marcada para eliminación. Recuerda guardar los cambios.`);
         } else {
-            console.error(`❌ Card not found for subject: ${subjectId}`);
+            console.error(`Card not found for subject: ${subjectId}`);
         }
     };
     
@@ -5142,9 +5142,9 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                     const reportHtml = sessionStorage.getItem('convalidation_report_html_' + externalCurriculumId);
                     if (reportHtml) {
                         requestData.report_html = reportHtml;
-                        console.log('📄 Incluyendo reporte PDF previamente generado');
+                        console.log('Incluyendo reporte PDF previamente generado');
                     } else {
-                        console.log('⚠️ No se encontró reporte PDF en sessionStorage, se generará versión simplificada');
+                        console.log('No se encontró reporte PDF en sessionStorage, se generará versión simplificada');
                     }
                 }
                 
@@ -5189,7 +5189,7 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                             newVersionId,
                             description || `Versión ${newVersionNumber} - ${new Date().toLocaleDateString('es-ES')}`
                         );
-                        console.log(`🆕 Nueva versión base creada: v${newVersionNumber}. Las futuras convalidaciones se vincularán a esta versión.`);
+                        console.log(`Nueva versión base creada: v${newVersionNumber}. Las futuras convalidaciones se vincularán a esta versión.`);
                         
                         updateSimulationStatus();
                         
@@ -5449,7 +5449,7 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
         attributeFilter: ['class', 'style']
     });
     
-    console.log('🔧 Scroll fix watcher initialized');
+    console.log('Scroll fix watcher initialized');
 
     // Debug: Verify functions are available
     console.log('=== SIMULATION JS LOADED ===');

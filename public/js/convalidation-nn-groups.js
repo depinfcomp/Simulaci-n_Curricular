@@ -747,17 +747,17 @@ async function saveNNGroup(groupId) {
     
     // Validation
     if (internalSubjects.length === 0) {
-        alert('⚠️ Debes seleccionar al menos una materia equivalente');
+        alert('Debes seleccionar al menos una materia equivalente');
         return;
     }
     
     if (!componentType) {
-        alert('⚠️ Debes seleccionar un componente curricular');
+        alert('Debes seleccionar un componente curricular');
         return;
     }
     
     if (equivalenceType === 'credits' && (creditsThreshold < 1 || creditsThreshold > 100)) {
-        alert('⚠️ El porcentaje de créditos debe estar entre 1 y 100');
+        alert('El porcentaje de créditos debe estar entre 1 y 100');
         return;
     }
     
@@ -827,7 +827,7 @@ async function saveNNGroup(groupId) {
         }
     } catch (error) {
         console.error('Error saving N:N group:', error);
-        alert('❌ ' + error.message);
+        alert('' + error.message);
         
         // Restore button
         btn.disabled = false;
@@ -992,7 +992,7 @@ async function deleteNNGroup(groupId) {
         }
     } catch (error) {
         console.error('Error deleting N:N group:', error);
-        alert('❌ Error al eliminar el grupo: ' + error.message);
+        alert('Error al eliminar el grupo: ' + error.message);
     }
 }
 

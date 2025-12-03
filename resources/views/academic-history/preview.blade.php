@@ -283,7 +283,7 @@ async function procesarImportacion() {
         
         if (data.success) {
             showAlertModal(
-                `✅ Importación completada exitosamente!\n\n` +
+                `Importación completada exitosamente!\n\n` +
                 `• Registros exitosos: ${data.data.successful}\n` +
                 `• Registros fallidos: ${data.data.failed}\n\n` +
                 `Serás redirigido al listado de importaciones.`,

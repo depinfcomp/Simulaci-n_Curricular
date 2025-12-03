@@ -49,7 +49,7 @@ class CurriculumPdfService
             throw new \Exception("PDF file was not created at: {$fullPath}");
         }
         
-        \Log::info("📁 PDF de convalidación guardado desde HTML", [
+        \Log::info("PDF de convalidación guardado desde HTML", [
             'path' => $path,
             'fullPath' => $fullPath,
             'size' => filesize($fullPath),
@@ -160,7 +160,7 @@ class CurriculumPdfService
             throw new \Exception("PDF file was not created at: {$fullPath}");
         }
         
-        \Log::info("📁 PDF de convalidación guardado correctamente", [
+        \Log::info("PDF de convalidación guardado correctamente", [
             'path' => $path,
             'fullPath' => $fullPath,
             'size' => filesize($fullPath),

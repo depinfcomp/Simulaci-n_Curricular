@@ -20,6 +20,7 @@ return new class extends Migration
             $table->text('description')->nullable()->comment('Detailed description of the curriculum including objectives and structure');
             $table->string('uploaded_file')->nullable()->comment('File path to the original Excel file used to import this curriculum');
             $table->json('metadata')->nullable()->comment('Additional metadata including import date, file hash, version info stored as JSON');
+            $table->string('pdf_report_path')->nullable()->comment('File path to the generated PDF impact analysis report');
             $table->enum('status', ['active', 'inactive'])->default('active')->comment('Curriculum status: active (available for convalidation), inactive (archived or deprecated)');
             $table->timestamps();
         });

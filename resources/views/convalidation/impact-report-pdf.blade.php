@@ -624,7 +624,7 @@
         </table>
         
         <div style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107; font-size: 9pt;">
-            <strong>⚠️ Balance de Créditos:</strong><br>
+            <strong>Balance de Créditos:</strong><br>
             • <span style="color: green; font-weight: bold;">Balance positivo (+)</span>: El estudiante gana créditos al migrar (la materia nueva vale más que las viejas)<br>
             • <span style="color: red; font-weight: bold;">Balance negativo (-)</span>: El estudiante pierde créditos al migrar (las materias viejas valían más que la nueva)<br>
             • El análisis de impacto calcula el <strong>balance neto</strong> para determinar el avance real del estudiante

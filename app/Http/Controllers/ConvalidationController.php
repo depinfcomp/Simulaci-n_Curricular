@@ -252,7 +252,7 @@ class ConvalidationController extends Controller
                 'notes' => null
             ]);
 
-            \Log::info("✅ Convalidación creada exitosamente", [
+            \Log::info("Convalidación creada exitosamente", [
                 'external_subject_id' => $externalSubject->id,
                 'convalidation_type' => $request->convalidation_type,
                 'component_type' => $request->component_type
@@ -273,7 +273,7 @@ class ConvalidationController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error("❌ Error al crear convalidación: " . $e->getMessage(), [
+            \Log::error("Error al crear convalidación: " . $e->getMessage(), [
                 'exception' => $e,
                 'trace' => $e->getTraceAsString()
             ]);
@@ -2061,7 +2061,7 @@ class ConvalidationController extends Controller
                     
                     // DEBUG: Log what was actually saved
                     if ($changeType === 'removed' || $changeType === 'added') {
-                        \Log::info("✅ Saved subject with change_type:", [
+                        \Log::info("Saved subject with change_type:", [
                             'code' => $subjectCode,
                             'change_type_variable' => $changeType,
                             'change_type_saved' => ($changeType !== 'unchanged' ? $changeType : null)

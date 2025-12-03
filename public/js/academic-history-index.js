@@ -90,7 +90,7 @@ async function handleUpload(e) {
  */
 function deleteImport(importId) {
     showConfirmModal(
-        '¿Está seguro de que desea eliminar esta importación?\n\n⚠️ ADVERTENCIA: Se eliminarán todos los registros asociados.\n\nEsta acción NO se puede deshacer.',
+        '¿Está seguro de que desea eliminar esta importación?\n\nADVERTENCIA: Se eliminarán todos los registros asociados.\n\nEsta acción NO se puede deshacer.',
         async function() {
             try {
                 const response = await fetch(`/academic-history/${importId}`, {

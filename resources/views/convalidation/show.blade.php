@@ -1116,7 +1116,7 @@
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('❌ Error al restablecer las convalidaciones: ' + error.message);
+                alert('Error al restablecer las convalidaciones: ' + error.message);
                 
                 // Restore button
                 btn.disabled = false;

@@ -482,12 +482,12 @@ class SimulationController extends Controller
                 
                 if ($removedType !== 'nivelacion') {
                     if ($studentHasSubject) {
-                        $impact['issues'][] = "✅ Ya aprobó {$subject->name} ({$removedCredits} créditos) que será eliminada. Sus créditos permanecen en su historial académico, aumentando su porcentaje de avance.";
+                        $impact['issues'][] = "Ya aprobó {$subject->name} ({$removedCredits} créditos) que será eliminada. Sus créditos permanecen en su historial académico, aumentando su porcentaje de avance.";
                     } else {
                         $impact['issues'][] = "� Materia {$subject->name} ({$removedCredits} créditos) eliminada de la malla. Al reducir créditos totales, su porcentaje de avance aumenta.";
                     }
                 } else {
-                    $impact['issues'][] = "🗑️ Materia de nivelación {$subject->name} eliminada (no afecta avance de carrera).";
+                    $impact['issues'][] = "Materia de nivelación {$subject->name} eliminada (no afecta avance de carrera).";
                 }
             }
             
@@ -738,7 +738,7 @@ class SimulationController extends Controller
             
             if ($externalCurriculumId) {
                 try {
-                    \Log::info("📄 Generando PDF de convalidación", [
+                    \Log::info("Generando PDF de convalidación", [
                         'external_curriculum_id' => $externalCurriculumId,
                         'has_html' => !empty($reportHtml)
                     ]);
@@ -757,9 +757,9 @@ class SimulationController extends Controller
                         );
                     }
                     
-                    \Log::info("✅ PDF generado exitosamente", ['path' => $pdfPath]);
+                    \Log::info("PDF generado exitosamente", ['path' => $pdfPath]);
                 } catch (\Exception $e) {
-                    \Log::error("❌ Error generando PDF (continuando con guardado)", [
+                    \Log::error("Error generando PDF (continuando con guardado)", [
                         'error' => $e->getMessage(),
                         'trace' => $e->getTraceAsString()
                     ]);
@@ -830,7 +830,7 @@ class SimulationController extends Controller
                 ExternalCurriculum::where('id', $externalCurriculumId)->update([
                     'pdf_report_path' => $pdfPath
                 ]);
-                \Log::info("💾 PDF path guardado en external_curriculum", [
+                \Log::info("PDF path guardado en external_curriculum", [
                     'id' => $externalCurriculumId,
                     'path' => $pdfPath
                 ]);
@@ -863,19 +863,19 @@ class SimulationController extends Controller
         $changes = $curriculumData['changes'] ?? [];
         $subjects = $curriculumData['subjects'] ?? [];
         
-        \Log::info("📦 Aplicando cambios al currículum principal", [
+        \Log::info("Aplicando cambios al currículum principal", [
             'total_changes' => count($changes),
             'total_subjects' => count($subjects),
             'changes' => $changes
         ]);
         
-        // ✅ PASO 1: Procesar cambios explícitos del array 'changes'
+        // PASO 1: Procesar cambios explícitos del array 'changes'
         foreach ($changes as $change) {
             $subjectCode = $change['subject_code'] ?? null;
             $changeType = $change['type'] ?? null;
             
             if (!$subjectCode || !$changeType) {
-                \Log::warning("⚠️ Cambio inválido (sin código o tipo)", ['change' => $change]);
+                \Log::warning("Cambio inválido (sin código o tipo)", ['change' => $change]);
                 continue;
             }
             
@@ -916,16 +916,16 @@ class SimulationController extends Controller
                         );
                     }
                     
-                    \Log::info("✅ Materia agregada (desde changes): {$subjectCode} - {$subjectData['name']}");
+                    \Log::info("Materia agregada (desde changes): {$subjectCode} - {$subjectData['name']}");
                 } else {
-                    \Log::warning("⚠️ Materia agregada no encontrada en subjects array: {$subjectCode}");
+                    \Log::warning("Materia agregada no encontrada en subjects array: {$subjectCode}");
                 }
             } elseif ($changeType === 'removed') {
                 // Delete subject from database
                 $subject = Subject::where('code', $subjectCode)->first();
                 
                 if ($subject) {
-                    \Log::info("🗑️ Eliminando materia (desde changes): {$subjectCode} - {$subject->name}");
+                    \Log::info("Eliminando materia (desde changes): {$subjectCode} - {$subject->name}");
                     
                     // Delete prerequisites relationships
                     $subject->prerequisites()->detach();
@@ -935,10 +935,10 @@ class SimulationController extends Controller
                     $deletedCount = $subject->delete();
                     
                     if ($deletedCount > 0) {
-                        \Log::info("✅ Materia eliminada exitosamente: {$subjectCode}");
+                        \Log::info("Materia eliminada exitosamente: {$subjectCode}");
                     }
                 } else {
-                    \Log::warning("⚠️ Materia no encontrada para eliminar: {$subjectCode}");
+                    \Log::warning("Materia no encontrada para eliminar: {$subjectCode}");
                 }
                 
                 // Note: We don't delete from leveling_subjects - they remain for historical records
@@ -956,9 +956,9 @@ class SimulationController extends Controller
                         'display_order' => $subjectInfo['display_order'] ?? $subject->display_order,
                     ]);
                     
-                    \Log::info("🔄 Semestre cambiado: {$subjectCode} - {$oldSemester} → {$newSemester}");
+                    \Log::info("Semestre cambiado: {$subjectCode} - {$oldSemester} → {$newSemester}");
                 } else {
-                    \Log::warning("⚠️ Materia no encontrada para cambio de semestre: {$subjectCode}");
+                    \Log::warning("Materia no encontrada para cambio de semestre: {$subjectCode}");
                 }
             } elseif ($changeType === 'prerequisites') {
                 // Update prerequisites
@@ -971,9 +971,9 @@ class SimulationController extends Controller
                     
                     $subject->prerequisites()->sync($prereqIds);
                     
-                    \Log::info("🔗 Prerrequisitos actualizados: {$subjectCode} - " . implode(', ', $newPrereqs));
+                    \Log::info("Prerrequisitos actualizados: {$subjectCode} - " . implode(', ', $newPrereqs));
                 } else {
-                    \Log::warning("⚠️ Materia no encontrada para cambio de prerrequisitos: {$subjectCode}");
+                    \Log::warning("Materia no encontrada para cambio de prerrequisitos: {$subjectCode}");
                 }
             } elseif ($changeType === 'modified') {
                 // Update subject data
@@ -993,17 +993,17 @@ class SimulationController extends Controller
                     
                     $subject->update($updateData);
                     
-                    \Log::info("✏️ Materia modificada: {$subjectCode} - " . json_encode($updateData));
+                    \Log::info("Materia modificada: {$subjectCode} - " . json_encode($updateData));
                 } else {
-                    \Log::warning("⚠️ Materia no encontrada para modificación: {$subjectCode}");
+                    \Log::warning("Materia no encontrada para modificación: {$subjectCode}");
                 }
             }
         }
 
-        // ✅ PASO 2: Procesar flags isAdded/isRemoved del array 'subjects'
+        // PASO 2: Procesar flags isAdded/isRemoved del array 'subjects'
         // Esto es crucial cuando vienes desde convalidación donde los cambios
         // están marcados con clases CSS (added-subject, removed-subject)
-        \Log::info("🔍 Procesando flags isAdded/isRemoved en subjects array");
+        \Log::info("Procesando flags isAdded/isRemoved en subjects array");
         
         $addedCount = 0;
         $removedCount = 0;
@@ -1041,7 +1041,7 @@ class SimulationController extends Controller
                         $newSubjectData
                     );
                     
-                    \Log::info("✅ Materia agregada (desde isAdded flag): {$subjectCode} - {$newSubjectData['name']}");
+                    \Log::info("Materia agregada (desde isAdded flag): {$subjectCode} - {$newSubjectData['name']}");
                     $addedCount++;
                 }
             }
@@ -1058,7 +1058,7 @@ class SimulationController extends Controller
                     $subject = Subject::where('code', $subjectCode)->first();
                     
                     if ($subject) {
-                        \Log::info("🗑️ Eliminando materia (desde isRemoved flag): {$subjectCode} - {$subject->name}");
+                        \Log::info("Eliminando materia (desde isRemoved flag): {$subjectCode} - {$subject->name}");
                         
                         // Delete prerequisites relationships
                         $subject->prerequisites()->detach();
@@ -1068,7 +1068,7 @@ class SimulationController extends Controller
                         $deletedCount = $subject->delete();
                         
                         if ($deletedCount > 0) {
-                            \Log::info("✅ Materia eliminada exitosamente: {$subjectCode}");
+                            \Log::info("Materia eliminada exitosamente: {$subjectCode}");
                             $removedCount++;
                         }
                     }
@@ -1076,12 +1076,12 @@ class SimulationController extends Controller
             }
         }
         
-        \Log::info("📊 Resumen de procesamiento de flags:", [
+        \Log::info("Resumen de procesamiento de flags:", [
             'added_from_flags' => $addedCount,
             'removed_from_flags' => $removedCount
         ]);
 
-        // ✅ PASO 3: Update display_order and semester for all subjects based on curriculum data
+        // PASO 3: Update display_order and semester for all subjects based on curriculum data
         foreach ($subjects as $subjectData) {
             $code = $subjectData['code'] ?? null;
             if (!$code) continue;
@@ -1097,7 +1097,7 @@ class SimulationController extends Controller
                 ]);
         }
         
-        \Log::info("✅ Cambios aplicados exitosamente al currículum principal");
+        \Log::info("Cambios aplicados exitosamente al currículum principal");
     }
 
     /**
