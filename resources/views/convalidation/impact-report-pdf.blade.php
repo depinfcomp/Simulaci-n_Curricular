@@ -191,28 +191,6 @@
             color: #383d41;
         }
         
-        .print-button {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background-color: #e74c3c;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            font-size: 12pt;
-            border-radius: 6px;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: all 0.3s;
-            z-index: 1000;
-        }
-        
-        .print-button:hover {
-            background-color: #c0392b;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
-        }
-        
         .summary-box {
             background-color: #f8f9fa;
             border-left: 4px solid #3498db;
@@ -234,11 +212,6 @@
     </style>
 </head>
 <body>
-    <!-- Print Button (hidden in print) -->
-    <button class="print-button no-print" onclick="window.print()">
-        Generar PDF (Ctrl+P)
-    </button>
-    
     <!-- Header -->
     <div class="header">
         <h1>Análisis de Impacto en Estudiantes</h1>

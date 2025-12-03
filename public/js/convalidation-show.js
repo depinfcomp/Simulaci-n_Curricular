@@ -1662,7 +1662,7 @@ function exportImpactAnalysis() {
  */
 function generateImpactPdfReportFromShow() {
     if (!currentImpactResults || !window.externalCurriculumId) {
-        alert('No hay resultados para generar el reporte');
+        console.error('No hay resultados o ID de curriculum');
         return;
     }
 
@@ -1678,6 +1678,12 @@ function generateImpactPdfReportFromShow() {
         student_details: currentStudentData // Use the sorted array
     };
 
+    console.log('📤 Enviando request para generar PDF...', {
+        url: `/convalidation/${window.externalCurriculumId}/impact-report-pdf`,
+        hasResults: !!resultsToSend,
+        studentCount: currentStudentData?.length || 0
+    });
+
     // Send request to generate PDF report view
     fetch(`/convalidation/${window.externalCurriculumId}/impact-report-pdf`, {
         method: 'POST',
@@ -1691,12 +1697,25 @@ function generateImpactPdfReportFromShow() {
         })
     })
     .then(response => {
+        console.log('📥 Response recibido:', {
+            status: response.status,
+            ok: response.ok,
+            statusText: response.statusText,
+            contentType: response.headers.get('content-type')
+        });
+        
         if (!response.ok) {
-            throw new Error('Error al generar el reporte');
+            return response.text().then(text => {
+                console.error('❌ Response no OK:', text);
+                throw new Error(`Error ${response.status}: ${response.statusText}`);
+            });
         }
+        
         return response.text();
     })
     .then(html => {
+        console.log('✅ HTML recibido, tamaño:', html.length, 'bytes');
+        
         // IMPORTANT: Store the report HTML in sessionStorage
         // This will be used when "Guardar Cambios" is clicked in simulation
         sessionStorage.setItem('convalidation_report_html_' + window.externalCurriculumId, html);
@@ -1707,8 +1726,12 @@ function generateImpactPdfReportFromShow() {
         if (newWindow) {
             newWindow.document.write(html);
             newWindow.document.close();
+            
+            console.log('✅ Reporte abierto en nueva ventana');
         } else {
-            throw new Error('No se pudo abrir la ventana del reporte. Verifique que no esté bloqueando ventanas emergentes');
+            console.error('❌ No se pudo abrir ventana emergente');
+            // Si falla abrir la ventana, mostrar el HTML en un iframe o modal
+            showAlert('warning', 'No se pudo abrir la ventana del reporte. Verifique que no esté bloqueando ventanas emergentes.');
         }
 
         // Reset button
@@ -1716,8 +1739,8 @@ function generateImpactPdfReportFromShow() {
         button.innerHTML = originalText;
     })
     .catch(error => {
-        console.error('Error:', error);
-        alert('✗ Error al generar el reporte PDF: ' + error.message);
+        console.error('❌ Error completo:', error);
+        showAlert('danger', `Error al generar el reporte PDF: ${error.message}`);
         
         // Reset button
         button.disabled = false;
