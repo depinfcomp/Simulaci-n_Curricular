@@ -5148,6 +5148,9 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                     }
                 }
                 
+                // Show loading indicator
+                const loadingModal = showLoadingModal('Guardando cambios, por favor espere...');
+                
                 fetch('/simulation/versions/save', {
                     method: 'POST',
                     headers: {
@@ -5158,6 +5161,9 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                 })
                 .then(response => response.json())
                 .then(data => {
+                    // Hide loading indicator
+                    hideLoadingModal(loadingModal);
+                    
                     if (data.success) {
                         showSuccessMessage(data.message || 'Cambios guardados correctamente');
                         
@@ -5196,6 +5202,9 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                     }
                 })
                 .catch(error => {
+                    // Hide loading indicator
+                    hideLoadingModal(loadingModal);
+                    
                     console.error('Error saving version:', error);
                     showAlertModal(`Error al guardar la versión: ${error.message}`, 'error', 'Error al Guardar');
                 });
