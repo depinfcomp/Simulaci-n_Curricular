@@ -629,14 +629,20 @@ function saveConvalidation() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Success - reload page to get fresh data and avoid modal state issues
-            console.log('✅ Convalidación guardada exitosamente, recargando página...');
+            // Check if curriculum is 100% complete
+            if (data.stats && data.stats.convalidated_percentage >= 100) {
+                // Store flag to show completion modal after reload
+                sessionStorage.setItem('show_completion_modal', 'true');
+            }
+            
+            // Reload page to get fresh data
+            console.log('Convalidación guardada exitosamente, recargando página...');
             location.reload();
         } else {
             // Show error (modal stays open)
             showAlert('danger', data.error || 'Error al guardar la convalidación');
             
-            // ✅ Reset flag on error to allow retry
+            // Reset flag on error to allow retry
             isSavingConvalidation = false;
             
             // Re-enable button
@@ -1104,6 +1110,13 @@ function displayBulkResults(results) {
 
 // Add event listener for all convalidation config buttons
 document.addEventListener('DOMContentLoaded', function() {
+    // Check if we should show the completion modal
+    if (sessionStorage.getItem('show_completion_modal') === 'true') {
+        sessionStorage.removeItem('show_completion_modal');
+        const completionModal = new bootstrap.Modal(document.getElementById('completionSuccessModal'));
+        completionModal.show();
+    }
+    
     // Fix aria-hidden warning by removing focus before hiding modal
     const modalElement = document.getElementById('convalidationModal');
     if (modalElement) {
