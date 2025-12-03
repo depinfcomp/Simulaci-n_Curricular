@@ -629,8 +629,17 @@ function saveConvalidation() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            console.log('Stats received:', data.stats);
+            console.log('Convalidated percentage:', data.stats?.convalidated_percentage);
+            console.log('Completion percentage:', data.stats?.completion_percentage);
+            
             // Check if curriculum is 100% complete
-            if (data.stats && data.stats.convalidated_percentage >= 100) {
+            // Use completion_percentage instead of convalidated_percentage
+            const percentage = data.stats?.completion_percentage || data.stats?.convalidated_percentage || 0;
+            console.log('Final percentage to check:', percentage);
+            
+            if (percentage >= 100) {
+                console.log('Setting show_completion_modal flag');
                 // Store flag to show completion modal after reload
                 sessionStorage.setItem('show_completion_modal', 'true');
             }
@@ -1111,10 +1120,22 @@ function displayBulkResults(results) {
 // Add event listener for all convalidation config buttons
 document.addEventListener('DOMContentLoaded', function() {
     // Check if we should show the completion modal
-    if (sessionStorage.getItem('show_completion_modal') === 'true') {
+    const shouldShowModal = sessionStorage.getItem('show_completion_modal');
+    console.log('DOMContentLoaded - shouldShowModal flag:', shouldShowModal);
+    
+    if (shouldShowModal === 'true') {
+        console.log('Showing completion modal...');
         sessionStorage.removeItem('show_completion_modal');
-        const completionModal = new bootstrap.Modal(document.getElementById('completionSuccessModal'));
-        completionModal.show();
+        
+        const modalElement = document.getElementById('completionSuccessModal');
+        console.log('Modal element found:', !!modalElement);
+        
+        if (modalElement) {
+            const completionModal = new bootstrap.Modal(modalElement);
+            completionModal.show();
+        } else {
+            console.error('completionSuccessModal element not found!');
+        }
     }
     
     // Fix aria-hidden warning by removing focus before hiding modal

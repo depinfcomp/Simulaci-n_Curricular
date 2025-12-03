@@ -36,13 +36,42 @@
                         <span class="ms-2">{{ $stats['completion_percentage'] }}% convalidado</span>
                     </p>
                 </div>
-                <div>
+                <div class="d-flex gap-2">
+                    @if($externalCurriculum->pdf_report_path)
+                        <a href="{{ route('convalidation.pdf.download', $externalCurriculum) }}" 
+                           class="btn btn-lg btn-success"
+                           target="_blank">
+                            <i class="fas fa-file-pdf me-2"></i>
+                            Descargar Reporte PDF
+                        </a>
+                    @endif
                     <a href="{{ route('convalidation.index') }}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left me-2"></i>
                         Volver
                     </a>
                 </div>
             </div>
+
+            @if($externalCurriculum->pdf_report_path)
+                <!-- Locked Curriculum Alert -->
+                <div class="alert alert-info border-info mb-4" role="alert">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-lock fa-2x me-3"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="alert-heading mb-1">
+                                <i class="fas fa-check-circle me-2"></i>
+                                Malla Curricular Guardada
+                            </h5>
+                            <p class="mb-0">
+                                Esta malla curricular ya ha sido guardada y bloqueada. No es posible modificar las convalidaciones.
+                                <strong>Puede descargar el reporte PDF usando el botón verde arriba.</strong>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            @endif
 
             <!-- Progress and Stats -->
             <div class="row mb-4">
@@ -193,22 +222,31 @@
                     <div class="card">
                         <div class="card-body">
                             <h6>Acciones Rápidas</h6>
-                            <div class="d-flex gap-2 flex-wrap">
-                                @if(isset($stats['completion_percentage']) && $stats['completion_percentage'] >= 100)
-                                    <button class="btn btn-info" onclick="showImpactAnalysisModal()">
-                                        <i class="fas fa-chart-line me-2"></i>
-                                        Análisis de Impacto a Estudiantes
+                            @if(!$externalCurriculum->pdf_report_path)
+                                <!-- Solo mostrar botones de acción si NO está bloqueado -->
+                                <div class="d-flex gap-2 flex-wrap">
+                                    @if(isset($stats['completion_percentage']) && $stats['completion_percentage'] >= 100)
+                                        <button class="btn btn-info" onclick="showImpactAnalysisModal()">
+                                            <i class="fas fa-chart-line me-2"></i>
+                                            Análisis de Impacto a Estudiantes
+                                        </button>
+                                    @endif
+                                    <button class="btn btn-primary" onclick="showBulkConvalidationModal()">
+                                        <i class="fas fa-bolt me-2"></i>
+                                        Convalidación Masiva Automática
                                     </button>
-                                @endif
-                                <button class="btn btn-primary" onclick="showBulkConvalidationModal()">
-                                    <i class="fas fa-bolt me-2"></i>
-                                    Convalidación Masiva Automática
-                                </button>
-                                <button class="btn btn-outline-danger" onclick="confirmResetConvalidations()">
-                                    <i class="fas fa-redo me-2"></i>
-                                    Restablecer Convalidación
-                                </button>
-                            </div>
+                                    <button class="btn btn-outline-danger" onclick="confirmResetConvalidations()">
+                                        <i class="fas fa-redo me-2"></i>
+                                        Restablecer Convalidación
+                                    </button>
+                                </div>
+                            @else
+                                <!-- Malla bloqueada: solo mostrar botón de análisis de impacto en modo lectura -->
+                                <div class="alert alert-warning mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    Las acciones de edición están bloqueadas. Esta malla ya ha sido guardada.
+                                </div>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -446,41 +484,52 @@
                                                             </div>
                                                         @else
                                                             <!-- Materias activas: mostrar botones normales -->
-                                                            <div class="btn-group-vertical btn-group-sm w-100" role="group">
-                                                                <button type="button" 
-                                                                        class="btn btn-outline-primary convalidation-config-btn"
-                                                                        data-external-subject-id="{{ $subject->id }}"
-                                                                        @if($isConvalidated && $subject->convalidation)
-                                                                            data-convalidation-type="{{ $subject->convalidation->convalidation_type }}"
-                                                                            data-internal-subject-code="{{ $subject->convalidation->internal_subject_code ?? '' }}"
-                                                                            data-component-type="{{ $componentType }}"
-                                                                            data-notes="{{ $subject->convalidation->notes ?? '' }}"
-                                                                        @endif
-                                                                        title="Configurar convalidación 1 a 1 entre materias">
-                                                                    <i class="fas fa-cog me-1"></i>
-                                                                    Conv. Individual
-                                                                </button>
-                                                                <button type="button" 
-                                                                        class="btn btn-outline-success nn-group-config-btn"
-                                                                        data-external-subject-id="{{ $subject->id }}"
-                                                                        data-subject-name="{{ $subject->name }}"
-                                                                        data-subject-code="{{ $subject->code }}"
-                                                                        data-subject-credits="{{ $subject->credits }}"
-                                                                        data-change-type="{{ $subject->change_type ?? 'unchanged' }}"
-                                                                        title="Configurar grupo de convalidación múltiple (1 externa = múltiples internas)">
-                                                                    <i class="fas fa-layer-group me-1"></i>
-                                                                    Conv. Múltiple
-                                                                </button>
-                                                                @if($isConvalidated && $convalidationStatus['type'] !== 'nn_group')
-                                                                    {{-- Botón para eliminar convalidación individual (N:N se maneja por JavaScript) --}}
+                                                            @if(!$externalCurriculum->pdf_report_path)
+                                                                <!-- Solo mostrar botones si NO está bloqueado -->
+                                                                <div class="btn-group-vertical btn-group-sm w-100" role="group">
                                                                     <button type="button" 
-                                                                            class="btn btn-outline-danger"
-                                                                            onclick="removeConvalidation({{ $subject->convalidation->id }})"
-                                                                            title="Eliminar convalidación individual">
-                                                                        <i class="fas fa-trash"></i>
+                                                                            class="btn btn-outline-primary convalidation-config-btn"
+                                                                            data-external-subject-id="{{ $subject->id }}"
+                                                                            @if($isConvalidated && $subject->convalidation)
+                                                                                data-convalidation-type="{{ $subject->convalidation->convalidation_type }}"
+                                                                                data-internal-subject-code="{{ $subject->convalidation->internal_subject_code ?? '' }}"
+                                                                                data-component-type="{{ $componentType }}"
+                                                                                data-notes="{{ $subject->convalidation->notes ?? '' }}"
+                                                                            @endif
+                                                                            title="Configurar convalidación 1 a 1 entre materias">
+                                                                        <i class="fas fa-cog me-1"></i>
+                                                                        Conv. Individual
                                                                     </button>
-                                                                @endif
-                                                            </div>
+                                                                    <button type="button" 
+                                                                            class="btn btn-outline-success nn-group-config-btn"
+                                                                            data-external-subject-id="{{ $subject->id }}"
+                                                                            data-subject-name="{{ $subject->name }}"
+                                                                            data-subject-code="{{ $subject->code }}"
+                                                                            data-subject-credits="{{ $subject->credits }}"
+                                                                            data-change-type="{{ $subject->change_type ?? 'unchanged' }}"
+                                                                            title="Configurar grupo de convalidación múltiple (1 externa = múltiples internas)">
+                                                                        <i class="fas fa-layer-group me-1"></i>
+                                                                        Conv. Múltiple
+                                                                    </button>
+                                                                    @if($isConvalidated && $convalidationStatus['type'] !== 'nn_group')
+                                                                        {{-- Botón para eliminar convalidación individual (N:N se maneja por JavaScript) --}}
+                                                                        <button type="button" 
+                                                                                class="btn btn-outline-danger"
+                                                                                onclick="removeConvalidation({{ $subject->convalidation->id }})"
+                                                                                title="Eliminar convalidación individual">
+                                                                            <i class="fas fa-trash"></i>
+                                                                        </button>
+                                                                    @endif
+                                                                </div>
+                                                            @else
+                                                                <!-- Malla bloqueada: mostrar mensaje -->
+                                                                <div class="text-center">
+                                                                    <span class="badge bg-secondary">
+                                                                        <i class="fas fa-lock me-1"></i>
+                                                                        Bloqueado
+                                                                    </span>
+                                                                </div>
+                                                            @endif
                                                         @endif
                                                     </td>
                                                 </tr>

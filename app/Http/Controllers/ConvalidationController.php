@@ -99,6 +99,12 @@ class ConvalidationController extends Controller
      */
     public function show(ExternalCurriculum $externalCurriculum)
     {
+        // Check if curriculum is locked (has PDF report)
+        if ($externalCurriculum->pdf_report_path) {
+            return redirect()->route('convalidation.index')
+                ->with('warning', 'Esta malla curricular está bloqueada. No se pueden modificar las convalidaciones. Puede descargar el reporte PDF desde el listado.');
+        }
+        
         $externalCurriculum->load([
             'externalSubjects.convalidation.internalSubject',
             'externalSubjects.convalidationGroup.internalSubjects'

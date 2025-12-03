@@ -4,7 +4,15 @@
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
-                        <div class="d-flex justify-content-between align-items-center mb-4">
+            @if(session('warning'))
+                <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    {{ session('warning') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            @endif
+            
+            <div class="d-flex justify-content-between align-items-center mb-4">
                 <h1 class="h3 mb-0">Gestión de Convalidaciones</h1>
                 <div>
                     <a href="{{ route('import.index') }}" class="btn btn-success me-2">
@@ -156,27 +164,42 @@
                                                 </small>
                                             </td>
                                             <td class="text-center">
-                                                <div class="btn-group" role="group">
-                                                    <a href="{{ route('convalidation.show', $curriculum) }}" 
-                                                       class="btn btn-sm btn-outline-primary"
-                                                       title="Ver y editar convalidaciones">
-                                                        <i class="fas fa-edit"></i>
-                                                    </a>
-                                                    @if($curriculum->pdf_report_path)
+                                                @if($curriculum->pdf_report_path)
+                                                    <!-- Malla bloqueada: Solo mostrar botones de descarga y eliminar -->
+                                                    <div class="d-flex gap-2 justify-content-center align-items-center">
+                                                        <span class="badge bg-secondary">
+                                                            <i class="fas fa-lock me-1"></i>
+                                                            Bloqueada
+                                                        </span>
                                                         <a href="{{ route('convalidation.pdf.download', $curriculum) }}" 
-                                                           class="btn btn-sm btn-outline-success"
+                                                           class="btn btn-sm btn-danger d-inline-flex align-items-center"
                                                            title="Descargar reporte PDF"
                                                            target="_blank">
-                                                            <i class="fas fa-file-pdf"></i>
+                                                            <i class="fas fa-file-pdf me-1"></i>PDF
                                                         </a>
-                                                    @endif
-                                                    <button type="button" 
-                                                            class="btn btn-sm btn-outline-danger"
-                                                            onclick="deleteCurriculum({{ $curriculum->id }}, {{ json_encode($curriculum->metadata) }})"
-                                                            title="Eliminar malla">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
-                                                </div>
+                                                        <button type="button" 
+                                                                class="btn btn-sm btn-outline-danger"
+                                                                onclick="deleteCurriculum({{ $curriculum->id }}, {{ json_encode($curriculum->metadata) }})"
+                                                                title="Eliminar malla">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                @else
+                                                    <!-- Malla activa: Mostrar botón de editar -->
+                                                    <div class="btn-group" role="group">
+                                                        <a href="{{ route('convalidation.show', $curriculum) }}" 
+                                                           class="btn btn-sm btn-outline-primary"
+                                                           title="Ver y editar convalidaciones">
+                                                            <i class="fas fa-edit"></i>
+                                                        </a>
+                                                        <button type="button" 
+                                                                class="btn btn-sm btn-outline-danger"
+                                                                onclick="deleteCurriculum({{ $curriculum->id }}, {{ json_encode($curriculum->metadata) }})"
+                                                                title="Eliminar malla">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                @endif
                                             </td>
                                         </tr>
                                     @endforeach
