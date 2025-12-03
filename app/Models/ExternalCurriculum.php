@@ -22,7 +22,8 @@ class ExternalCurriculum extends Model
         'description',
         'uploaded_file',
         'metadata',
-        'status'
+        'status',
+        'pdf_report_path'
     ];
 
     protected $casts = [

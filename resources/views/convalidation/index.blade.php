@@ -162,6 +162,14 @@
                                                        title="Ver y editar convalidaciones">
                                                         <i class="fas fa-edit"></i>
                                                     </a>
+                                                    @if($curriculum->pdf_report_path)
+                                                        <a href="{{ route('convalidation.pdf.download', $curriculum) }}" 
+                                                           class="btn btn-sm btn-outline-success"
+                                                           title="Descargar reporte PDF"
+                                                           target="_blank">
+                                                            <i class="fas fa-file-pdf"></i>
+                                                        </a>
+                                                    @endif
                                                     <button type="button" 
                                                             class="btn btn-sm btn-outline-danger"
                                                             onclick="deleteCurriculum({{ $curriculum->id }}, {{ json_encode($curriculum->metadata) }})"

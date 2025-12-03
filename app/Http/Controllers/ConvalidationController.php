@@ -386,6 +386,28 @@ class ConvalidationController extends Controller
     }
 
     /**
+     * Download the PDF report generated during simulation save
+     */
+    public function downloadPdfReport(ExternalCurriculum $externalCurriculum)
+    {
+        if (!$externalCurriculum->pdf_report_path) {
+            abort(404, 'No se ha generado un reporte PDF para esta malla curricular.');
+        }
+
+        $filePath = storage_path('app/' . $externalCurriculum->pdf_report_path);
+
+        if (!file_exists($filePath)) {
+            abort(404, 'El archivo PDF no se encuentra disponible.');
+        }
+
+        return response()->download(
+            $filePath,
+            'Reporte_' . str_replace(' ', '_', $externalCurriculum->name) . '.pdf',
+            ['Content-Type' => 'application/pdf']
+        );
+    }
+
+    /**
      * Delete an external curriculum and all its data.
      */
     public function destroy(ExternalCurriculum $externalCurriculum)

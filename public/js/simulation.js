@@ -5128,16 +5128,33 @@ Una vez completada la convalidación, podrás guardar la nueva versión de la ma
                 });
 
                 // Send to server
+                const requestData = {
+                    description: description,
+                    curriculum_data: curriculumData
+                };
+                
+                // Include external_curriculum_id if available (for PDF generation)
+                const externalCurriculumId = localStorage.getItem('current_external_curriculum_id');
+                if (externalCurriculumId) {
+                    requestData.external_curriculum_id = parseInt(externalCurriculumId);
+                    
+                    // Try to get the saved report HTML from sessionStorage
+                    const reportHtml = sessionStorage.getItem('convalidation_report_html_' + externalCurriculumId);
+                    if (reportHtml) {
+                        requestData.report_html = reportHtml;
+                        console.log('📄 Incluyendo reporte PDF previamente generado');
+                    } else {
+                        console.log('⚠️ No se encontró reporte PDF en sessionStorage, se generará versión simplificada');
+                    }
+                }
+                
                 fetch('/simulation/versions/save', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                     },
-                    body: JSON.stringify({
-                        description: description,
-                        curriculum_data: curriculumData
-                    })
+                    body: JSON.stringify(requestData)
                 })
                 .then(response => response.json())
                 .then(data => {

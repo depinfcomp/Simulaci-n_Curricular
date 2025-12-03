@@ -1697,6 +1697,11 @@ function generateImpactPdfReportFromShow() {
         return response.text();
     })
     .then(html => {
+        // IMPORTANT: Store the report HTML in sessionStorage
+        // This will be used when "Guardar Cambios" is clicked in simulation
+        sessionStorage.setItem('convalidation_report_html_' + window.externalCurriculumId, html);
+        console.log('📄 Reporte PDF guardado en sessionStorage para uso posterior');
+        
         // Open the report in a new window
         const newWindow = window.open('', '_blank');
         if (newWindow) {

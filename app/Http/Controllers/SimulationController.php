@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\StudentCurrentSubject;
+use App\Models\ExternalCurriculum;
 use App\Services\StudentMetricsService;
 use App\Services\CreditDistributionService;
+use App\Services\CurriculumPdfService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -22,10 +24,20 @@ class SimulationController extends Controller
      */
     private CreditDistributionService $creditService;
 
-    public function __construct(StudentMetricsService $metricsService = null, CreditDistributionService $creditService = null)
+    /**
+     * @var CurriculumPdfService
+     */
+    private CurriculumPdfService $pdfService;
+
+    public function __construct(
+        StudentMetricsService $metricsService = null, 
+        CreditDistributionService $creditService = null,
+        CurriculumPdfService $pdfService = null
+    )
     {
         $this->metricsService = $metricsService ?? new StudentMetricsService();
         $this->creditService = $creditService ?? new CreditDistributionService();
+        $this->pdfService = $pdfService ?? new CurriculumPdfService();
     }
 
     /**
@@ -714,9 +726,48 @@ class SimulationController extends Controller
         $request->validate([
             'curriculum_data' => 'required|array',
             'description' => 'nullable|string',
+            'external_curriculum_id' => 'nullable|integer|exists:external_curriculums,id',
+            'report_html' => 'nullable|string', // HTML content of the impact report
         ]);
 
         try {
+            // ===== GENERATE PDF BEFORE ANY DATABASE CHANGES =====
+            $pdfPath = null;
+            $externalCurriculumId = $request->input('external_curriculum_id');
+            $reportHtml = $request->input('report_html');
+            
+            if ($externalCurriculumId) {
+                try {
+                    \Log::info("📄 Generando PDF de convalidación", [
+                        'external_curriculum_id' => $externalCurriculumId,
+                        'has_html' => !empty($reportHtml)
+                    ]);
+                    
+                    // If frontend sends the report HTML, use it (EXACT same report with impact analysis)
+                    if (!empty($reportHtml)) {
+                        $pdfPath = $this->pdfService->generatePdfFromHtml(
+                            $externalCurriculumId,
+                            $reportHtml
+                        );
+                    } else {
+                        // Fallback: Generate simplified PDF from backend
+                        $pdfPath = $this->pdfService->generateComparisonReport(
+                            $externalCurriculumId,
+                            $request->input('curriculum_data')
+                        );
+                    }
+                    
+                    \Log::info("✅ PDF generado exitosamente", ['path' => $pdfPath]);
+                } catch (\Exception $e) {
+                    \Log::error("❌ Error generando PDF (continuando con guardado)", [
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    // Continue with save even if PDF generation fails
+                }
+            }
+            
+            // ===== NOW PROCEED WITH DATABASE TRANSACTION =====
             DB::beginTransaction();
 
             // STEP 1: Capture the CURRENT state from database (before changes)
@@ -774,12 +825,24 @@ class SimulationController extends Controller
             // STEP 3: Apply the NEW changes to the main curriculum (this becomes active)
             $this->applyChangesToMainCurriculum($request->curriculum_data);
 
+            // STEP 4: Save PDF path to external_curriculum if it was generated
+            if ($pdfPath && $externalCurriculumId) {
+                ExternalCurriculum::where('id', $externalCurriculumId)->update([
+                    'pdf_report_path' => $pdfPath
+                ]);
+                \Log::info("💾 PDF path guardado en external_curriculum", [
+                    'id' => $externalCurriculumId,
+                    'path' => $pdfPath
+                ]);
+            }
+
             DB::commit();
 
             return response()->json([
                 'success' => true,
                 'version' => $version,
-                'message' => "Cambios aplicados. Versión anterior guardada como {$versionNumber}"
+                'message' => "Cambios aplicados. Versión anterior guardada como {$versionNumber}",
+                'pdf_generated' => $pdfPath !== null
             ]);
 
         } catch (\Exception $e) {
