@@ -11,7 +11,6 @@ Toda la documentación técnica y manuales se encuentran en la carpeta `/documen
 
 - **[Manual de Usuario](documentation/Manual%20del%20usuario_%20Sistema%20de%20Convalidaciones%20Curriculares.pdf)**: Guía completa para usuarios finales
 - **[Documento de Ingeniería de Software](documentation/Ingeniería%20de%20Software_%20Sistema%20de%20Convalidaciones%20Curriculares.pdf)**: Especificaciones técnicas del sistema
-- **[Arquitectura del Sistema](documentation/ARQUITECTURA_SISTEMA.md)**: Diagramas completos de arquitectura con Mermaid
 - **[Diagrama Entidad-Relación](documentation/DIAGRAMA_ENTIDAD_RELACION.md)**: Modelo de datos completo (25 tablas)
 
 ---
