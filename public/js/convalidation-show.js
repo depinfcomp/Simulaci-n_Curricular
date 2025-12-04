@@ -1133,9 +1133,54 @@ document.addEventListener('DOMContentLoaded', function() {
         if (modalElement) {
             const completionModal = new bootstrap.Modal(modalElement);
             completionModal.show();
+            
+            // Fix: Add event listener to properly clean up backdrop when modal is closed
+            modalElement.addEventListener('hidden.bs.modal', function(e) {
+                // Remove any remaining backdrops
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                backdrops.forEach(backdrop => backdrop.remove());
+                
+                // Remove modal-open class from body
+                document.body.classList.remove('modal-open');
+                
+                // Remove any inline styles that Bootstrap might have added
+                document.body.style.removeProperty('overflow');
+                document.body.style.removeProperty('padding-right');
+                
+                console.log('Completion modal closed - backdrop cleaned up');
+            }, { once: true }); // Only run once
         } else {
             console.error('completionSuccessModal element not found!');
         }
+    }
+    
+    // Additional safety: Add click handler for "Stay Here" button
+    const stayHereBtn = document.getElementById('stayHereBtn');
+    if (stayHereBtn) {
+        stayHereBtn.addEventListener('click', function(e) {
+            console.log('Stay Here button clicked');
+            
+            // Get the modal instance
+            const modalElement = document.getElementById('completionSuccessModal');
+            if (modalElement) {
+                const modalInstance = bootstrap.Modal.getInstance(modalElement);
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
+            }
+            
+            // Force cleanup of any remaining backdrops after a short delay
+            setTimeout(() => {
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                if (backdrops.length > 0) {
+                    console.log('Force removing', backdrops.length, 'backdrop(s)');
+                    backdrops.forEach(backdrop => backdrop.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style.removeProperty('overflow');
+                    document.body.style.removeProperty('padding-right');
+                }
+            }, 300);
+        });
     }
     
     // Fix aria-hidden warning by removing focus before hiding modal

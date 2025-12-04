@@ -1051,7 +1051,7 @@
                 </p>
             </div>
             <div class="modal-footer justify-content-center">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                <button type="button" class="btn btn-outline-secondary" id="stayHereBtn" data-bs-dismiss="modal">
                     <i class="fas fa-times me-2"></i>
                     Permanecer aquí
                 </button>
