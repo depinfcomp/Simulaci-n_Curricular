@@ -10,9 +10,11 @@ class Student extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name',
         'document',
         'progress_percentage',
+        'average_grade',
+        'total_credits_taken',
+        'approved_credits',
     ];
 
     /**
@@ -20,8 +22,8 @@ class Student extends Model
      */
     public function subjects()
     {
-        return $this->belongsToMany(Subject::class, 'student_subject', 'student_id', 'subject_code')
-                    ->withPivot(['grade', 'status'])
+        return $this->belongsToMany(Subject::class, 'student_subject', 'student_document', 'subject_code', 'document', 'code')
+                    ->withPivot(['grade', 'status', 'effective_credits', 'overflow_credits', 'actual_component_type', 'counts_for_percentage'])
                     ->withTimestamps();
     }
 
@@ -177,4 +179,62 @@ class Student extends Model
             'gpa' => $this->gpa
         ];
     }
+
+    /**
+     * Get credits for a subject code (searches in both subjects and elective_subjects)
+     */
+    private static function getSubjectCredits(string $subjectCode): int
+    {
+        // Try regular subjects first
+        $subject = \DB::table('subjects')->where('code', $subjectCode)->first();
+        if ($subject) {
+            return $subject->credits;
+        }
+        
+        // Try elective subjects
+        $electiveSubject = \DB::table('elective_subjects')->where('code', $subjectCode)->first();
+        if ($electiveSubject) {
+            return $electiveSubject->credits;
+        }
+        
+        return 0;
+    }
+
+            /**
+     * Calculate weighted average grade
+     * Delegates to StudentMetricsService for consistent calculation
+     */
+    public function calculateAverageGrade(): float
+    {
+        $metricsService = app(\App\Services\StudentMetricsService::class);
+        return $metricsService->calculateAverageGrade($this->document);
+    }
+
+    /**
+     * Calculate progress percentage based on approved credits that count toward degree
+     * Delegates to StudentMetricsService for consistent calculation
+     */
+    public function calculateProgressPercentageFromCredits(int $totalProgramCredits = 167)
+    {
+        $metricsService = app(\App\Services\StudentMetricsService::class);
+        $approvedCredits = $metricsService->calculateApprovedCredits($this->document);
+        return $metricsService->calculateProgressPercentage($approvedCredits);
+    }
+
+    /**
+     * Update all academic metrics for this student
+     * Delegates to StudentMetricsService which calculates and saves all metrics
+     */
+    public function updateAcademicMetrics(int $totalProgramCredits = 167)
+    {
+        $metricsService = app(\App\Services\StudentMetricsService::class);
+        $metricsService->setTotalProgramCredits($totalProgramCredits);
+        $metrics = $metricsService->calculateAndSaveMetrics($this->document);
+        
+        // Refresh the model from database to get updated values
+        $this->refresh();
+        
+        return $metrics;
+    }
 }
+

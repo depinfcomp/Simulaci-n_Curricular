@@ -1,35 +1,115 @@
 @extends('layouts.app')
 
 @push('styles')
-<link href="{{ asset('css/simulation.css') }}" rel="stylesheet">
+<link href="{{ asset('css/simulation.css') }}?v={{ time() }}" rel="stylesheet">
 @endpush
 
 @section('content')
 <div class="container-fluid">
     <h1 class="main-title">Malla Curricular - Administración de Sistemas Informáticos</h1>
         
+        <!-- Legend -->
+        <div class="mb-4">
+            <div class="d-flex align-items-center gap-4 justify-content-center flex-wrap" style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <div class="d-flex align-items-center gap-2">
+                    <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #ff9800 0%, #ffb74d 50%, #ffe0b2 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
+                    <span style="font-weight: 500;">Fundamentales</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #ff9800 0%, #ffb74d 50%, #ffe0b2 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
+                    <span style="font-weight: 500;">Optativas Fundamentación</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #66bb6a 0%, #81c784 50%, #c8e6c9 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
+                    <span style="font-weight: 500;">Profesionales</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #66bb6a 0%, #81c784 50%, #c8e6c9 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
+                    <span style="font-weight: 500;">Optativas Profesionales</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #df8c9d 0%, #e9b5bf 50%, #f5dbdf 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
+                    <span style="font-weight: 500;">Nivelación</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #66bb6a 0%, #81c784 50%, #c8e6c9 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
+                    <span style="font-weight: 500;">Trabajo de Grado</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div style="width: 50px; height: 30px; background: linear-gradient(90deg, #42a5f5 0%, #64b5f6 50%, #bbdefb 100%); border: 1px solid #ddd; border-radius: 4px;"></div>
+                    <span style="font-weight: 500;">Libre Elección</span>
+                </div>
+                <div class="d-flex align-items-center gap-3 ms-4" style="border-left: 2px solid #ddd; padding-left: 20px;">
+                    <div class="d-flex align-items-center gap-2">
+                        <div style="width: 25px; height: 25px; background: #e53935; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/>
+                            </svg>
+                        </div>
+                        <span style="font-weight: 500;">Obligatoria</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <div style="width: 25px; height: 25px; background: #42a5f5; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                            </svg>
+                        </div>
+                        <span style="font-weight: 500;">Optativa</span>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2 ms-4" style="border-left: 2px solid #ddd; padding-left: 20px; font-size: 11px;">
+                    <div style="display: flex; gap: 8px;">
+                        <div style="text-align: center; padding: 3px 6px; background: white; border: 1px solid #ddd; border-radius: 4px;">
+                            <div style="font-size: 13px; font-weight: bold;">4</div>
+                            <div style="font-size: 8px; color: #666;">Créditos</div>
+                        </div>
+                        <div style="text-align: center; padding: 3px 6px; background: white; border: 1px solid #ddd; border-radius: 4px;">
+                            <div style="font-size: 13px; font-weight: bold;">4</div>
+                            <div style="font-size: 8px; color: #666;">Hora presencial</div>
+                        </div>
+                        <div style="text-align: center; padding: 3px 6px; background: white; border: 1px solid #ddd; border-radius: 4px;">
+                            <div style="font-size: 13px; font-weight: bold;">4</div>
+                            <div style="font-size: 8px; color: #666;">Horas estudiante</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Statistics -->
         <div class="stats-container">
             <div class="row">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="stat-card">
                         <div class="stat-number">{{ \App\Models\Subject::count() }}</div>
                         <div class="stat-label">Total Materias</div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <div class="stat-card">
+                        <div class="stat-number" id="career-credits">{{ \App\Models\Subject::where('type', '!=', 'nivelacion')->sum('credits') }}</div>
+                        <div class="stat-label">Créditos Carrera</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-credits">{{ \App\Models\Subject::sum('credits') }}</div>
+                        <div class="stat-label">Créditos Totales</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
                     <div class="stat-card">
                         <div class="stat-number">10</div>
                         <div class="stat-label">Semestres</div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="stat-card">
                         <div class="stat-number">{{ \App\Models\Student::count() }}</div>
                         <div class="stat-label">Estudiantes</div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="stat-card">
                         <div class="stat-number" id="affected-percentage">0%</div>
                         <div class="stat-label">Estudiantes Afectados</div>
@@ -40,17 +120,48 @@
 
         <!-- Curriculum Controls -->
         <div class="curriculum-controls mb-3">
-            <div class="row">
-                <div class="col-md-6">
-                    <button class="btn btn-success" onclick="addNewSubject()">
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <label class="form-label mb-1 small fw-bold">
+                        <i class="fas fa-code-branch me-1"></i>
+                        Versión de Malla:
+                    </label>
+                    <div class="dropdown w-100">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="versionDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span id="currentVersionText">Versión Actual (En Edición)</span>
+                        </button>
+                        <ul class="dropdown-menu w-100" id="versionDropdownMenu" aria-labelledby="versionDropdown">
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="loadCurriculumVersion('current'); return false;">
+                                    Versión Actual (En Edición)
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">Versiones Guardadas</h6></li>
+                            <!-- Las versiones se cargarán aquí dinámicamente -->
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-md-9 text-end">
+                    <button class="btn btn-success me-2" onclick="addNewSubject()">
                         <i class="fas fa-plus me-1"></i>
                         Agregar Materia
                     </button>
-                </div>
-                <div class="col-md-6 text-end">
-                    <button class="btn btn-info" onclick="exportModifiedCurriculum()">
-                        <i class="fas fa-download me-1"></i>
-                        Exportar Malla Modificada
+                    <button class="btn btn-primary me-2" onclick="saveCurrentCurriculum()">
+                        <i class="fas fa-save me-1"></i>
+                        Guardar Malla
+                    </button>
+                    <button class="btn btn-info me-2" onclick="analyzeImpact()">
+                        <i class="fas fa-chart-line me-1"></i>
+                        Analizar Impacto
+                    </button>
+                    <button class="btn btn-secondary me-2" onclick="showComponentCredits()">
+                        <i class="fas fa-chart-pie me-1"></i>
+                        Créditos por Componente
+                    </button>
+                    <button class="btn btn-warning" onclick="resetSimulation()">
+                        <i class="fas fa-undo me-1"></i>
+                        Reset
                     </button>
                 </div>
             </div>
@@ -59,7 +170,14 @@
         <!-- Curriculum Grid -->
         <div class="curriculum-grid">
             @php
-                $subjects = \App\Models\Subject::with(['prerequisites', 'requiredFor'])->orderBy('semester')->get();
+                $subjects = \App\Models\Subject::with(['prerequisites', 'requiredFor'])
+                    ->orderBy('semester')
+                    ->orderBy('display_order')
+                    ->get();
+                
+                // Also load all leveling subjects (no is_active column - all subjects are recognized)
+                $levelingSubjects = \App\Models\LevelingSubject::all();
+                
                 $subjectsBySemester = $subjects->groupBy('semester');
             @endphp
 
@@ -69,14 +187,47 @@
                     <div class="subjects-container subject-list">
                         @if(isset($subjectsBySemester[$semester]))
                             @foreach($subjectsBySemester[$semester] as $subject)
-                                <div class="subject-card available" 
+                                <div class="subject-card {{ $subject->type }}" 
                                      draggable="true"
                                      data-subject-id="{{ $subject->code }}"
+                                     data-type="{{ $subject->type }}"
+                                     data-display-order="{{ $subject->display_order }}"
                                      data-prerequisites="{{ $subject->prerequisites->pluck('code')->implode(',') }}"
                                      data-unlocks="{{ $subject->requiredFor->pluck('code')->implode(',') }}">
-                                    <div class="subject-name">{{ $subject->name }}</div>
-                                    <div class="subject-code">{{ $subject->code }}</div>
-                                    <div class="semester-badge">Semestre {{ $semester }}</div>
+                                    
+                                    <!-- Header with info boxes -->
+                                    <div class="subject-card-header">
+                                        <div class="info-box">
+                                            <span class="info-value">{{ $subject->credits }}</span>
+                                        </div>
+                                        <div class="info-box">
+                                            <span class="info-value">{{ $subject->classroom_hours }}</span>
+                                        </div>
+                                        <div class="info-box">
+                                            <span class="info-value">{{ $subject->student_hours }}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Body with subject name -->
+                                    <div class="subject-card-body">
+                                        <div class="subject-name">{{ $subject->name }}</div>
+                                    </div>
+                                    
+                                    <!-- Footer with code and icon -->
+                                    <div class="subject-card-footer">
+                                        <div class="subject-code">{{ $subject->code }}</div>
+                                        <div class="subject-icon {{ $subject->is_required ? 'required' : 'elective' }}">
+                                            @if($subject->is_required)
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/>
+                                                </svg>
+                                            @else
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                                                </svg>
+                                            @endif
+                                        </div>
+                                    </div>
                                 </div>
                             @endforeach
                         @endif
@@ -87,538 +238,320 @@
 @endsection
 
 @push('scripts')
+    <script src="{{ asset('js/simulation-fallback.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/simulation.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/debug.js') }}?v={{ time() }}"></script>
     <script>
-        // Immediate function definitions to prevent ReferenceError
-        function addNewSubject() {
-            console.log('addNewSubject called');
-            
-            // Try to call the full function if available, otherwise show a basic modal
-            if (window.showAddSubjectModal && typeof window.showAddSubjectModal === 'function') {
-                window.showAddSubjectModal();
-            } else {
-                // Fallback basic modal
-                showBasicAddSubjectModal();
-            }
-        }
+        // Leveling subjects data for simulation
+        window.levelingSubjectsCodes = @json($levelingSubjects->pluck('code')->toArray());
         
-        function exportModifiedCurriculum() {
-            console.log('exportModifiedCurriculum called');
-            
-            // Try to call the full function if available, otherwise show basic modal
-            if (window.getCurrentCurriculumState && window.showExportModal && 
-                typeof window.getCurrentCurriculumState === 'function' && 
-                typeof window.showExportModal === 'function') {
-                const curriculum = window.getCurrentCurriculumState();
-                window.showExportModal(curriculum);
-            } else {
-                // Fallback basic modal
-                showBasicExportModal();
-            }
-        }
-        
-        function showBasicAddSubjectModal() {
-            const modalHtml = `
-                <div class="modal fade" id="basicAddModal" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Agregar Nueva Materia</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="mb-3">
-                                    <label for="basicSubjectCode" class="form-label">Código *</label>
-                                    <input type="text" class="form-control" id="basicSubjectCode" placeholder="Ej: MAT101">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="basicSubjectName" class="form-label">Nombre *</label>
-                                    <input type="text" class="form-control" id="basicSubjectName" placeholder="Ej: Matemáticas">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="basicSubjectSemester" class="form-label">Semestre *</label>
-                                    <select class="form-select" id="basicSubjectSemester">
-                                        <option value="">Seleccionar</option>
-                                        ${[1,2,3,4,5,6,7,8,9,10].map(s => `<option value="${s}">${s}° Semestre</option>`).join('')}
-                                    </select>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="basicSubjectPrereqs" class="form-label">Prerrequisitos (opcional)</label>
-                                    <input type="text" class="form-control" id="basicSubjectPrereqs" 
-                                           placeholder="Códigos separados por comas: MAT100, FIS101">
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                <button type="button" class="btn btn-success" onclick="createBasicSubject()">Agregar</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            // Remove existing modal
-            const existing = document.getElementById('basicAddModal');
-            if (existing) existing.remove();
-            
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            new bootstrap.Modal(document.getElementById('basicAddModal')).show();
-        }
-        
-        function createBasicSubject() {
-            const code = document.getElementById('basicSubjectCode').value.trim().toUpperCase();
-            const name = document.getElementById('basicSubjectName').value.trim();
-            const semester = document.getElementById('basicSubjectSemester').value;
-            const prereqs = document.getElementById('basicSubjectPrereqs').value.trim();
-            
-            if (!code || !name || !semester) {
-                alert('Por favor complete todos los campos obligatorios');
-                return;
-            }
-            
-            if (document.querySelector(`[data-subject-id="${code}"]`)) {
-                alert('Ya existe una materia con ese código');
-                return;
-            }
-            
-            // Create normal subject card that behaves like existing ones
-            const semesterColumn = document.querySelector(`[data-semester="${semester}"] .subject-list`);
-            if (!semesterColumn) {
-                alert('Error: No se encontró el semestre');
-                return;
-            }
-            
-            // Create a proper subject card element
-            const newCard = document.createElement('div');
-            newCard.className = 'subject-card available added-subject';
-            newCard.dataset.subjectId = code;
-            newCard.dataset.prerequisites = prereqs;
-            newCard.dataset.unlocks = '';
-            newCard.title = name;
-            
-            newCard.innerHTML = `
-                <div class="subject-name">${name}</div>
-                <div class="subject-code">${code}</div>
-                <div class="semester-badge">Semestre ${semester}</div>
-            `;
-            
-            // Add to semester column
-            semesterColumn.appendChild(newCard);
-            
-            // Make it draggable and interactive like other cards
-            enableCardInteractivity(newCard);
-            
-            // Update unlocks relationships for all cards
-            updateUnlocksRelationships();
-            
-            // Close modal
-            bootstrap.Modal.getInstance(document.getElementById('basicAddModal')).hide();
-            
-            // Show success message
-            showSuccessMessage(`Materia "${name}" (${code}) agregada al semestre ${semester}`);
-        }
-        
-        function enableCardInteractivity(card) {
-            // Make draggable
-            card.draggable = true;
-            
-            // COMMENTED OUT: This was interfering with the main drag and drop system
-            /*
-            // Add drag event listeners
-            card.addEventListener('dragstart', function(e) {
-                this.classList.add('dragging');
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/html', this.outerHTML);
-                window.draggedCard = this;
-            });
-            
-            card.addEventListener('dragend', function(e) {
-                this.classList.remove('dragging');
-                window.draggedCard = null;
-            });
-            */
-            
-            // COMMENTED OUT: This was interfering with the main simulation.js click system
-            /*
-            // Add click event for highlighting
-            card.addEventListener('click', function() {
-                highlightRelatedSubjects(this);
-            });
-            */
-        }
-        
-        // COMMENTED OUT: This function was interfering with the main simulation.js click system
-        /*
-        function highlightRelatedSubjects(card) {
-            // Check if this card is already selected
-            const wasSelected = card.classList.contains('selected');
-            
-            // Clear all highlights first
-            document.querySelectorAll('.subject-card').forEach(c => {
-                c.classList.remove('prerequisite', 'unlocks', 'selected');
-            });
-            
-            // If it was already selected, just clear highlights (deselect)
-            if (wasSelected) {
-                window.selectedCard = null;
-                return;
-            }
-            
-            // Otherwise, select and highlight this card
-            const subjectId = card.dataset.subjectId;
-            const prerequisites = card.dataset.prerequisites.split(',').filter(p => p.trim());
-            const unlocks = card.dataset.unlocks.split(',').filter(u => u.trim());
-            
-            // Highlight the selected card
-            card.classList.add('selected');
-            window.selectedCard = card;
-            
-            // Highlight prerequisites (yellow)
-            prerequisites.forEach(prereqCode => {
-                const prereqCard = document.querySelector(`[data-subject-id="${prereqCode}"]`);
-                if (prereqCard) {
-                    prereqCard.classList.add('prerequisite');
-                }
-            });
-            
-            // Highlight unlocks (blue)
-            unlocks.forEach(unlockCode => {
-                const unlockCard = document.querySelector(`[data-subject-id="${unlockCode}"]`);
-                if (unlockCard) {
-                    unlockCard.classList.add('unlocks');
-                }
-            });
-            
-            console.log(`Selected: ${subjectId}, Prerequisites: [${prerequisites.join(', ')}], Unlocks: [${unlocks.join(', ')}]`);
-        }
-        */
-        
-        function showSuccessMessage(message) {
-            const alertHtml = `
-                <div class="alert alert-success alert-dismissible fade show position-fixed" 
-                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
-                    <i class="fas fa-check-circle me-2"></i>
-                    ${message}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            `;
-            
-            document.body.insertAdjacentHTML('beforeend', alertHtml);
-            
-            // Auto-remove after 3 seconds
-            setTimeout(() => {
-                const alert = document.querySelector('.alert-success');
-                if (alert) {
-                    alert.remove();
-                }
-            }, 3000);
-        }
-        
-        // Update unlocks relationships when new subjects are added
-        function updateUnlocksRelationships() {
-            // Clear all existing unlocks
-            document.querySelectorAll('.subject-card').forEach(card => {
-                card.dataset.unlocks = '';
-            });
-
-            // Rebuild unlocks relationships
-            document.querySelectorAll('.subject-card').forEach(card => {
-                const subjectCode = card.dataset.subjectId;
-                const prerequisites = card.dataset.prerequisites.split(',').filter(p => p.trim());
-                
-                // For each prerequisite, add this subject to their unlocks
-                prerequisites.forEach(prereqCode => {
-                    const prereqCard = document.querySelector(`[data-subject-id="${prereqCode}"]`);
-                    if (prereqCard) {
-                        const currentUnlocks = prereqCard.dataset.unlocks.split(',').filter(u => u.trim());
-                        if (!currentUnlocks.includes(subjectCode)) {
-                            currentUnlocks.push(subjectCode);
-                            prereqCard.dataset.unlocks = currentUnlocks.join(',');
-                        }
-                    }
-                });
-            });
-            
-            console.log('Unlocks relationships updated');
-        }
-        
-        function showBasicExportModal() {
-            const modalHtml = `
-                <div class="modal fade" id="basicExportModal" tabindex="-1">
-                    <div class="modal-dialog modal-lg">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Exportar Malla Modificada</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="mb-3">
-                                    <label for="basicExportName" class="form-label">Nombre de la exportación</label>
-                                    <input type="text" class="form-control" id="basicExportName" 
-                                           value="Malla_Modificada_${new Date().toISOString().split('T')[0]}">
-                                </div>
-                                <div class="alert alert-info">
-                                    <h6>Resumen de la malla actual:</h6>
-                                    <div id="exportSummary">Calculando...</div>
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                                <button type="button" class="btn btn-primary" onclick="downloadBasicJSON()">Descargar JSON</button>
-                                <button type="button" class="btn btn-success" onclick="saveBasicToConvalidation()">Guardar para Convalidación</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            // Remove existing modal
-            const existing = document.getElementById('basicExportModal');
-            if (existing) existing.remove();
-            
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            const modal = new bootstrap.Modal(document.getElementById('basicExportModal'));
-            modal.show();
-            
-            // Calculate summary
-            setTimeout(calculateBasicSummary, 100);
-        }
-        
-        function calculateBasicSummary() {
-            const summary = document.getElementById('exportSummary');
-            if (!summary) return;
-            
-            let totalSubjects = 0;
-            let addedSubjects = 0;
-            let html = '<ul>';
-            
-            for (let sem = 1; sem <= 10; sem++) {
-                const subjects = document.querySelectorAll(`[data-semester="${sem}"] .subject-card`);
-                const added = document.querySelectorAll(`[data-semester="${sem}"] .subject-card.added-subject`);
-                
-                if (subjects.length > 0) {
-                    html += `<li>Semestre ${sem}: ${subjects.length} materias`;
-                    if (added.length > 0) {
-                        html += ` (${added.length} nuevas)`;
-                    }
-                    html += '</li>';
-                }
-                
-                totalSubjects += subjects.length;
-                addedSubjects += added.length;
-            }
-            
-            html += '</ul>';
-            html += `<p><strong>Total: ${totalSubjects} materias, ${addedSubjects} agregadas</strong></p>`;
-            
-            summary.innerHTML = html;
-        }
-        
-        function getBasicCurriculumState() {
-            const curriculum = {};
-            
-            for (let semester = 1; semester <= 10; semester++) {
-                const cards = document.querySelectorAll(`[data-semester="${semester}"] .subject-card`);
-                if (cards.length > 0) {
-                    curriculum[semester] = Array.from(cards).map(card => ({
-                        code: card.dataset.subjectId,
-                        name: card.querySelector('.subject-name').textContent.trim(),
-                        prerequisites: card.dataset.prerequisites.split(',').filter(p => p.trim()),
-                        semester: semester,
-                        credits: 3, // Default
-                        isAdded: card.classList.contains('added-subject'),
-                        description: card.title || card.querySelector('.subject-name').textContent.trim()
-                    }));
-                }
-            }
-            
-            return curriculum;
-        }
-        
-        function downloadBasicJSON() {
-            const curriculum = getBasicCurriculumState();
-            const exportName = document.getElementById('basicExportName').value || 'malla_curricular';
-            
-            const data = {
-                exportName: exportName,
-                exportDate: new Date().toISOString(),
-                curriculum: curriculum,
-                source: 'basic_export'
-            };
-            
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${exportName}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            alert('Archivo JSON descargado exitosamente');
-        }
-        
-        function saveBasicToConvalidation() {
-            const exportName = document.getElementById('basicExportName').value.trim() || 
-                              `Malla_Modificada_${new Date().toISOString().split('T')[0]}`;
-            
-            const curriculum = getBasicCurriculumState();
-            
-            const saveButton = document.querySelector('button[onclick="saveBasicToConvalidation()"]');
-            const originalText = saveButton.innerHTML;
-            saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Guardando...';
-            saveButton.disabled = true;
-
-            const payload = {
-                name: exportName,
-                institution: 'Simulación Curricular',
-                curriculum: curriculum,
-                changes: [],
-                _token: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-            };
-
-            fetch('/convalidation/save-modified-curriculum', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': payload._token,
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    bootstrap.Modal.getInstance(document.getElementById('basicExportModal')).hide();
-                    alert(`Malla curricular "${exportName}" guardada exitosamente para convalidación`);
-                    setTimeout(() => {
-                        window.location.href = data.redirect_url;
-                    }, 1000);
-                } else {
-                    throw new Error(data.message || 'Error desconocido');
-                }
-            })
-            .catch(error => {
-                console.error('Error saving to convalidation:', error);
-                alert(`Error al guardar la malla curricular: ${error.message}`);
-            })
-            .finally(() => {
-                saveButton.innerHTML = originalText;
-                saveButton.disabled = false;
-            });
-        }
-        
-        // Make functions globally available
-        window.addNewSubject = addNewSubject;
-        window.exportModifiedCurriculum = exportModifiedCurriculum;
-        
-        // Initialize drag and drop functionality
-        function initializeDragAndDrop() {
-            // COMMENTED OUT: This was interfering with the main simulation.js drag and drop system
-            /*
-            const semesterColumns = document.querySelectorAll('.semester-column');
-            
-            semesterColumns.forEach(column => {
-                column.addEventListener('dragover', function(e) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    this.classList.add('drag-over');
-                });
-                
-                column.addEventListener('dragleave', function(e) {
-                    if (!this.contains(e.relatedTarget)) {
-                        this.classList.remove('drag-over');
-                    }
-                });
-                
-                column.addEventListener('drop', function(e) {
-                    e.preventDefault();
-                    this.classList.remove('drag-over');
-                    
-                    if (window.draggedCard) {
-                        const targetSemester = this.dataset.semester;
-                        const currentSemester = window.draggedCard.closest('.semester-column').dataset.semester;
-                        
-                        if (targetSemester !== currentSemester) {
-                            // Move the card to new semester
-                            const targetList = this.querySelector('.subject-list');
-                            targetList.appendChild(window.draggedCard);
-                            
-                            // Update semester badge
-                            const semesterBadge = window.draggedCard.querySelector('.semester-badge');
-                            if (semesterBadge) {
-                                semesterBadge.textContent = `Semestre ${targetSemester}`;
-                            }
-                            
-                            showSuccessMessage(`Materia movida al semestre ${targetSemester}`);
-                        }
-                    }
-                });
-            });
-            */
-            
-            // Enable interactivity for existing cards
-            document.querySelectorAll('.subject-card').forEach(card => {
-                if (!card.hasAttribute('data-interactive')) {
-                    enableCardInteractivity(card);
-                    card.setAttribute('data-interactive', 'true');
-                }
-            });
-            
-            // COMMENTED OUT: This was interfering with the main simulation.js click system
-            /*
-            // Add click outside listener to deselect cards
-            document.addEventListener('click', function(e) {
-                // If click is not on a subject card, clear highlights
-                if (!e.target.closest('.subject-card')) {
-                    document.querySelectorAll('.subject-card').forEach(c => {
-                        c.classList.remove('prerequisite', 'unlocks', 'selected');
-                    });
-                    window.selectedCard = null;
-                }
-            });
-            */
-        }
-        
-        // Reset temporary changes
-        window.resetTemporaryChanges = function() {
-            if (confirm('¿Está seguro de que desea eliminar todas las materias agregadas y cambios temporales?')) {
-                // Remove all added subjects
-                document.querySelectorAll('.subject-card.added-subject').forEach(card => {
-                    card.remove();
-                });
-                
-                // Reset moved subjects to original positions if needed
-                // (This would require more complex state tracking for full functionality)
-                
-                showSuccessMessage('Cambios temporales eliminados');
-                
-                // Refresh the page to ensure clean state
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
-            }
-        };
-        
-        // Initialize everything when DOM is loaded
+        // Debug: Check subject types and colors
         document.addEventListener('DOMContentLoaded', function() {
-            initializeDragAndDrop();
-        });
-        
-        // Also initialize immediately in case DOM is already loaded
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeDragAndDrop);
-        } else {
-            initializeDragAndDrop();
-        }
-        
-        console.log('Basic functions loaded:', {
-            addNewSubject: typeof window.addNewSubject,
-            exportModifiedCurriculum: typeof window.exportModifiedCurriculum,
-            resetTemporaryChanges: typeof window.resetTemporaryChanges
+            console.log('=== COLOR DEBUG ===');
+            const cards = document.querySelectorAll('.subject-card');
+            console.log(`Total cards found: ${cards.length}`);
+            
+            const typeCount = {};
+            cards.forEach(card => {
+                const type = card.dataset.type || 'undefined';
+                const classes = card.className;
+                const hasTypeClass = card.classList.contains('fundamental') || 
+                                    card.classList.contains('profesional') || 
+                                    card.classList.contains('optativa_profesional') ||
+                                    card.classList.contains('optativa_fundamentacion') ||
+                                    card.classList.contains('nivelacion') ||
+                                    card.classList.contains('trabajo_grado') ||
+                                    card.classList.contains('libre_eleccion');
+                
+                typeCount[type] = (typeCount[type] || 0) + 1;
+                
+                if (!hasTypeClass) {
+                    console.warn(`Card ${card.dataset.subjectId} has no type class! Classes: ${classes}`);
+                }
+            });
+            
+            console.log('Type distribution:', typeCount);
+            console.log('Sample card styles:');
+            if (cards.length > 0) {
+                const firstCard = cards[0];
+                console.log(`  Card: ${firstCard.dataset.subjectId}`);
+                console.log(`  Type: ${firstCard.dataset.type}`);
+                console.log(`  Classes: ${firstCard.className}`);
+                console.log(`  Background: ${window.getComputedStyle(firstCard).background.substring(0, 100)}`);
+            }
+            console.log('=== END COLOR DEBUG ===');
         });
     </script>
-    <script src="{{ asset('js/simulation.js') }}"></script>
-    <script src="{{ asset('js/debug.js') }}"></script>
+
+    <!-- Modal: Créditos por Componente -->
+    <div class="modal fade" id="componentCreditsModal" tabindex="-1" aria-labelledby="componentCreditsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="componentCreditsModalLabel">
+                        <i class="fas fa-chart-bar me-2"></i>Créditos por Componente Curricular
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="component-credits-table">
+                        <div class="credit-row">
+                            <span class="component-name">DISCIPLINAR OPTATIVA</span>
+                            <span class="component-credits" id="credit-optativa-profesional">0</span>
+                        </div>
+                        <div class="credit-row">
+                            <span class="component-name">FUND. OBLIGATORIA</span>
+                            <span class="component-credits" id="credit-fundamental">0</span>
+                        </div>
+                        <div class="credit-row">
+                            <span class="component-name">FUND. OPTATIVA</span>
+                            <span class="component-credits" id="credit-optativa-fundamentacion">0</span>
+                        </div>
+                        <div class="credit-row">
+                            <span class="component-name">DISCIPLINAR OBLIGATORIA</span>
+                            <span class="component-credits" id="credit-profesional">0</span>
+                        </div>
+                        <div class="credit-row">
+                            <span class="component-name">LIBRE ELECCIÓN</span>
+                            <span class="component-credits" id="credit-libre-eleccion">0</span>
+                        </div>
+                        <div class="credit-row">
+                            <span class="component-name">TRABAJO DE GRADO</span>
+                            <span class="component-credits" id="credit-trabajo-grado">0</span>
+                        </div>
+                        <div class="credit-row total-row">
+                            <span class="component-name"><strong>TOTAL</strong></span>
+                            <span class="component-credits"><strong id="credit-total">0</strong></span>
+                        </div>
+                        <div class="credit-row separator-row">
+                            <span class="component-name">NIVELACIÓN</span>
+                            <span class="component-credits" id="credit-nivelacion">0</span>
+                        </div>
+                        <div class="credit-row grand-total-row">
+                            <span class="component-name"><strong>TOTAL ESTUDIANTE</strong></span>
+                            <span class="component-credits"><strong id="credit-grand-total">0</strong></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .component-credits-table {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .credit-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        
+        .credit-row:hover {
+            background: #e9ecef;
+        }
+        
+        .component-name {
+            font-size: 14px;
+            color: #495057;
+        }
+        
+        .component-credits {
+            font-size: 16px;
+            font-weight: 600;
+            color: #0d6efd;
+            min-width: 50px;
+            text-align: right;
+        }
+        
+        .total-row {
+            background: #e7f1ff;
+            border: 2px solid #0d6efd;
+            margin-top: 8px;
+        }
+        
+        .total-row .component-name,
+        .total-row .component-credits {
+            color: #0d6efd;
+            font-size: 16px;
+        }
+        
+        .separator-row {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            margin-top: 8px;
+        }
+        
+        .separator-row .component-name,
+        .separator-row .component-credits {
+            color: #664d03;
+        }
+        
+        .grand-total-row {
+            background: #d1e7dd;
+            border: 2px solid #198754;
+            margin-top: 4px;
+        }
+        
+        .grand-total-row .component-name,
+        .grand-total-row .component-credits {
+            color: #198754;
+            font-size: 17px;
+        }
+
+        /* Prerequisite Selector Styles */
+        .prerequisite-card {
+            background: #ffffff;
+            border: 2px solid #dee2e6 !important;
+        }
+        
+        .prerequisite-card:hover {
+            background: #f8f9fa;
+            border-color: #0d6efd !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .prerequisite-card.selected {
+            background: linear-gradient(135deg, #e7f3ff 0%, #cfe7ff 100%) !important;
+            border-color: #0d6efd !important;
+            box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+        }
+        
+        .prerequisite-card.selected:hover {
+            background: linear-gradient(135deg, #d0e9ff 0%, #b8dcff 100%) !important;
+        }
+        
+        .prerequisite-card .fa-check-circle {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        
+        .prerequisite-card.selected .fa-check-circle {
+            animation: checkPulse 0.5s ease;
+        }
+        
+        @keyframes checkPulse {
+            0% { transform: scale(0.8); opacity: 0; }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Drag & Drop Placeholder Styles */
+        .subject-card.dragging {
+            opacity: 0.5;
+            transform: scale(0.95);
+        }
+
+        .drag-placeholder {
+            width: 100px;
+            height: 90px;
+            margin: 1px;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            border: 2px dashed #2196f3;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1976d2;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+        }
+
+        .drag-placeholder::before {
+            content: "Soltar aquí";
+            font-size: 10px;
+            text-align: center;
+            animation: pulse 1.5s ease infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        .subject-card.drag-shift-up {
+            transform: translateY(-110px);
+            transition: transform 0.3s ease;
+        }
+
+        .subject-card.drag-shift-down {
+            transform: translateY(110px);
+            transition: transform 0.3s ease;
+        }
+
+        /* Version Dropdown Custom Styles */
+        #versionDropdownMenu .dropdown-item {
+            padding: 0 !important;
+        }
+
+        #versionDropdownMenu .dropdown-item > a {
+            padding: 0.5rem 1rem;
+            display: block;
+        }
+
+        #versionDropdownMenu .dropdown-item > a:hover {
+            background-color: #f8f9fa;
+        }
+
+        #versionDropdownMenu .btn-link {
+            padding: 0.5rem !important;
+            text-decoration: none;
+        }
+
+        #versionDropdownMenu .btn-link:hover {
+            background-color: #ffe0e0;
+            border-radius: 4px;
+        }
+
+        /* Context Menu Styles */
+        .context-menu {
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .context-menu .list-group-item {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .context-menu .list-group-item:hover:not(:disabled) {
+            background-color: #f8f9fa;
+            transform: translateX(5px);
+        }
+
+        .context-menu .list-group-item:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .context-menu .list-group-item-danger:not(:disabled) {
+            color: #dc3545;
+        }
+
+        .context-menu .list-group-item-danger:hover:not(:disabled) {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
 @endpush

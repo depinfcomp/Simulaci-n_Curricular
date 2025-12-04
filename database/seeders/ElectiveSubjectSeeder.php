@@ -1,0 +1,355 @@
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use App\Models\ElectiveSubject;
+
+class ElectiveSubjectSeeder extends Seeder
+{
+    /**
+     * Seeds the elective_subjects table with optional subjects that students can choose from to
+     * fulfill their optional fundamental and optional professional credit requirements.
+     * 
+     * This seeder includes:
+     * - OPTATIVAS FUNDAMENTALES (Optional Fundamental - Orange): General education electives
+     *   including advanced mathematics, physics, statistics, and other foundational subjects
+     * - OPTATIVAS PROFESIONALES (Optional Professional - Green): Specialized technical electives
+     *   including advanced topics in networks, security, AI, databases, software engineering, etc.
+     * 
+     * Each elective includes:
+     * - Complete course information (credits, hours, semester recommendation)
+     * - Detailed description with objectives and methodology
+     * - Attendance requirements (typically 80%)
+     * - Active status flag to indicate if currently offered
+     * 
+     * Students must complete a specific number of credits from each elective type to graduate,
+     * as defined by the curriculum credit limits configuration.
+     */
+    public function run(): void
+    {
+        $electives = [
+            // OPTATIVAS FUNDAMENTALES (Naranja)
+            [
+                'code' => '1000006',
+                'name' => 'CALCULO VECTORIAL',
+                'semester' => 5,
+                'credits' => 4,
+                'classroom_hours' => 4,
+                'student_hours' => 8,
+                'elective_type' => 'optativa_fundamental',
+                'description' => 'Se estudia todo el calculo deferencial en varias variables, las integrales dobles, triples, de linea y de Superficie. ASISTENCIA: 80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '1000007',
+                'name' => 'ECUACIONES DIFERENCIALES',
+                'semester' => 6,
+                'credits' => 4,
+                'classroom_hours' => 4,
+                'student_hours' => 8,
+                'elective_type' => 'optativa_fundamental',
+                'description' => 'OBJETIVOS - Modelar por medio de ecuaciones diferenciales algunos sistemas simples y predecir su comportamiento.- Comprender y utilizar las diferentes técnicas analíticas y cualitativas para resolver ecuaciones diferenciales. METODOLOGIA Clases magistrales y talleres. ASISTENCIA: 80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4100579',
+                'name' => 'ESTADISTICA II',
+                'semester' => 4,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_fundamental',
+                'description' => 'Proporcionar conocimientos básicos de inferencia estadística, regresión, series de tiempo y muestreo, necesarios para el desarrollo de una investigación o en el desempeño profresional. El curso se desarrollará con clases magistrales, lectura de artículos y documentos, talleres realizados en clase y fuera de clase, trabajo realizado con software estadístico. Las tecnologías de información y comunicación (TIC) serán un recurso del que dispondrán docentes y estudiantes durante el desarrollo del curso. ASISTENCIA: 80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '1000019',
+                'name' => '	FISICA: MECANICA',
+                'semester' => 7,
+                'credits' => 4,
+                'classroom_hours' => 4,
+                'student_hours' => 8,
+                'elective_type' => 'optativa_fundamental',
+                'description' => 'OBJETIVOS Generales >Desarrollar los conceptos fundamentales de la mecánica Newtoniana y aplicar estos a diversas situaciones típicas de la física. >Desarrollar en los estudiantes capacidad para enfrentar y resolver problemas e iniciarlos en los métodos experimentales de la física. Específicos >Definir las magnitudes físicas fundamentales y dar una descripción matemática del movimiento de las partículas. >Estudiar el contenido fundamental de las leyes de Newton. >Presentar los conceptos de trabajo y energía con la respectiva ley de conservación de la energía mecánica. >Estudiar la relación entre la cantidad de movimiento y las fuerzas en un sistema de partículas y entre la energía cinética y los trabajos. >Estudiar el equilibrio de un cuerpo rígido e introducir su dinámica de rotación. METODOLOGÍA Y EVALUACIÓN En la semana habrá tres sesiones de a 2 horas. Una sesión corresponderá a una práctica de laboratorio; dos horas clases magistrales y las otras dos horas a taller de ejercicios. OBSERVACIONES Las clases magistrales estarán apoyadas con experimentos demostrativos. ASISTENCIA: 80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4100581',
+                'name' => 'INVESTIGACION DE OPERACIONES II',
+                'semester' => 6,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_fundamental',
+                'description' => 'Con este curso de Investigación de Operaciones II se pretende mostrar una manera de resolver los problemas e interpretar los resultados que se presentan en Administración de Sistemas Informáticos, como también la forma de tomar decisiones basadas en el método científico. En cada tema se hará énfasis en la parte conceptual y en sus aspectos prácticos. Es importante anotar que este curso necesita como requisito conocimientos suficientes de Algebra Lineal. OBJETIVOS -Utilizar la Investigación Operacional como herramienta para mejorar el proceso de toma de decisiones y los esquemas organizacionales. -Aplicar la Investigación Operativa a problemas reales. -Analizar las soluciones de los problemas. -Aplicar software especializado como QSB, LINDO, WINQSB, GAMS, CPLEX, TORA, ORCOURSEWARE, MATHPROG y CRYSTALL BALL, entre otros. ASISTENCIA:80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4200913',
+                'name' => 'MATEMATICAS DISCRETAS',
+                'semester' => 5,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_fundamental',
+                'description' => 'Enseñar al estudiante las propiedades de las estructuras matemáticas discretas más usadas en computación de tal forma que conozca las bases teóricas necesarias para: 1. Entender y utilizar de manera apropiada las estructuras de datos y los algoritmos empleados para la solución de problemas específicos en las diferentes áreas de su carrera. 2. Utilizar un enfoque de sistemas en la construcción de modelos matemáticos para la solución a problemas.',
+                'is_active' => true,
+            ],
+
+            // OPTATIVAS PROFESIONALES/DISCIPLINARES (Verde)
+            
+            [
+                'code' => '4100571',
+                'name' => 'AUDITORIA DE SISTEMAS II',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'OBJETIVOS ESPECIFICOS - Conocer y aplicar los elementos de Gobierno IT. - Explorar los principales enfoques y normas relacionadas con la auditoría de sistemas. - Entender y aplicar los conceptos de auditoría para ambientes especiales y específicos. - Integrar los conocimientos de auditoría y administración de sistemas. METODOLOGÍA 1. En esta asignatura en la componente teórica, de forma progresiva, nos desplazaremos de una orientación de clases magistrales sobre los conceptos fundamentales de Auditoría de sistemas hacia un proceso donde el profesor se convierte en el guía de ese aprendizaje del estudiante. 2. En la componente práctica del curso nos basaremos principalmente en la aplicación de una metodología ecléctica sobre un laboratorio empresarial de auditoría formado con los estudiantes. 3. Complementariamente se realizarán otras actividades prácticas y talleres, se revisarán artículos especializados en ingles, compilaciones bibliográficas, exposiciones individuales, grupales y foros. ASISTENCIA:80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4100567',
+                'name' => 'BASES DE DATOS II',
+                'semester' => 7,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'En esta asignatura, se presentan las diferentes tendencias en bases de datos, mostrando sus características y aplicaciones. Posteriormente se abordarán en detalle las bases de datos orientadas a objetos y las distribuidas, pasando por sistemas cliente/servidor y en particular en bases de datos en Internet, para finalizar se dará un vistazo a elementos importantes de Data warehouse (Bodegas de Datos). ASISTENCIA:80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4100566',
+                'name' => 'DINAMICA DE SISTEMAS',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'OBJETIVO GENERAL Capacitar al estudiante en el análisis de la estructura y el comportamiento de sistemas mediante el uso de herramientas blandas de la investigación de operaciones, específicamente de la dinámica de sistemas. OBJETIVOS ESPECÍFICOS - Desarrollar en el estudiante la capacidad de reconocer los fenómenos de retroalimentación en los procesos de decisión ¿ acción ¿ sistema. - Permitir al estudiante el uso de herramientas para el modelaje de sistemas complejos, altamente caóticos y no-lineales. - Capacitar al estudiante en el uso de software específico para el estudio de problemas de la dinámica de sistemas. METODOLOGÍA: Exposiciones magistrales, lecturas y tareas en grupo. Análisis de casos. ASISTENCIA:80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4100572',
+                'name' => 'INGENIERIA DE SOFTWARE III',
+                'semester' => 7,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'Objetivos -Comprender la utilidad y la necesidad de planificar tareas, esfuerzos y costes en el proceso de construcción de software. -Entender y utilizar las técnicas de gestión de proyectos como soporte para llevar a buen término el proyecto. -Potenciar en el estudiante la necesidad por adoptar políticas de calidad en el desarrollo de software, en un sentido amplio. -Desarrollar la habilidad de coordinar en equipos de trabajo. ASISTENCIA:80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4200912',
+                'name' => 'INTELIGENCIA DE NEGOCIOS',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'Esta asignatura muestra como el uso de las tecnologías de la Información y las Comunicaciones pueden beneficiar al entorno empresarial, proporcionándole herramientas para el soporte a la toma de decisiones que eficiente y oportunamente permitan gestionar , las distintas actividades que se pueden llevar a cabo. Objetivos: Se pretende brindar una visión general y sólida - con un balance entre los fundamentos y el conocimiento práctico - de los conceptos principales de la Inteligencia de Negocio (Business Intelligence) que permita a los estudiantes a desarrollar proyectos o programas mediante los cuales se puedan utilizar los datos que ya posee una organización, para transformarlos en información valiosa que permita ayudar a resolver problemas de negocio y soportar la toma de decisiones de los directivos. Introducir al alumno en casos prácticos y reales de Business Intelligence en las empresas.',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4101392',
+                'name' => 'MINERIA DE DATOS',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'Objetivos: - Estudiar las técnicas principales de minería de datos para clasificación, generación de reglas de asociación y agrupamiento - Comprender diversos ejemplos de aplicación de las técnicas de minería de datos en el campo profesional del Administrador de Sistemas Informáticos - Desarrollar la comprensión necesaria para el uso consciente de las herramientas de minería de datos existentes. Metodología: La parte teórica se realizará mediante clases magistrales por parte del profesor y mediante una revisión bibliográfica crítica por parte de los estudiantes. El estudiante, con asesoría del profesor, realizará ejercicios sobre los algoritmos y las aplicaciones estudiadas. Adicionalmente, el estudiante o grupo de estudiantes realizará(n) un proyecto final. ASISTENCIA: 80% ',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4101393',
+                'name' => 'MODELOS DE GESTION DE TECNOLOGIAS DE INFORMACION',
+                'semester' => 7,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'Objetivos: - Comprender los nuevos conceptos de gestión de tecnologias de información, basado en servicios y no solo en tecnologia. - Conocer los diferentes modelos de gestión de tecnologias de Información existentes a nivel mundial - Contextualizar los modelos de gestión de tecnologias de información dentro de la Administración de Sistemas Informáticos Metodología. El desarrollo de la asignatura tendra un componente teórico, desarrollado mediante clases magistrales con apoyo de plataformas de e-learning; y un componente práctico compuesto de análisis de casos y elaboración de proyectos de aplicación de los conceptos adquiridos. ASISTENCIA: 80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4200944',
+                'name' => 'OPTATIVA ACUERDO 098 DE 2021',
+                'semester' => 7,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'Asignatura creada con el fin de hacer aplicación del Plan de Transición establecido según Acuerdo 098 del 2021 del Consejo de Facultad de Administración, "Por el cual se modifica el plan de estudios del Programa Curricular de Administración de Sistemas Informáticos de la Facultad de Administración de la Sede Manizales de la Universidad Nacional de Colombia".',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4100568',
+                'name' => 'SIMULACION',
+                'semester' => 9,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'OBJETIVOS - Utilizar la Simulación como herramienta para mejorar el proceso de toma de decisiones y los esquemas organizacionales reales. - Analizar las soluciones de los problemas. - Aplicar software especializado como WINQSB, PROMODEL y TAYLOR II, entre otros. ASISTENCIA: 80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4100852',
+                'name' => 'SISTEMAS DE GESTIÓN INTEGRAL Y GESTIÓN DEL CONOCIMIENTO',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'Objetivos Conocer y aplicar los conceptos de gestión del conocimiento y gestión tecnológica del conocimiento. Describir el papel que juega la gestión del conocimiento en las organizaciones Usar métodos y técnicas de gestión del conocimiento Entender el ciclo de vida del conocimiento Entender los sistemas integrados de información en las empresas Conocer la estructura de los sistemas integrados de información Conocer la evolución de los sistemas de información integrados Conocer la estructura de soluciones de ERP, SCM, CRM. Conocer algunos sistemas de información integrados comerciales. ASISTENCIA: 80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4100569',
+                'name' => 'SISTEMAS INTELIGENTES COMPUTACIONALES',
+                'semester' => 7,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'Objetivos: -Brindar al estudiante los fundamentos necesarios que le permitan incursionar en el mundo de los sistemas inteligentes a través de la aplicación de la distintas filosofías, teorías, conceptos, técnicas y procedimientos que son objeto de estudio. -Presentar las técnicas y generar destrezas en la representación de conocimiento. -Dar a conocer y aplicar la forma de resolución de problemas mediante Inteligencia Artificial. -Conceptualizar sobre sistemas inteligentes y afianzar al estudiante en el proceso de análisis y diseño de sistemas inteligentes Metodología La parte teórica se realizará mediante clases magistrales por parte del profesor y mediante una revisión bibliográfica crítica por parte de los estudiantes. El estudiante con asesoría del profesor realizará ejercicios de modelamiento mediante el enfoque de IA. Adicionalmente el estudiante realizará el análisis y síntesis de problemas resueltos mediante técnicas de inteligencia artificial. ASISTENCIA: 80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4100570',
+                'name' => 'SOCIOLOGIA DE LA INDUSTRIA Y EL TRABAJO',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'OBJETIVOS -Reflexionar sobre la realidad colectiva dentro de un proceso de participación, confrontación, enmarcada inextricablemente, en un contexto de Historia Universal, imperialismo global y sociedad planetaria. -Apreciar en términos generales el desarrollo científico-técnico, enmarcado en un proceso revolucionario de transformaciones políticas (formación del Estado Nacional Moderno), económicas (liberalismo) y sociales (formación de la sociedad económica Industrial). -Examinar el desarrollo industrial y tecnológico colombiano dentro del contexto de modernización que experimenta el país en la últimas y primeras décadas del presente siglo. -Conocer el proceso del desarrollo histórico de la producción, el trabajo y la tecnología, analizando la problemática actual dentro de las tendencias políticas implementadas por el Capitalismo Mundial y la dirigencia Nacional. ASISTENCIA:80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4100853',
+                'name' => 'TEORIA DE LA ADMINISTRACION Y LA ORGANIZACION II',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'Esta asignatura tiene tres propósitos centrales. El primero instruir a los estudiantes respecto a las principales áreas funcionales de las organizaciones. Se trata de mostrar las especificidades de cada una de las áreas seleccionadas, su contribución a la dinámica de la empresa, sus relaciones desde la perspectiva sistémica y los tipos de información que toman, procesan y producen para los ambientes internos y externos. El segundo, mostrar a los estudiantes una concepción general de las llamadas funciones administrativas (Planeación, toma de decisiones, diseño de estructuras organización, control y comunicación) y en específico, sobre algunos modelos de proceso para tales funciones, de manera que se identifiquen las necesidades y flujos de información propios de la actividad administrativa. El tercero, dotar al estudiante de la fundamentación mínima para la comprensión de los problemas humanos y sociales de las organizaciones, de cara a lograr resultados integrales respecto al impacto de las soluciones informáticas desarrolladas e implantadas sobre las personas, la dinámica de los grupos, la cultura de la empresa y en últimas, en la relación beneficio - costo de tales soluciones en general, y sobre su ejercicio de dirección del trabajo de los grupos humanos a su cargo en particular. Para las áreas funcionales involucradas (Temas 1 a 3), se revisarán además de su misión particular: la información de entrada, los procesos y la información producida así como las estructuras de organización utilizadas y las relaciones con otras áreas funcionales. Para las funciones administrativas (Temas 4 a 7) se deben estudiar en términos de proceso y además, se revisarán: la información de entrada, los procesos y la información producida. ASISTENICA: 80%',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4200920',
+                'name' => 'TEORIA DE LA DECISION Y EL APRENDIZAJE ORGANIZACIONAL',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'El tema del aprendizaje organizacional se desarrolla desde el inicio de la década de 1990. Las organizaciones están conformadas por personas, las personas aprenden de manera inherente, y por tal razón puede concluirse que la organización aprende también. Algunos autores hacen evidente esta condición y sobre la misma, desarrollan diferentes planteamientos y propuestas para aprovecharla. Una organización que aprende a partir del aprendizaje de sus miembros puede mejorar la forma en la cual desarrolla sus actividades, con el fin de adelantarse o responder al impacto que sufre por las acciones desarrolladas en su interior o por las que desarrollan otros sistemas en el contexto en el cual se encuentra. Algunos productos de las TIC han sido desarrollados o pueden ser utilizados para dar soporte a los procesos de aprendizaje organizacional. Los profesionales en Administración y/o Informática pueden desarrollar en el área del aprendizaje organizacional diferente proyectos. Objetivos  Diferenciar los elementos básicos del los procesos de aprendizaje organizacional  Determinar la pertinencia de implementar procesos de aprendizaje organizacional apoyados en TIC  Plantear una estrategia tecnológica para dar soporte a un proceso de aprendizaje organizacional',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4201297',
+                'name' => 'ADMINISTRACION Y SEGURIDAD EN REDES DE DATOS',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'Gestionar una red de datos implica la ejecución de tareas de monitoreo, configuración y afinamiento de su infraestructura física y lógica, lo que se hace para conservar estables los parámetros de rendimiento de la red conforme a las políticas de funcionamiento de la empresa. La evolución de las redes de datos, ha generado cambios substanciales en la definición de las responsabilidades relacionadas con el reenvío de los flujos de datos. Muchas acciones que se tomaban en el hardware de los dispositivos de interconexión, ahora son realizadas por software, lo que conlleva una mayor versatilidad en el manejo de flujos de información y a la introducción de mecanismos claves, implementados por software, que propenden por la automatización. Esta asignatura abarca conceptos y prácticas para monitoreo y ajuste de parámetros de rendimiento, de seguridad y de calidad como también métodos y prácticas para contrarrestar vulnerabilidades y ataques',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4201298',
+                'name' => 'CIBERSEGURIDAD',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'Resultados-Aprendizaje R1: Aplica principios fundamentales de seguridad de la información y ciberseguridad para la protección de datos y activos tecnológicos en organizaciones, utilizando marcos de referencia, normativas y metodologías. R2: Mitiga riesgos de seguridad en entornos tecnológicos mediante la detección y análisis de vulnerabilidades en infraestructuras, aplicaciones web y redes, implementando estrategias de seguridad en capas y aplicando herramientas para la prevención de ataques como ransomware, ingeniería social y amenazas emergentes.',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4201176',
+                'name' => 'GESTION DE TECNOLOGIAS EN LA NUBE',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'Esta asignatura expone los conocimientos técnicos a nivel de gestión e infraestructura de TI necesarios para administrar soluciones en la nube acordes con las mejores prácticas registradas en los modelos de referencia de gestión de TI en la nube. 11.2 Resultados de Aprendizaje R1: Diseñar arquitecturas de despliegue en la nube R2: Contrastar las diferentes técnicas de implementación de servicios en la nube en términos de generación de valor organizacional R3: Gestionar servicios en la nube acorde a los marcos de referencia de gestión de TI.',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4201288',
+                'name' => 'GESTION DE TERRITORIOS INTELIGENTES',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => '6.1 Descripción: Este curso permite al estudiante determinar el papel de la Administración de Sistemas Informáticos en la gestión de sistemas territoriales inteligentes. Se trabaja con el estudiante la evolución del concepto de territorio inteligente (ciudad, región, ...), modelos para su implementación y gestión a partir de los subsistemas que lo componen y teniendo en cuenta la utilización de tecnologías de información y comunicación tradicionales y emergentes. De otro lado, se establece la relación de este tipo de sistemas con la sostenibilidad ambiental, administrativa, financiera y social. 6.1 Resultados de Aprendizaje. R1: Comprender la evolución del concepto de territorio inteligente desde la utilización de las tecnologías de información y comunicación hasta su relación con el medio ambiente. R2: Explicar los modelos de implementación de territorios inteligentes y casos de aplicación. R3: Evaluar los modelos de gestión de territorios inteligentes y casos de aplicación. 6.2 Estrategias pedagógicas de Enseñanza y Aprendizaje. A partir de la explicación de los aspectos conceptuales se realizarán talleres, cuyos resultados serán abordados a nivel individual para luego ser presentados al grupo, por parte del profesor(a) y por los estudiantes. Se trabajara en un proyecto final basada en la investigación de una temática asociada a los territorios inteligentes y su relación con la Administración de Sistemas Informáticos.',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4201235',
+                'name' => 'GOBIERNO EMPRESARIAL DE LAS TECNOLOGIAS DE INFORMACION Y COMUNICACIONES',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'El gobierno empresarial de tecnologías de información es definido tradicionalmente como la forma a través de la cual la alta dirección alinea la estrategia del negocio con las tecnologías de información para agregar valor, mediante la definición de estructuras, políticas y procesos para dirigir y controlar las actividades relacionadas con el uso de los recursos tecnológicos. En tal sentido y ante la magnitud y complejidad de la infraestructura tecnológica con que cuentan actualmente las organizaciones, los estudiantes deben comprender los conceptos, modelos y estructuras que hacen parte de un gobierno empresarial de TIC, también llamado Gobierno de TIC.',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4201299',
+                'name' => 'INTRODUCCION A DEVOPS',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'La asignatura busca proporcionar una visión integral de los principios, metodologías y herramientas esenciales en el ecosistema DevOps. Se enfoca en la integración y automatización de procesos para mejorar la eficiencia del ciclo de vida del software, desde el desarrollo hasta la operación en entornos productivos. Los estudiantes explorarán conceptos clave sobre DevOps y sus necesidades técnicas a través de un enfoque práctico con técnologías utilizadas ampliamente en la industria Objetivos - Comprender los principios de la cultura DevOps y su impacto en la colaboración entre equipos de desarrollo y operaciones de software - Conocer las herramientas y prácticas fundamentales de automatización utilizadas en la integración y entrega continua (CI/CD). - Reconocer la estructura general de los frameworks de desarrollo web. - Adquirir conocimientos sobre herramientas y buenas prácticas DevOps con el fin de comprender su incidencia en el ciclo de vida del software. - Explorar tendencias actuales en tecnologías de la información y comprender su papel en el ciclo de vida DevOps.',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4201177',
+                'name' => 'INVESTIGACION INNOVACION Y EMPRENDIMIENTO EN TECNOLOGIAS DE INFORMACION Y COMUNICACIONES',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'Las Tecnologías de Información y Comunicaciones, son consideradas una fuente de innovación y como tal deben ser estudiadas, desde una perspectiva investigativa, de innovación y de creación de nuevas unidades económicas que aporten al desarrollo organizacional, con el impacto esperado en una región y un país. Su adecuada gestión puede contribuir al logro de factores diferenciadores que aporten a la innovación, creando capacidades únicas, que incrementen la competitividad empresarial; estas innovaciones, se pueden ver reflejadas en productos y procesos e inclusive en la transformación de organizaciones. R1: Diseñar un modelo de negocio efectivo y un plan de desarrollo del cliente con herramientas como Business Model Canvas y principios de Customer Development en el contexto de su propuesta de emprendimiento. R2: Implementar estrategias de Lean Startup, Design Thinking y Gestión Ágil en la planificación y ejecución de un emprendimiento para iterar y mejorar su producto o servicio, así como aplicar principios de gestión ágil y Scrum para mejorar la eficiencia y adaptabilidad de su proyecto de emprendimiento.',
+                'is_active' => true,
+            ],
+            [
+                'code' => '4201300',
+                'name' => 'PROGRAMACION CON TECNOLOGIAS MOVILES',
+                'semester' => 8,
+                'credits' => 3,
+                'classroom_hours' => 4,
+                'student_hours' => 5,
+                'elective_type' => 'optativa_profesional',
+                'description' => 'Resultados de aprendizaje: 1. Comprender los fundamentos del desarrollo de aplicaciones móviles, incluyendo su evolución, arquitecturas y diferencias entre plataformas Android e iOS. 2. Aplicar el modelo de arquitectura backend + frontend y Serverless, comprendiendo su impacto en la escalabilidad y mantenimiento de aplicaciones móviles. 3. Desarrollar aplicaciones móviles nativas e híbridas, utilizando tecnologías y frameworks adecuados según el contexto del proyecto. 4. Integrar servicios web y APIs RESTful en aplicaciones móviles, facilitando la comunicación entre sistemas y garantizando la interoperabilidad. 5. Implementar autenticación y seguridad en aplicaciones móviles, aplicando estándares como OAuth, JWT y buenas prácticas en el manejo de datos. 5. Realizar pruebas y depuración de aplicaciones móviles, utilizando herramientas automatizadas y manuales para garantizar la calidad del software. 6. Publicar y desplegar aplicaciones en tiendas oficiales, comprendiendo los requisitos y procesos de Google Play Store y App Store',
+                'is_active' => true,
+            ],
+
+        ];
+
+        foreach ($electives as $elective) {
+            ElectiveSubject::create($elective);
+        }
+
+        $this->command->info('✓ Materias optativas creadas correctamente');
+        $this->command->info('  - 6 Optativas Fundamentales');
+        $this->command->info('  - 12 Optativas Profesionales/Disciplinares');
+    }
+}

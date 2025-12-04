@@ -11,7 +11,28 @@ use Illuminate\Database\Seeder;
 class StudentCurrentSubjectSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Seeds the student_current_subjects table with realistic current semester enrollments for
+     * existing students in the database.
+     * 
+     * IMPORTANT: This seeder is commented out in DatabaseSeeder because current enrollments should
+     * be created during CSV import or managed through the application interface. Use this seeder
+     * only for testing and development purposes.
+     * 
+     * What this seeder does:
+     * - Determines current academic period based on system date (YYYY-1 or YYYY-2)
+     * - Calculates appropriate semester for each student based on their progress percentage
+     * - Identifies subjects the student can take (hasn't passed, prerequisites met)
+     * - Enrolls each student in 3-6 subjects for the current period
+     * - Generates partial grades for active enrollments
+     * - Respects prerequisite requirements when selecting subjects
+     * 
+     * The seeder intelligently places students in appropriate semesters:
+     * - 0-10% progress → Semester 1
+     * - 10-20% progress → Semester 2
+     * - 20-30% progress → Semester 3
+     * - And so on up to 90%+ → Semester 10
+     * 
+     * Requires StudentSeeder to run first to populate students table.
      */
     public function run(): void
     {

@@ -1,0 +1,308 @@
+/* ========================================
+   N:N Convalidation Groups - Estilos
+   ======================================== */
+
+/* Change indicators in table rows */
+tr.border-start {
+    position: relative;
+}
+
+tr.border-start.border-success {
+    background-color: rgba(40, 167, 69, 0.05) !important;
+    border-left: 4px solid #28a745 !important;
+}
+
+tr.border-start.border-danger {
+    background-color: rgba(220, 53, 69, 0.05) !important;
+    border-left: 4px solid #dc3545 !important;
+    opacity: 0.65;
+}
+
+tr.border-start.border-warning {
+    background-color: rgba(255, 193, 7, 0.05) !important;
+    border-left: 4px solid #ffc107 !important;
+}
+
+tr.border-start.border-info {
+    background-color: rgba(13, 202, 240, 0.05) !important;
+    border-left: 4px solid #0dcaf0 !important;
+}
+
+/* Strikethrough for removed subjects */
+tr.text-decoration-line-through td {
+    text-decoration: line-through;
+    color: #6c757d !important;
+}
+
+tr.text-decoration-line-through td h6 {
+    text-decoration: line-through;
+    color: #6c757d !important;
+}
+
+tr.text-decoration-line-through td code {
+    text-decoration: line-through;
+    opacity: 0.6;
+}
+
+/* Change badges in subject names */
+.badge.bg-success {
+    animation: pulseGreen 2s infinite;
+}
+
+.badge.bg-danger {
+    animation: pulseRed 2s infinite;
+}
+
+.badge.bg-warning {
+    animation: pulseYellow 2s infinite;
+}
+
+.badge.bg-info {
+    animation: pulseBlue 2s infinite;
+}
+
+@keyframes pulseGreen {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4); }
+    50% { box-shadow: 0 0 0 4px rgba(40, 167, 69, 0); }
+}
+
+@keyframes pulseRed {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
+    50% { box-shadow: 0 0 0 4px rgba(220, 53, 69, 0); }
+}
+
+@keyframes pulseYellow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.4); }
+    50% { box-shadow: 0 0 0 4px rgba(255, 193, 7, 0); }
+}
+
+@keyframes pulseBlue {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(13, 202, 240, 0.4); }
+    50% { box-shadow: 0 0 0 4px rgba(13, 202, 240, 0); }
+}
+
+/* Modal styles */
+#nnGroupModal .modal-dialog {
+    max-width: 90%;
+}
+
+#nnGroupModal .min-height-100 {
+    min-height: 100px;
+}
+
+/* Subject cards in selector */
+.internal-subject-card {
+    transition: all 0.3s ease;
+}
+
+.internal-subject-card:hover {
+    background-color: #f8f9fa !important;
+    border-color: #28a745 !important;
+}
+
+.internal-subject-card.selected {
+    background-color: rgba(40, 167, 69, 0.1) !important;
+    border-color: #28a745 !important;
+    border-width: 2px;
+}
+
+/* Selected subject chips */
+.selected-subject-chip {
+    transition: all 0.2s ease;
+    border-color: #dee2e6;
+}
+
+.selected-subject-chip:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-color: #28a745;
+}
+
+.selected-subject-chip .btn-outline-danger {
+    padding: 0.1rem 0.3rem;
+    font-size: 0.75rem;
+}
+
+/* Change indicators in curriculum view */
+.subject-change-indicator {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.subject-change-indicator.added {
+    background-color: #d4edda;
+    color: #155724;
+    border: 2px solid #28a745;
+}
+
+.subject-change-indicator.removed {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 2px solid #dc3545;
+    text-decoration: line-through;
+}
+
+.subject-change-indicator.modified {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 2px solid #ffc107;
+}
+
+.subject-change-indicator.moved {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 2px solid #17a2b8;
+}
+
+/* Button group vertical spacing */
+.btn-group-vertical .btn {
+    border-radius: 0 !important;
+}
+
+.btn-group-vertical .btn:first-child {
+    border-top-left-radius: 0.25rem !important;
+    border-top-right-radius: 0.25rem !important;
+}
+
+.btn-group-vertical .btn:last-child {
+    border-bottom-left-radius: 0.25rem !important;
+    border-bottom-right-radius: 0.25rem !important;
+}
+
+/* Equivalence type cards */
+.form-check {
+    padding: 1rem;
+    border: 2px solid transparent;
+    border-radius: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.form-check:has(input:checked) {
+    border-color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.form-check:hover {
+    background-color: #f8f9fa;
+}
+
+/* Credits threshold input */
+#creditsThresholdContainer {
+    padding: 1rem;
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+    border-radius: 0.25rem;
+}
+
+/* Search input styling */
+.input-group-text {
+    background-color: #e9ecef;
+}
+
+#internalSubjectSearch:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+/* Scrollbar styling for subject lists */
+#internalSubjectList::-webkit-scrollbar,
+#selectedInternalSubjects::-webkit-scrollbar {
+    width: 8px;
+}
+
+#internalSubjectList::-webkit-scrollbar-track,
+#selectedInternalSubjects::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+#internalSubjectList::-webkit-scrollbar-thumb,
+#selectedInternalSubjects::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+#internalSubjectList::-webkit-scrollbar-thumb:hover,
+#selectedInternalSubjects::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Badge animations */
+.badge {
+    transition: all 0.2s ease;
+}
+
+.badge:hover {
+    transform: scale(1.05);
+}
+
+/* Alert animations */
+.alert {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Loading states */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.15em;
+}
+
+/* N:N Group indicator in table */
+.nn-group-indicator {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem;
+    background-color: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+    border-radius: 0.25rem;
+}
+
+.nn-group-indicator i {
+    font-size: 1.25rem;
+    margin-right: 0.5rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    #nnGroupModal .modal-dialog {
+        max-width: 95%;
+        margin: 0.5rem;
+    }
+    
+    .selected-subject-chip {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    
+    .btn-group-vertical {
+        width: 100%;
+    }
+}
+
+/* Print styles */
+@media print {
+    .nn-group-config-btn,
+    .btn-outline-danger {
+        display: none !important;
+    }
+    
+    .subject-change-indicator {
+        border: 1px solid #000 !important;
+        padding: 0.1rem 0.3rem !important;
+    }
+}

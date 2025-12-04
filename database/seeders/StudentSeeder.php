@@ -10,7 +10,27 @@ use Illuminate\Support\Facades\DB;
 class StudentSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Seeds the students table with 100 simulated students with realistic academic progress.
+     * 
+     * IMPORTANT: This seeder is commented out in DatabaseSeeder because real student data should
+     * be imported from CSV files to reflect actual academic records. Use this seeder only for
+     * testing and development purposes.
+     * 
+     * What this seeder does:
+     * - Creates 100 students with sequential document numbers (0000000001 to 0000000100)
+     * - Simulates different progress levels from new (1-2 semesters) to graduating (9-10 semesters)
+     * - Enrolls students in subjects respecting prerequisite requirements
+     * - Generates realistic pass/fail patterns (varies by student level)
+     * - Automatically calculates and updates progress percentages
+     * 
+     * Progress level distribution:
+     * - 20% new students (semesters 1-2, 80% pass rate)
+     * - 25% early students (semesters 3-4, 70% pass rate)
+     * - 25% mid students (semesters 5-6, 60% pass rate)
+     * - 20% advanced students (semesters 7-8, 50% pass rate)
+     * - 10% final students (semesters 9-10, 40% pass rate)
+     * 
+     * The seeder clears existing student data before running.
      */
     public function run(): void
     {
@@ -18,30 +38,11 @@ class StudentSeeder extends Seeder
         DB::table('students')->delete();
         DB::table('student_subject')->delete();
         
-        // Generate 100 students with realistic names
-        $firstNames = [
-            'Alejandro', 'Ana', 'Andrés', 'Beatriz', 'Carlos', 'Carmen', 'Daniel', 'Diana', 'Eduardo', 'Elena',
-            'Fernando', 'Gabriela', 'Guillermo', 'Isabel', 'Javier', 'Julia', 'Leonardo', 'Laura', 'Manuel', 'María',
-            'Miguel', 'Natalia', 'Óscar', 'Paola', 'Pedro', 'Patricia', 'Ricardo', 'Rosa', 'Sebastián', 'Sofía',
-            'Antonio', 'Camila', 'Diego', 'Fernanda', 'Gonzalo', 'Luisa', 'Mauricio', 'Mónica', 'Nicolás', 'Pilar',
-            'Rafael', 'Sandra', 'Tomás', 'Valeria', 'Víctor', 'Andrea', 'Cristian', 'Daniela', 'Esteban', 'Marcela'
-        ];
-        
-        $lastNames = [
-            'García', 'Rodríguez', 'González', 'Fernández', 'López', 'Martínez', 'Sánchez', 'Pérez', 'Gómez', 'Martín',
-            'Jiménez', 'Ruiz', 'Hernández', 'Díaz', 'Moreno', 'Álvarez', 'Muñoz', 'Romero', 'Alonso', 'Gutiérrez',
-            'Navarro', 'Torres', 'Domínguez', 'Vázquez', 'Ramos', 'Gil', 'Ramírez', 'Serrano', 'Blanco', 'Suárez',
-            'Molina', 'Morales', 'Ortega', 'Delgado', 'Castro', 'Ortiz', 'Rubio', 'Marín', 'Sanz', 'Iglesias',
-            'Medina', 'Garrido', 'Cortés', 'Castillo', 'Santos', 'Lozano', 'Guerrero', 'Cano', 'Prieto', 'Méndez'
-        ];
-        
+        // Generate 100 students with document numbers
         for ($i = 1; $i <= 100; $i++) {
-            $firstName = $firstNames[array_rand($firstNames)];
-            $lastName1 = $lastNames[array_rand($lastNames)];
-            $lastName2 = $lastNames[array_rand($lastNames)];
-            $name = "$firstName $lastName1 $lastName2";
+            $document = str_pad($i, 10, '0', STR_PAD_LEFT); // Document: 0000000001, 0000000002, etc.
             
-            $student = Student::create(['name' => $name]);
+            $student = Student::create(['document' => $document]);
             
             // Simulate different student progress levels
             $progressLevel = $this->getRandomProgressLevel();

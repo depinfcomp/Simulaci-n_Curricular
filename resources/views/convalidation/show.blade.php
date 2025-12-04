@@ -1,7 +1,25 @@
 @extends('layouts.app')
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('css/convalidation-nn-groups.css') }}?v={{ time() }}">
+    <style>
+        /* Sort button styles */
+        .table thead button.btn-link {
+            color: #6c757d;
+            text-decoration: none;
+        }
+        .table thead button.btn-link:hover {
+            color: #0d6efd;
+        }
+        .table thead .sticky-top {
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+@endpush
+
 @section('content')
-<div class="container-fluid">
+<div class="container-fluid" data-external-curriculum-id="{{ $externalCurriculum->id }}">
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -18,92 +36,217 @@
                         <span class="ms-2">{{ $stats['completion_percentage'] }}% convalidado</span>
                     </p>
                 </div>
-                <div>
-                    <a href="{{ route('convalidation.index') }}" class="btn btn-secondary me-2">
+                <div class="d-flex gap-2">
+                    @if($externalCurriculum->pdf_report_path)
+                        <a href="{{ route('convalidation.pdf.download', $externalCurriculum) }}" 
+                           class="btn btn-lg btn-success"
+                           target="_blank">
+                            <i class="fas fa-file-pdf me-2"></i>
+                            Descargar Reporte PDF
+                        </a>
+                    @endif
+                    <a href="{{ route('convalidation.index') }}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left me-2"></i>
                         Volver
                     </a>
-                    <button class="btn btn-success" onclick="exportReport()">
-                        <i class="fas fa-download me-2"></i>
-                        Exportar Reporte
-                    </button>
                 </div>
             </div>
+
+            @if($externalCurriculum->pdf_report_path)
+                <!-- Locked Curriculum Alert -->
+                <div class="alert alert-info border-info mb-4" role="alert">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-lock fa-2x me-3"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="alert-heading mb-1">
+                                <i class="fas fa-check-circle me-2"></i>
+                                Malla Curricular Guardada
+                            </h5>
+                            <p class="mb-0">
+                                Esta malla curricular ya ha sido guardada y bloqueada. No es posible modificar las convalidaciones.
+                                <strong>Puede descargar el reporte PDF usando el botón verde arriba.</strong>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            @endif
 
             <!-- Progress and Stats -->
             <div class="row mb-4">
                 <div class="col-lg-8">
                     <div class="card">
                         <div class="card-body">
-                            <h6>Progreso de Convalidación</h6>
-                            <div class="progress mb-2" style="height: 25px;">
+                            <h6 class="mb-3">
+                                <i class="fas fa-chart-bar me-2"></i>
+                                Progreso de Convalidación por Componente (Créditos)
+                            </h6>
+                            <div class="progress mb-3" style="height: 30px;">
                                 <div class="progress-bar bg-success" 
                                      role="progressbar" 
                                      style="width: {{ $stats['completion_percentage'] }}%"
                                      id="convalidation-progress">
-                                    {{ number_format($stats['completion_percentage'], 1) }}%
+                                    <strong>{{ number_format($stats['completion_percentage'], 1) }}% Configurado</strong>
                                 </div>
                             </div>
-                            <div class="row text-center">
-                                <div class="col">
-                                    <h5 class="text-success" id="direct-count">{{ $stats['direct_convalidations'] }}</h5>
-                                    <small class="text-muted">Convalidaciones Directas</small>
-                                </div>
-                                <div class="col">
-                                    <h5 class="text-info" id="elective-count">{{ $stats['free_electives'] }}</h5>
-                                    <small class="text-muted">Libre Elección</small>
-                                </div>
-                                <div class="col">
-                                    <h5 class="text-warning" id="not-convalidated-count">{{ $stats['not_convalidated'] ?? 0 }}</h5>
-                                    <small class="text-muted">Materias Nuevas</small>
-                                </div>
-                                <div class="col">
-                                    <h5 class="text-secondary" id="pending-count">{{ $stats['pending_subjects'] }}</h5>
-                                    <small class="text-muted">Sin Configurar</small>
-                                </div>
+                            
+                            @php
+                                $credits = $stats['credits_by_component'];
+                                $componentLabels = [
+                                    'fundamental_required' => ['label' => 'Fund. Oblig.', 'color' => 'warning', 'icon' => 'book'],
+                                    'professional_required' => ['label' => 'Prof. Oblig.', 'color' => 'success', 'icon' => 'graduation-cap'],
+                                    'optional_fundamental' => ['label' => 'Opt. Fund.', 'color' => 'info', 'icon' => 'book-open'],
+                                    'optional_professional' => ['label' => 'Opt. Prof.', 'color' => 'primary', 'icon' => 'user-graduate'],
+                                    'free_elective' => ['label' => 'Libre Elecc.', 'color' => 'secondary', 'icon' => 'star'],
+                                    'thesis' => ['label' => 'Trabajo Grado', 'color' => 'dark', 'icon' => 'file-alt'],
+                                    'leveling' => ['label' => 'Nivelación', 'color' => 'danger', 'icon' => 'level-up-alt'],
+                                    'pending' => ['label' => 'Sin Configurar', 'color' => 'light text-dark', 'icon' => 'question-circle']
+                                ];
+                            @endphp
+                            
+                            <div class="row text-center g-2">
+                                @foreach($componentLabels as $key => $config)
+                                    @php
+                                        $creditValue = $credits[$key] ?? 0;
+                                        // Only show card if there are credits OR if it's not 'pending'
+                                        $shouldShow = $creditValue > 0 || $key !== 'pending';
+                                    @endphp
+                                    
+                                    @if($shouldShow)
+                                        <div class="col-lg-3 col-md-4 col-6">
+                                            <div class="card border-{{ $config['color'] }} h-100">
+                                                <div class="card-body p-2">
+                                                    <i class="fas fa-{{ $config['icon'] }} text-{{ $config['color'] }} mb-1"></i>
+                                                    <h5 class="mb-0 text-{{ $config['color'] }}" id="{{ $key }}-credits">
+                                                        {{ number_format($creditValue, 1) }}
+                                                    </h5>
+                                                    <small class="text-muted d-block" style="font-size: 0.75rem;">
+                                                        {{ $config['label'] }}
+                                                    </small>
+                                                    <small class="text-muted" style="font-size: 0.7rem;">créditos</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endif
+                                @endforeach
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-4">
-                    <div class="card career-completion-card">
-                        <div class="card-body text-center">
-                            <h6 class="text-primary mb-3">🎓 Progreso de Carrera</h6>
-                            <div class="career-percentage mb-2" id="career-percentage">
-                                {{ number_format($stats['career_completion_percentage'], 1) }}%
-                            </div>
-                            <small class="text-muted mb-3 d-block">
-                                <span id="convalidated-credits">{{ number_format($stats['convalidated_credits'], 1) }}</span> de 
-                                <span id="total-credits">{{ $stats['total_career_credits'] }}</span> créditos convalidados
-                            </small>
-                            <div class="progress" style="height: 15px;">
-                                <div class="progress-bar bg-primary" 
-                                     role="progressbar" 
-                                     style="width: {{ $stats['career_completion_percentage'] }}%"
-                                     id="career-progress">
-                                </div>
-                            </div>
-                            <small class="text-muted mt-2 d-block">
-                                <i class="fas fa-info-circle"></i> 
-                                Basado en equivalencias directas + libre elección
-                            </small>
-                        </div>
-                    </div>
-                </div>
+                
                 <div class="col-lg-4">
                     <div class="card">
                         <div class="card-body">
-                            <h6>Acciones Rápidas</h6>
-                            <div class="d-grid gap-2">
-                                <button class="btn btn-outline-primary btn-sm" onclick="showBulkConvalidation()">
-                                    <i class="fas fa-tasks me-2"></i>
-                                    Convalidación Masiva
-                                </button>
-                                <button class="btn btn-outline-info btn-sm" onclick="getSuggestions()">
-                                    <i class="fas fa-magic me-2"></i>
-                                    Sugerencias Automáticas
-                                </button>
+                            <h6 class="text-primary mb-3">
+                                <i class="fas fa-exchange-alt me-2"></i>
+                                Progreso de Carrera (Doble Vista)
+                            </h6>
+                            
+                            @php
+                                $originalStats = $stats['original_curriculum_stats'];
+                                $newStats = $stats['new_curriculum_stats'];
+                            @endphp
+                            
+                            <!-- Original (UNAL) Curriculum Progress -->
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <small class="text-muted">
+                                        <i class="fas fa-university"></i> Malla Original (Actual)
+                                    </small>
+                                    <small class="fw-bold text-success">
+                                        {{ number_format($originalStats['percentage'], 1) }}%
+                                    </small>
+                                </div>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar bg-success" 
+                                         role="progressbar" 
+                                         style="width: {{ $originalStats['percentage'] }}%"
+                                         id="original-progress">
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">
+                                    <span id="original-assigned">{{ number_format($originalStats['assigned_credits'], 1) }}</span> de 
+                                    <span id="original-total">{{ number_format($originalStats['total_credits'], 1) }}</span> créditos asignados
+                                </small>
                             </div>
+                            
+                            <!-- Arrow indicator -->
+                            <div class="text-center my-2">
+                                <i class="fas fa-arrow-down fa-2x text-primary"></i>
+                            </div>
+                            
+                            <!-- New (External/Imported) Curriculum Progress -->
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <small class="text-muted">
+                                        <i class="fas fa-file-import"></i> Malla Nueva (Generada/Importada)
+                                    </small>
+                                    <small class="fw-bold text-primary">
+                                        {{ number_format($newStats['percentage'], 1) }}%
+                                    </small>
+                                </div>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar bg-primary" 
+                                         role="progressbar" 
+                                         style="width: {{ $newStats['percentage'] }}%"
+                                         id="new-progress">
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">
+                                    <span id="new-convalidated">{{ number_format($newStats['convalidated_credits'], 1) }}</span> de 
+                                    <span id="new-total">{{ number_format($newStats['total_credits'], 1) }}</span> créditos convalidados
+                                </small>
+                            </div>
+                            
+                            @php
+                                $creditDifference = $newStats['convalidated_credits'] - $originalStats['assigned_credits'];
+                                $diffClass = $creditDifference > 0 ? 'success' : ($creditDifference < 0 ? 'danger' : 'secondary');
+                                $diffIcon = $creditDifference > 0 ? 'arrow-up' : ($creditDifference < 0 ? 'arrow-down' : 'minus');
+                                $diffSign = $creditDifference > 0 ? '+' : '';
+                            @endphp
+                            <div class="alert alert-{{ $diffClass }} p-2 mb-0 mt-3" style="font-size: 0.75rem;">
+                                <i class="fas fa-{{ $diffIcon }} me-1"></i>
+                                <strong>Diferencia de Créditos:</strong> 
+                                {{ $diffSign }}{{ number_format($creditDifference, 1) }} créditos
+                                (Original UNAL: {{ number_format($originalStats['assigned_credits'], 1) }} → 
+                                Importada: {{ number_format($newStats['convalidated_credits'], 1) }})
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-lg-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6>Acciones Rápidas</h6>
+                            @if(!$externalCurriculum->pdf_report_path)
+                                <!-- Solo mostrar botones de acción si NO está bloqueado -->
+                                <div class="d-flex gap-2 flex-wrap">
+                                    @if(isset($stats['completion_percentage']) && $stats['completion_percentage'] >= 100)
+                                        <button class="btn btn-info" onclick="showImpactAnalysisModal()">
+                                            <i class="fas fa-chart-line me-2"></i>
+                                            Análisis de Impacto a Estudiantes
+                                        </button>
+                                    @endif
+                                    <button class="btn btn-primary" onclick="showBulkConvalidationModal()">
+                                        <i class="fas fa-bolt me-2"></i>
+                                        Convalidación Masiva Automática
+                                    </button>
+                                    <button class="btn btn-outline-danger" onclick="confirmResetConvalidations()">
+                                        <i class="fas fa-redo me-2"></i>
+                                        Restablecer Convalidación
+                                    </button>
+                                </div>
+                            @else
+                                <!-- Malla bloqueada: solo mostrar botón de análisis de impacto en modo lectura -->
+                                <div class="alert alert-warning mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    Las acciones de edición están bloqueadas. Esta malla ya ha sido guardada.
+                                </div>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -152,16 +295,114 @@
                                                 @php
                                                     $convalidationStatus = $subject->getConvalidationStatus();
                                                     $isConvalidated = $subject->isConvalidated();
+                                                    
+                                                    // Get component type from subject, or from N:N group if applicable
+                                                    $componentType = $subject->getComponentType();
+                                                    if (!$componentType && $convalidationStatus['type'] === 'nn_group') {
+                                                        $componentType = $convalidationStatus['component_type'] ?? null;
+                                                    }
+                                                    
+                                                    // Map component types to colors (same as in Subject model)
+                                                    $componentColors = [
+                                                        'fundamental_required' => 'warning',
+                                                        'professional_required' => 'success',
+                                                        'optional_fundamental' => 'warning',
+                                                        'optional_professional' => 'success',
+                                                        'thesis' => 'success',
+                                                        'free_elective' => 'primary',
+                                                        'leveling' => 'danger'
+                                                    ];
+                                                    
+                                                    $componentLabels = [
+                                                        'fundamental_required' => 'Fund. Oblig.',
+                                                        'professional_required' => 'Prof. Oblig.',
+                                                        'optional_fundamental' => 'Opt. Fund.',
+                                                        'optional_professional' => 'Opt. Prof.',
+                                                        'thesis' => 'Trabajo Grado',
+                                                        'free_elective' => 'Libre Elecc.',
+                                                        'leveling' => 'Nivelación'
+                                                    ];
+                                                    
+                                                    $componentColor = $componentColors[$componentType] ?? 'secondary';
+                                                    $componentLabel = $componentLabels[$componentType] ?? $componentType;
+                                                    
+                                                    // Get change type and styling
+                                                    $changeType = $subject->change_type ?? 'unchanged';
+                                                    $rowClass = '';
+                                                    $rowStyle = '';
+                                                    $changeBadge = '';
+                                                    $isRemoved = false;
+                                                    
+                                                    switch($changeType) {
+                                                        case 'added':
+                                                            $rowClass = 'border-start border-success border-3';
+                                                            $rowStyle = 'background-color: rgba(40, 167, 69, 0.05);';
+                                                            $changeBadge = '<span class="badge bg-success ms-2"><i class="fas fa-plus me-1"></i>AÑADIDA</span>';
+                                                            break;
+                                                        case 'removed':
+                                                            $rowClass = 'border-start border-danger border-3 text-decoration-line-through';
+                                                            $rowStyle = 'background-color: rgba(220, 53, 69, 0.05); opacity: 0.6;';
+                                                            $changeBadge = '<span class="badge bg-danger ms-2"><i class="fas fa-trash me-1"></i>ELIMINADA</span>';
+                                                            $isRemoved = true;
+                                                            break;
+                                                        case 'modified':
+                                                            $rowClass = 'border-start border-warning border-3';
+                                                            $rowStyle = 'background-color: rgba(255, 193, 7, 0.05);';
+                                                            $changeBadge = '<span class="badge bg-warning text-dark ms-2"><i class="fas fa-edit me-1"></i>MODIFICADA</span>';
+                                                            break;
+                                                        case 'moved':
+                                                            $rowClass = 'border-start border-info border-3';
+                                                            $rowStyle = 'background-color: rgba(13, 202, 240, 0.05);';
+                                                            $changeBadge = '<span class="badge bg-info ms-2"><i class="fas fa-arrows-alt me-1"></i>MOVIDA</span>';
+                                                            break;
+                                                    }
                                                 @endphp
-                                                <tr id="subject-row-{{ $subject->id }}">
+                                                <tr id="subject-row-{{ $subject->id }}"
+                                                    class="{{ $rowClass }}"
+                                                    style="{{ $rowStyle }}"
+                                                    data-external-subject-id="{{ $subject->id }}"
+                                                    data-convalidation-type="{{ $isConvalidated ? $convalidationStatus['type'] : '' }}"
+                                                    data-subject-name="{{ $subject->name }}"
+                                                    data-subject-code="{{ $subject->code }}"
+                                                    data-subject-credits="{{ $subject->credits }}"
+                                                    data-change-type="{{ $changeType }}"
+                                                    @if($isConvalidated && $convalidationStatus['type'] === 'direct' && isset($convalidationStatus['internal_subject']))
+                                                        data-internal-subject-name="{{ $convalidationStatus['internal_subject']->name }}"
+                                                        data-internal-subject-code="{{ $convalidationStatus['internal_subject']->code }}"
+                                                        data-internal-credits="{{ $convalidationStatus['internal_subject']->credits }}"
+                                                    @endif
+                                                    @if($isConvalidated && $convalidationStatus['type'] === 'nn_group')
+                                                        data-group-name="{{ $convalidationStatus['group_name'] ?? 'Convalidación Múltiple' }}"
+                                                        data-equivalence-type="{{ $convalidationStatus['equivalence_type'] ?? 'all' }}"
+                                                        data-internal-subjects="{{ json_encode($convalidationStatus['internal_subjects'] ?? []) }}"
+                                                    @endif
+                                                    @if($componentType)
+                                                        data-component-type="{{ $componentType }}"
+                                                    @endif
+                                                >
                                                     <td>
                                                         <code class="text-primary">{{ $subject->code }}</code>
                                                     </td>
                                                     <td>
                                                         <div>
-                                                            <h6 class="mb-1">{{ $subject->name }}</h6>
+                                                            <h6 class="mb-1 {{ $isRemoved ? 'text-decoration-line-through text-muted' : '' }}">
+                                                                {{ $subject->name }}
+                                                                {!! $changeBadge !!}
+                                                            </h6>
                                                             @if($subject->description)
                                                                 <small class="text-muted">{{ Str::limit($subject->description, 60) }}</small>
+                                                            @endif
+                                                            @if($changeType === 'modified' && $subject->original_semester)
+                                                                <small class="text-muted d-block">
+                                                                    <i class="fas fa-info-circle me-1"></i>
+                                                                    Antes: Semestre {{ $subject->original_semester }}
+                                                                </small>
+                                                            @endif
+                                                            @if($changeType === 'moved' && $subject->original_semester)
+                                                                <small class="text-info d-block">
+                                                                    <i class="fas fa-arrow-right me-1"></i>
+                                                                    Movida de semestre {{ $subject->original_semester }} → {{ $subject->semester }}
+                                                                </small>
                                                             @endif
                                                         </div>
                                                     </td>
@@ -178,10 +419,10 @@
                                                                         <small class="text-muted">{{ $convalidationStatus['internal_subject']->code }}</small>
                                                                     </div>
                                                                 </div>
-                                                            @elseif($convalidationStatus['type'] === 'free_elective')
+                                                            @elseif($convalidationStatus['type'] === 'flexible_component')
                                                                 <div class="d-flex align-items-center">
-                                                                    <i class="fas fa-star text-info me-2"></i>
-                                                                    <span class="fw-bold text-info">Libre Elección</span>
+                                                                    <i class="fas fa-layer-group text-info me-2"></i>
+                                                                    <span class="fw-bold text-info">{{ $componentLabel }}</span>
                                                                 </div>
                                                             @elseif($convalidationStatus['type'] === 'not_convalidated')
                                                                 <div class="d-flex align-items-center">
@@ -198,22 +439,30 @@
                                                     </td>
                                                     <td>
                                                         @if($isConvalidated)
-                                                            @if($convalidationStatus['type'] === 'direct')
-                                                                <span class="badge bg-success">
-                                                                    <i class="fas fa-check me-1"></i>
-                                                                    Convalidada
-                                                                </span>
-                                                            @elseif($convalidationStatus['type'] === 'free_elective')
-                                                                <span class="badge bg-info">
-                                                                    <i class="fas fa-star me-1"></i>
-                                                                    Libre Elección
-                                                                </span>
-                                                            @elseif($convalidationStatus['type'] === 'not_convalidated')
-                                                                <span class="badge bg-warning">
-                                                                    <i class="fas fa-plus-circle me-1"></i>
-                                                                    Materia Nueva
-                                                                </span>
-                                                            @endif
+                                                            <div class="d-flex flex-column gap-1">
+                                                                @if($convalidationStatus['type'] === 'direct')
+                                                                    <span class="badge bg-success">
+                                                                        <i class="fas fa-check me-1"></i>
+                                                                        Convalidada
+                                                                    </span>
+                                                                @elseif($convalidationStatus['type'] === 'flexible_component')
+                                                                    <span class="badge bg-info">
+                                                                        <i class="fas fa-layer-group me-1"></i>
+                                                                        Componente Electivo
+                                                                    </span>
+                                                                @elseif($convalidationStatus['type'] === 'not_convalidated')
+                                                                    <span class="badge bg-warning">
+                                                                        <i class="fas fa-plus-circle me-1"></i>
+                                                                        Materia Nueva
+                                                                    </span>
+                                                                @endif
+                                                                
+                                                                @if($componentType)
+                                                                    <span class="badge bg-{{ $componentColor }}">
+                                                                        {{ $componentLabel }}
+                                                                    </span>
+                                                                @endif
+                                                            </div>
                                                         @else
                                                             <span class="badge bg-warning">
                                                                 <i class="fas fa-clock me-1"></i>
@@ -222,28 +471,66 @@
                                                         @endif
                                                     </td>
                                                     <td>
-                                                        <div class="btn-group btn-group-sm" role="group">
-                                                            <button type="button" 
-                                                                    class="btn btn-outline-primary"
-                                                                    onclick="showConvalidationModal({{ $subject->id }})"
-                                                                    title="Configurar convalidación">
-                                                                <i class="fas fa-cog"></i>
-                                                            </button>
-                                                            <button type="button" 
-                                                                    class="btn btn-outline-info"
-                                                                    onclick="getSuggestions({{ $subject->id }})"
-                                                                    title="Ver sugerencias">
-                                                                <i class="fas fa-magic"></i>
-                                                            </button>
-                                                            @if($isConvalidated)
-                                                                <button type="button" 
-                                                                        class="btn btn-outline-danger"
-                                                                        onclick="removeConvalidation({{ $subject->convalidation->id }})"
-                                                                        title="Eliminar convalidación">
-                                                                    <i class="fas fa-trash"></i>
-                                                                </button>
+                                                        @if($isRemoved)
+                                                            <!-- Materias eliminadas: solo mostrar badge, no botones -->
+                                                            <div class="text-center">
+                                                                <span class="badge bg-danger">
+                                                                    <i class="fas fa-ban me-1"></i>
+                                                                    No convalidable
+                                                                </span>
+                                                                <small class="text-muted d-block mt-1" style="font-size: 0.7rem;">
+                                                                    Materia eliminada
+                                                                </small>
+                                                            </div>
+                                                        @else
+                                                            <!-- Materias activas: mostrar botones normales -->
+                                                            @if(!$externalCurriculum->pdf_report_path)
+                                                                <!-- Solo mostrar botones si NO está bloqueado -->
+                                                                <div class="btn-group-vertical btn-group-sm w-100" role="group">
+                                                                    <button type="button" 
+                                                                            class="btn btn-outline-primary convalidation-config-btn"
+                                                                            data-external-subject-id="{{ $subject->id }}"
+                                                                            @if($isConvalidated && $subject->convalidation)
+                                                                                data-convalidation-type="{{ $subject->convalidation->convalidation_type }}"
+                                                                                data-internal-subject-code="{{ $subject->convalidation->internal_subject_code ?? '' }}"
+                                                                                data-component-type="{{ $componentType }}"
+                                                                                data-notes="{{ $subject->convalidation->notes ?? '' }}"
+                                                                            @endif
+                                                                            title="Configurar convalidación 1 a 1 entre materias">
+                                                                        <i class="fas fa-cog me-1"></i>
+                                                                        Conv. Individual
+                                                                    </button>
+                                                                    <button type="button" 
+                                                                            class="btn btn-outline-success nn-group-config-btn"
+                                                                            data-external-subject-id="{{ $subject->id }}"
+                                                                            data-subject-name="{{ $subject->name }}"
+                                                                            data-subject-code="{{ $subject->code }}"
+                                                                            data-subject-credits="{{ $subject->credits }}"
+                                                                            data-change-type="{{ $subject->change_type ?? 'unchanged' }}"
+                                                                            title="Configurar grupo de convalidación múltiple (1 externa = múltiples internas)">
+                                                                        <i class="fas fa-layer-group me-1"></i>
+                                                                        Conv. Múltiple
+                                                                    </button>
+                                                                    @if($isConvalidated && $convalidationStatus['type'] !== 'nn_group')
+                                                                        {{-- Botón para eliminar convalidación individual (N:N se maneja por JavaScript) --}}
+                                                                        <button type="button" 
+                                                                                class="btn btn-outline-danger"
+                                                                                onclick="removeConvalidation({{ $subject->convalidation->id }})"
+                                                                                title="Eliminar convalidación individual">
+                                                                            <i class="fas fa-trash"></i>
+                                                                        </button>
+                                                                    @endif
+                                                                </div>
+                                                            @else
+                                                                <!-- Malla bloqueada: mostrar mensaje -->
+                                                                <div class="text-center">
+                                                                    <span class="badge bg-secondary">
+                                                                        <i class="fas fa-lock me-1"></i>
+                                                                        Bloqueado
+                                                                    </span>
+                                                                </div>
                                                             @endif
-                                                        </div>
+                                                        @endif
                                                     </td>
                                                 </tr>
                                             @endforeach
@@ -283,26 +570,47 @@
                         <div class="col-12">
                             <label class="form-label">Tipo de Convalidación</label>
                             <div class="form-check">
-                                <input class="form-check-input" type="radio" name="convalidation_type" id="type_direct" value="direct">
+                                <input class="form-check-input" type="radio" name="convalidation_type" id="type_direct" value="direct" checked>
                                 <label class="form-check-label" for="type_direct">
                                     <strong>Convalidación Directa</strong><br>
                                     <small class="text-muted">Equivale a una materia específica de nuestra malla curricular</small>
                                 </label>
                             </div>
                             <div class="form-check">
-                                <input class="form-check-input" type="radio" name="convalidation_type" id="type_free" value="free_elective">
-                                <label class="form-check-label" for="type_free">
-                                    <strong>Libre Elección</strong><br>
-                                    <small class="text-muted">Se reconoce como créditos electivos, sin equivalencia específica</small>
+                                <input class="form-check-input" type="radio" name="convalidation_type" id="type_flexible_component" value="flexible_component">
+                                <label class="form-check-label" for="type_flexible_component">
+                                    <strong>Componente Electivo (Optativa / Libre Elección)</strong><br>
+                                    <small class="text-muted">Esta materia cuenta como créditos de un componente electivo (optativas o libre elección), sin equivalencia específica</small>
                                 </label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="convalidation_type" id="type_not_convalidated" value="not_convalidated">
                                 <label class="form-check-label" for="type_not_convalidated">
-                                    <strong>Materia Nueva</strong><br>
-                                    <small class="text-muted">Esta es una materia nueva de la malla externa que el estudiante debe cursar</small>
+                                    <strong>Materia Nueva / No Convalidada</strong><br>
+                                    <small class="text-muted">Esta materia no tiene equivalencia y el estudiante debe cursarla como materia nueva</small>
                                 </label>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label for="component_type" class="form-label">
+                                Componente Académico <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select" id="component_type" name="component_type" required>
+                                <option value="">Seleccionar componente...</option>
+                                <option value="fundamental_required" data-component-category="required">Fundamental Obligatoria</option>
+                                <option value="professional_required" data-component-category="required">Profesional Obligatoria</option>
+                                <option value="optional_fundamental" data-component-category="elective">Optativa Fundamental</option>
+                                <option value="optional_professional" data-component-category="elective">Optativa Profesional</option>
+                                <option value="free_elective" data-component-category="elective">Libre Elección</option>
+                                <option value="thesis" data-component-category="required">Trabajo de Grado</option>
+                                <option value="leveling" data-component-category="required">Nivelación</option>
+                            </select>
+                            <small class="text-muted" id="component_type_hint">
+                                Indica el tipo de componente académico al que pertenece esta materia
+                            </small>
                         </div>
                     </div>
 
@@ -312,20 +620,38 @@
                             <select class="form-select" id="internal_subject_code" name="internal_subject_code">
                                 <option value="">Seleccionar materia...</option>
                                 @foreach($internalSubjects as $subject)
-                                    <option value="{{ $subject->code }}" data-semester="{{ $subject->semester }}" data-credits="{{ $subject->credits }}">
+                                    @php
+                                        // Get component type for filtering
+                                        $componentType = $subject->component;
+                                        // Determine if this is an elective component
+                                        $isElective = in_array($componentType, ['optional_fundamental', 'optional_professional', 'free_elective']);
+                                        $subjectCategory = $isElective ? 'elective' : 'required';
+                                    @endphp
+                                    <option value="{{ $subject->code }}" 
+                                            data-semester="{{ $subject->semester }}" 
+                                            data-credits="{{ $subject->credits }}"
+                                            data-component-type="{{ $componentType }}"
+                                            data-subject-category="{{ $subjectCategory }}">
                                         {{ $subject->name }} ({{ $subject->code }}) - Semestre {{ $subject->semester }}
                                     </option>
                                 @endforeach
                             </select>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-6">
-                            <label for="equivalence_percentage" class="form-label">Porcentaje de Equivalencia</label>
-                            <div class="input-group">
-                                <input type="number" class="form-control" id="equivalence_percentage" name="equivalence_percentage" value="100" min="0" max="100">
-                                <span class="input-group-text">%</span>
+                            
+                            <!-- Checkbox para crear nuevo código (solo para optativas/libres) -->
+                            <div class="form-check mt-3" id="create_new_code_container" style="display: none;">
+                                <input class="form-check-input" type="checkbox" id="create_new_code" name="create_new_code">
+                                <label class="form-check-label" for="create_new_code">
+                                    <strong>Crear nuevo código placeholder</strong><br>
+                                    <small class="text-muted">
+                                        Genera automáticamente un nuevo código único (ej: #LIBRE-02, #OPT-03) si no hay materias disponibles
+                                    </small>
+                                </label>
+                            </div>
+                            
+                            <!-- Mensaje cuando se activa el checkbox -->
+                            <div class="alert alert-info mt-3" id="new_code_message" style="display: none;">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Nuevo código:</strong> El sistema generará automáticamente el siguiente código disponible al guardar.
                             </div>
                         </div>
                     </div>
@@ -334,13 +660,6 @@
                         <div class="col-12">
                             <label for="notes" class="form-label">Notas Adicionales</label>
                             <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Observaciones sobre la convalidación..."></textarea>
-                        </div>
-                    </div>
-
-                    <div class="row" id="suggestions_container" style="display: none;">
-                        <div class="col-12">
-                            <h6>Sugerencias Automáticas:</h6>
-                            <div id="suggestions_list"></div>
                         </div>
                     </div>
                 </form>
@@ -355,264 +674,480 @@
         </div>
     </div>
 </div>
-@endsection
 
-@push('scripts')
-<script>
-let currentExternalSubjectId = null;
-
-function showConvalidationModal(externalSubjectId) {
-    currentExternalSubjectId = externalSubjectId;
-    
-    // Get subject info and show modal
-    const row = document.getElementById(`subject-row-${externalSubjectId}`);
-    const subjectCode = row.querySelector('code').textContent;
-    const subjectName = row.querySelector('h6').textContent;
-    const subjectCredits = row.querySelector('.badge').textContent;
-    
-    document.getElementById('external_subject_id').value = externalSubjectId;
-    document.getElementById('external_subject_info').innerHTML = 
-        `<strong>${subjectName}</strong> (${subjectCode}) - ${subjectCredits} créditos`;
-    
-    // Reset form
-    document.getElementById('convalidationForm').reset();
-    document.getElementById('external_subject_id').value = externalSubjectId;
-    document.getElementById('internal_subject_selection').style.display = 'none';
-    
-    const modal = new bootstrap.Modal(document.getElementById('convalidationModal'));
-    modal.show();
-}
-
-// Handle convalidation type change
-document.querySelectorAll('input[name="convalidation_type"]').forEach(radio => {
-    radio.addEventListener('change', function() {
-        const internalSubjectSelection = document.getElementById('internal_subject_selection');
-        if (this.value === 'direct') {
-            internalSubjectSelection.style.display = 'block';
-        } else {
-            internalSubjectSelection.style.display = 'none';
-        }
-    });
-});
-
-function saveConvalidation() {
-    const formData = new FormData(document.getElementById('convalidationForm'));
-    
-    // Store current active semester before making the request
-    const currentActiveSemester = getCurrentActiveSemester();
-    
-    fetch('{{ route("convalidation.store-convalidation") }}', {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Update the convalidation display
-            updateConvalidationDisplay(currentExternalSubjectId, data.convalidation);
-            
-            // Update statistics without page reload
-            if (data.stats) {
-                updateStatistics(data.stats);
-            }
-            
-            // Close modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('convalidationModal'));
-            modal.hide();
-            
-            // Restore active semester
-            restoreActiveSemester(currentActiveSemester);
-            
-            // Show success message
-            showAlert('success', 'Convalidación guardada exitosamente');
-        } else {
-            showAlert('danger', data.error || 'Error al guardar la convalidación');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', 'Error de conexión');
-    });
-}
-
-function getCurrentActiveSemester() {
-    // Find which semester tab is currently active
-    const activeTab = document.querySelector('.nav-link.active[data-bs-target^="#semester"]');
-    if (activeTab) {
-        const href = activeTab.getAttribute('data-bs-target');
-        return href.replace('#semester-', '');
-    }
-    return '1'; // Default to semester 1
-}
-
-function restoreActiveSemester(semesterNumber) {
-    // Restore the active semester tab
-    setTimeout(() => {
-        const targetTab = document.querySelector(`[data-bs-target="#semester-${semesterNumber}"]`);
-        if (targetTab) {
-            const tab = new bootstrap.Tab(targetTab);
-            tab.show();
-        }
-    }, 100);
-}
-
-function updateStatistics(stats) {
-    // Update convalidation progress
-    const progressBar = document.getElementById('convalidation-progress');
-    if (progressBar) {
-        progressBar.style.width = `${stats.completion_percentage}%`;
-        progressBar.textContent = `${stats.completion_percentage.toFixed(1)}%`;
-    }
-    
-    // Update counts
-    const directCount = document.getElementById('direct-count');
-    if (directCount) directCount.textContent = stats.direct_convalidations;
-    
-    const electiveCount = document.getElementById('elective-count');
-    if (electiveCount) electiveCount.textContent = stats.free_electives;
-    
-    const notConvalidatedCount = document.getElementById('not-convalidated-count');
-    if (notConvalidatedCount) notConvalidatedCount.textContent = stats.not_convalidated;
-    
-    const pendingCount = document.getElementById('pending-count');
-    if (pendingCount) pendingCount.textContent = stats.pending_subjects;
-    
-    // Update career completion stats
-    const careerPercentage = document.getElementById('career-percentage');
-    if (careerPercentage) careerPercentage.textContent = `${stats.career_completion_percentage.toFixed(1)}%`;
-    
-    const convalidatedCredits = document.getElementById('convalidated-credits');
-    if (convalidatedCredits) convalidatedCredits.textContent = stats.convalidated_credits.toFixed(1);
-    
-    const careerProgress = document.getElementById('career-progress');
-    if (careerProgress) careerProgress.style.width = `${stats.career_completion_percentage}%`;
-}
-
-function updateConvalidationDisplay(subjectId, convalidation) {
-    const displayElement = document.getElementById(`convalidation-display-${subjectId}`);
-    
-    if (convalidation.convalidation_type === 'direct') {
-        displayElement.innerHTML = `
-            <div class="d-flex align-items-center">
-                <i class="fas fa-arrow-right text-success me-2"></i>
-                <div>
-                    <small class="fw-bold text-success">${convalidation.internal_subject.name}</small><br>
-                    <small class="text-muted">${convalidation.internal_subject.code}</small>
+<!-- Bulk Convalidation Modal -->
+<div class="modal fade" id="bulkConvalidationModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-bolt me-2"></i>
+                    Convalidación Masiva Automática
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Explanation -->
+                <div class="alert alert-info">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-info-circle me-2"></i>
+                        ¿Cómo funciona la convalidación masiva?
+                    </h6>
+                    <p class="mb-2">El sistema comparará automáticamente las materias externas con las materias de nuestra base de datos usando dos criterios:</p>
+                    <ol class="mb-0">
+                        <li><strong>Por código exacto:</strong> Si el código de la materia externa coincide exactamente con una de nuestra malla</li>
+                        <li><strong>Por nombre similar:</strong> Si el nombre de la materia tiene una similitud alta (≥80%) con una de nuestra malla</li>
+                    </ol>
+                    <p class="mt-2 mb-0">
+                        <i class="fas fa-check-circle text-success me-1"></i>
+                        Además, el sistema asignará automáticamente el mismo <strong>componente académico</strong> que tiene la materia encontrada en nuestra base de datos.
+                    </p>
                 </div>
-            </div>
-        `;
-    } else if (convalidation.convalidation_type === 'free_elective') {
-        displayElement.innerHTML = `
-            <div class="d-flex align-items-center">
-                <i class="fas fa-star text-info me-2"></i>
-                <span class="fw-bold text-info">Libre Elección</span>
-            </div>
-        `;
-    } else if (convalidation.convalidation_type === 'not_convalidated') {
-        displayElement.innerHTML = `
-            <div class="d-flex align-items-center">
-                <i class="fas fa-plus-circle text-warning me-2"></i>
-                <span class="fw-bold text-warning">Materia Nueva</span>
-            </div>
-        `;
-    }
-    
-    // Update status badge
-    const statusElement = document.querySelector(`#subject-row-${subjectId} .badge`);
-    if (statusElement) {
-        if (convalidation.convalidation_type === 'direct') {
-            statusElement.className = 'badge bg-success';
-            statusElement.innerHTML = '<i class="fas fa-check me-1"></i>Convalidada';
-        } else if (convalidation.convalidation_type === 'free_elective') {
-            statusElement.className = 'badge bg-info';
-            statusElement.innerHTML = '<i class="fas fa-star me-1"></i>Libre Elección';
-        } else if (convalidation.convalidation_type === 'not_convalidated') {
-            statusElement.className = 'badge bg-warning';
-            statusElement.innerHTML = '<i class="fas fa-plus-circle me-1"></i>Materia Nueva';
-        }
-    }
-}
 
-function getSuggestions(externalSubjectId = null) {
-    const targetId = externalSubjectId || currentExternalSubjectId;
-    
-    fetch(`{{ route('convalidation.suggestions') }}?external_subject_id=${targetId}`)
-    .then(response => response.json())
-    .then(data => {
-        const container = document.getElementById('suggestions_container');
-        const list = document.getElementById('suggestions_list');
-        
-        if (data.suggestions && data.suggestions.length > 0) {
-            list.innerHTML = data.suggestions.map(suggestion => `
-                <div class="card mb-2">
-                    <div class="card-body py-2">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>${suggestion.subject.name}</strong>
-                                <small class="text-muted">(${suggestion.subject.code})</small>
-                                <div class="mt-1">
-                                    <span class="badge bg-info">${suggestion.match_percentage}% similitud</span>
-                                    <span class="badge bg-secondary">Semestre ${suggestion.subject.semester}</span>
+                <!-- Warning -->
+                <div class="alert alert-warning">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Advertencia Importante
+                    </h6>
+                    <p class="mb-2">
+                        <strong>Las convalidaciones automáticas pueden no ser 100% correctas.</strong> 
+                        El sistema hace su mejor esfuerzo, pero es importante que <strong>revises y verifiques</strong> cada convalidación después del proceso automático.
+                    </p>
+                    <ul class="mb-0">
+                        <li><strong>Materias optativas y de libre elección</strong> serán saltadas y deberán convalidarse manualmente</li>
+                        <li>La similitud de nombres puede generar <strong>falsos positivos</strong></li>
+                        <li>Siempre puedes usar el botón <strong>"Restablecer Convalidación"</strong> si necesitas empezar de nuevo</li>
+                    </ul>
+                </div>
+
+                <!-- Progress -->
+                <div id="bulk_progress" style="display: none;">
+                    <div class="progress mb-3" style="height: 25px;">
+                        <div id="bulk_progress_bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%">
+                            0%
+                        </div>
+                    </div>
+                    <p class="text-center text-muted" id="bulk_progress_text">Preparando...</p>
+                </div>
+
+                <!-- Results -->
+                <div id="bulk_results" style="display: none;">
+                    <h6 class="mb-3">Resultados de la Convalidación Masiva:</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="card bg-success text-white">
+                                <div class="card-body text-center">
+                                    <h2 id="success_count">0</h2>
+                                    <small>Convalidadas Exitosamente</small>
                                 </div>
                             </div>
-                            <button class="btn btn-sm btn-outline-primary" 
-                                    onclick="selectSuggestion('${suggestion.subject.code}')">
-                                Seleccionar
-                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body text-center">
+                                    <h2 id="skipped_count">0</h2>
+                                    <small>Sin Coincidencias</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-danger text-white">
+                                <div class="card-body text-center">
+                                    <h2 id="error_count">0</h2>
+                                    <small>Errores</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="width: 30%;">Materia Externa</th>
+                                    <th style="width: 30%;">Materia Convalidada</th>
+                                    <th style="width: 20%;">Componente</th>
+                                    <th style="width: 10%;">Método</th>
+                                    <th style="width: 10%;">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bulk_results_table">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" id="start_bulk_btn" onclick="startBulkConvalidation()">
+                    <i class="fas fa-play me-2"></i>
+                    Iniciar Convalidación Masiva
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reset Convalidations Confirmation Modal -->
+<div class="modal fade" id="resetConvalidationsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Confirmar Restablecimiento
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <strong>¡Atención!</strong> Esta acción no se puede deshacer.
+                </div>
+                <p class="mb-3">
+                    Estás a punto de <strong>eliminar todas las convalidaciones</strong> realizadas para esta malla curricular.
+                </p>
+                <p class="mb-0">
+                    Esto incluye:
+                </p>
+                <ul class="mb-3">
+                    <li>Todas las convalidaciones directas</li>
+                    <li>Todas las materias marcadas como "no convalidadas"</li>
+                    <li>Todas las asignaciones de componentes curriculares</li>
+                </ul>
+                <p class="text-muted mb-0">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Podrás volver a realizar las convalidaciones desde cero después de restablecer.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>
+                    Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="confirm_reset_btn" onclick="executeResetConvalidations()">
+                    <i class="fas fa-redo me-2"></i>
+                    Sí, Restablecer Todo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Impact Analysis Modal -->
+<div class="modal fade" id="impactAnalysisModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Análisis de Impacto a Estudiantes
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Description -->
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>¿Qué es esto?</strong> Este análisis simula cómo las convalidaciones configuradas 
+                    afectarían el progreso académico de los estudiantes al migrar del plan antiguo al nuevo plan de estudios.
+                </div>
+
+                <!-- Loading State -->
+                <div id="impact-analysis-loading" class="text-center py-5" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Analizando...</span>
+                    </div>
+                    <p class="mt-3 text-muted">Calculando impacto en estudiantes...</p>
+                </div>
+
+                <!-- Results Container -->
+                <div id="impact-analysis-results" style="display: none;">
+                    <!-- Summary Cards -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card border-success">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small">Créditos Convalidados</h6>
+                                    <h3 class="text-success mb-0" id="impact-convalidated-credits">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-danger">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small">Créditos Perdidos</h6>
+                                    <h3 class="text-danger mb-0" id="impact-lost-credits">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-warning">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small">Materias Nuevas</h6>
+                                    <h3 class="text-warning mb-0" id="impact-new-subjects">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-primary">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted small">Cambio Promedio (Absoluto)</h6>
+                                    <h3 class="text-primary mb-1" id="impact-progress-percentage">0%</h3>
+                                    <small class="text-muted" id="impact-progress-range" style="font-size: 0.75rem;">
+                                        Min: <span id="impact-min-change">0</span>% | Max: <span id="impact-max-change">0</span>%
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Credits by Component -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-layer-group me-2"></i>
+                                Créditos por Componente Académico
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Componente</th>
+                                            <th class="text-center">Créditos de Malla Original</th>
+                                            <th class="text-center">Créditos Convalidados</th>
+                                            <th class="text-center">Diferencia</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="impact-credits-by-component">
+                                        <!-- Populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Students Preview Table with Sorting -->
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas fa-users me-2"></i>
+                                Vista Previa de Estudiantes
+                            </h6>
+                            <small class="text-muted">Ordenar antes de exportar PDF</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-hover">
+                                    <thead class="sticky-top bg-white">
+                                        <tr>
+                                            <th>Documento</th>
+                                            <th class="text-center">
+                                                Progreso Original
+                                                <button class="btn btn-sm btn-link p-0 ms-1" onclick="sortStudentTable('original_progress')" title="Ordenar">
+                                                    <i class="fas fa-sort" id="sort-icon-original"></i>
+                                                </button>
+                                            </th>
+                                            <th class="text-center">
+                                                Progreso Nuevo
+                                                <button class="btn btn-sm btn-link p-0 ms-1" onclick="sortStudentTable('new_progress')" title="Ordenar">
+                                                    <i class="fas fa-sort" id="sort-icon-new"></i>
+                                                </button>
+                                            </th>
+                                            <th class="text-center">
+                                                Cambio
+                                                <button class="btn btn-sm btn-link p-0 ms-1" onclick="sortStudentTable('progress_change')" title="Ordenar">
+                                                    <i class="fas fa-sort" id="sort-icon-change"></i>
+                                                </button>
+                                            </th>
+                                            <th class="text-center">Convalidadas</th>
+                                            <th class="text-center">Nuevas</th>
+                                            <th class="text-center">Créditos</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="impact-students-preview">
+                                        <!-- Populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="text-muted small mt-2">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Haz clic en los iconos <i class="fas fa-sort"></i> para ordenar. El orden se aplicará al PDF.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Subject Mapping Table -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-exchange-alt me-2"></i>
+                                Mapeo Detallado de Convalidaciones
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Materia Externa (Importada/Nueva)</th>
+                                            <th class="text-center" style="width: 80px;"></th>
+                                            <th>Convalidación (Materia UNAL)</th>
+                                            <th class="text-center" style="width: 150px;">Componente</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="impact-subject-mapping">
+                                        <!-- Populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
-            `).join('');
-            container.style.display = 'block';
-        } else {
-            list.innerHTML = '<p class="text-muted">No se encontraron sugerencias automáticas</p>';
-            container.style.display = 'block';
+
+                <!-- Error State -->
+                <div id="impact-analysis-error" class="alert alert-danger" style="display: none;">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span id="impact-error-message"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>
+                    Cerrar
+                </button>
+                <button type="button" class="btn btn-danger" onclick="generateImpactPdfReportFromShow()" id="export-impact-pdf-btn" style="display: none;">
+                    <i class="fas fa-file-pdf me-2"></i>
+                    Generar Reporte PDF
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Completion Success Modal (shown when 100% completed from simulation) -->
+<div class="modal fade" id="completionSuccessModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-success">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-check-circle me-2"></i>
+                    ¡Convalidación Completada!
+                </h5>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div class="mb-3">
+                    <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
+                </div>
+                <h5 class="mb-3">Convalidación al 100%</h5>
+                <p class="text-muted mb-0">
+                    Has completado todas las convalidaciones necesarias.<br>
+                    <strong>Ya puedes guardar los cambios en la simulación.</strong>
+                </p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-outline-secondary" id="stayHereBtn" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>
+                    Permanecer aquí
+                </button>
+                <a href="/simulation" class="btn btn-success">
+                    <i class="fas fa-arrow-right me-2"></i>
+                    Ir a Simulación
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@endsection
+
+@push('scripts')
+    <script>
+        // Global variables for routes and CSRF token
+        window.convalidationRoutes = {
+            store: '{{ route("convalidation.store-convalidation") }}',
+            destroy: '{{ route("convalidation.destroy-convalidation", ":id") }}',
+            suggestions: '{{ route("convalidation.suggestions") }}',
+            export: '{{ route("convalidation.export", $externalCurriculum) }}',
+            bulkConvalidation: '{{ route("convalidation.bulk-convalidation") }}',
+            reset: '{{ route("convalidation.reset", $externalCurriculum) }}'
+        };
+        window.csrfToken = '{{ csrf_token() }}';
+        window.externalCurriculumId = {{ $externalCurriculum->id }};
+
+        // Reset convalidations functions
+        function confirmResetConvalidations() {
+            const modal = new bootstrap.Modal(document.getElementById('resetConvalidationsModal'));
+            modal.show();
         }
-    });
-}
 
-function selectSuggestion(subjectCode) {
-    document.getElementById('type_direct').checked = true;
-    document.getElementById('internal_subject_code').value = subjectCode;
-    document.getElementById('internal_subject_selection').style.display = 'block';
-}
+        function executeResetConvalidations() {
+            const btn = document.getElementById('confirm_reset_btn');
+            const originalHtml = btn.innerHTML;
+            
+            // Disable button and show loading
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Restableciendo...';
 
-function removeConvalidation(convalidationId) {
-    if (confirm('¿Está seguro de que desea eliminar esta convalidación?')) {
-        fetch(`/convalidation/convalidation/${convalidationId}`, {
-            method: 'DELETE',
-            headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                showAlert('danger', 'Error al eliminar la convalidación');
+            fetch(window.convalidationRoutes.reset, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': window.csrfToken,
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Hide modal
+                    bootstrap.Modal.getInstance(document.getElementById('resetConvalidationsModal')).hide();
+                    
+                    // Reload page directly without alert
+                    location.reload();
+                } else {
+                    throw new Error(data.error || 'Error desconocido');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al restablecer las convalidaciones: ' + error.message);
+                
+                // Restore button
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            });
+        }
+        
+        // Check if convalidation is complete and from simulation
+        document.addEventListener('DOMContentLoaded', function() {
+            const completionPercentage = {{ $stats['completion_percentage'] ?? 0 }};
+            const fromSimulation = {{ isset($metadata['source']) && $metadata['source'] === 'simulation' ? 'true' : 'false' }};
+            const hasShownModal = sessionStorage.getItem('completion_modal_shown_' + window.externalCurriculumId);
+            
+            console.log('Completion check:', {
+                percentage: completionPercentage,
+                fromSimulation: fromSimulation,
+                hasShownModal: hasShownModal
+            });
+            
+            // Show modal if 100% complete, from simulation, and not shown before
+            if (completionPercentage >= 100 && fromSimulation && !hasShownModal) {
+                const modal = new bootstrap.Modal(document.getElementById('completionSuccessModal'));
+                modal.show();
+                
+                // Mark as shown to prevent showing again
+                sessionStorage.setItem('completion_modal_shown_' + window.externalCurriculumId, 'true');
             }
         });
-    }
-}
-
-function showAlert(type, message) {
-    const alertHtml = `
-        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    `;
-    
-    // Insert at top of page
-    document.querySelector('.container-fluid').insertAdjacentHTML('afterbegin', alertHtml);
-}
-
-function exportReport() {
-    window.location.href = '{{ route("convalidation.export", $externalCurriculum) }}';
-}
-</script>
+    </script>
+    <script src="{{ asset('js/convalidation-show.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/convalidation-nn-groups.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/convalidation-visual-sync.js') }}?v={{ time() }}"></script>
 @endpush
+
