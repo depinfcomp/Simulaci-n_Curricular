@@ -2,6 +2,20 @@
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('css/convalidation-nn-groups.css') }}?v={{ time() }}">
+    <style>
+        /* Sort button styles */
+        .table thead button.btn-link {
+            color: #6c757d;
+            text-decoration: none;
+        }
+        .table thead button.btn-link:hover {
+            color: #0d6efd;
+        }
+        .table thead .sticky-top {
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
 @endpush
 
 @section('content')
@@ -22,13 +36,42 @@
                         <span class="ms-2">{{ $stats['completion_percentage'] }}% convalidado</span>
                     </p>
                 </div>
-                <div>
+                <div class="d-flex gap-2">
+                    @if($externalCurriculum->pdf_report_path)
+                        <a href="{{ route('convalidation.pdf.download', $externalCurriculum) }}" 
+                           class="btn btn-lg btn-success"
+                           target="_blank">
+                            <i class="fas fa-file-pdf me-2"></i>
+                            Descargar Reporte PDF
+                        </a>
+                    @endif
                     <a href="{{ route('convalidation.index') }}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left me-2"></i>
                         Volver
                     </a>
                 </div>
             </div>
+
+            @if($externalCurriculum->pdf_report_path)
+                <!-- Locked Curriculum Alert -->
+                <div class="alert alert-info border-info mb-4" role="alert">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-lock fa-2x me-3"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="alert-heading mb-1">
+                                <i class="fas fa-check-circle me-2"></i>
+                                Malla Curricular Guardada
+                            </h5>
+                            <p class="mb-0">
+                                Esta malla curricular ya ha sido guardada y bloqueada. No es posible modificar las convalidaciones.
+                                <strong>Puede descargar el reporte PDF usando el botón verde arriba.</strong>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            @endif
 
             <!-- Progress and Stats -->
             <div class="row mb-4">
@@ -179,22 +222,31 @@
                     <div class="card">
                         <div class="card-body">
                             <h6>Acciones Rápidas</h6>
-                            <div class="d-flex gap-2 flex-wrap">
-                                @if(isset($stats['completion_percentage']) && $stats['completion_percentage'] >= 100)
-                                    <button class="btn btn-info" onclick="showImpactAnalysisModal()">
-                                        <i class="fas fa-chart-line me-2"></i>
-                                        Análisis de Impacto a Estudiantes
+                            @if(!$externalCurriculum->pdf_report_path)
+                                <!-- Solo mostrar botones de acción si NO está bloqueado -->
+                                <div class="d-flex gap-2 flex-wrap">
+                                    @if(isset($stats['completion_percentage']) && $stats['completion_percentage'] >= 100)
+                                        <button class="btn btn-info" onclick="showImpactAnalysisModal()">
+                                            <i class="fas fa-chart-line me-2"></i>
+                                            Análisis de Impacto a Estudiantes
+                                        </button>
+                                    @endif
+                                    <button class="btn btn-primary" onclick="showBulkConvalidationModal()">
+                                        <i class="fas fa-bolt me-2"></i>
+                                        Convalidación Masiva Automática
                                     </button>
-                                @endif
-                                <button class="btn btn-primary" onclick="showBulkConvalidationModal()">
-                                    <i class="fas fa-bolt me-2"></i>
-                                    Convalidación Masiva Automática
-                                </button>
-                                <button class="btn btn-outline-danger" onclick="confirmResetConvalidations()">
-                                    <i class="fas fa-redo me-2"></i>
-                                    Restablecer Convalidación
-                                </button>
-                            </div>
+                                    <button class="btn btn-outline-danger" onclick="confirmResetConvalidations()">
+                                        <i class="fas fa-redo me-2"></i>
+                                        Restablecer Convalidación
+                                    </button>
+                                </div>
+                            @else
+                                <!-- Malla bloqueada: solo mostrar botón de análisis de impacto en modo lectura -->
+                                <div class="alert alert-warning mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    Las acciones de edición están bloqueadas. Esta malla ya ha sido guardada.
+                                </div>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -320,7 +372,7 @@
                                                         data-internal-credits="{{ $convalidationStatus['internal_subject']->credits }}"
                                                     @endif
                                                     @if($isConvalidated && $convalidationStatus['type'] === 'nn_group')
-                                                        data-group-name="{{ $convalidationStatus['group_name'] ?? 'Grupo N:N' }}"
+                                                        data-group-name="{{ $convalidationStatus['group_name'] ?? 'Convalidación Múltiple' }}"
                                                         data-equivalence-type="{{ $convalidationStatus['equivalence_type'] ?? 'all' }}"
                                                         data-internal-subjects="{{ json_encode($convalidationStatus['internal_subjects'] ?? []) }}"
                                                     @endif
@@ -432,49 +484,52 @@
                                                             </div>
                                                         @else
                                                             <!-- Materias activas: mostrar botones normales -->
-                                                            <div class="btn-group-vertical btn-group-sm w-100" role="group">
-                                                                <button type="button" 
-                                                                        class="btn btn-outline-primary convalidation-config-btn"
-                                                                        data-external-subject-id="{{ $subject->id }}"
-                                                                        @if($isConvalidated && $subject->convalidation)
-                                                                            data-convalidation-type="{{ $subject->convalidation->convalidation_type }}"
-                                                                            data-internal-subject-code="{{ $subject->convalidation->internal_subject_code ?? '' }}"
-                                                                            data-component-type="{{ $componentType }}"
-                                                                            data-notes="{{ $subject->convalidation->notes ?? '' }}"
-                                                                        @endif
-                                                                        title="Configurar convalidación 1:1">
-                                                                    <i class="fas fa-cog me-1"></i>
-                                                                    Conv. 1:1
-                                                                </button>
-                                                                <button type="button" 
-                                                                        class="btn btn-outline-success nn-group-config-btn"
-                                                                        data-external-subject-id="{{ $subject->id }}"
-                                                                        data-subject-name="{{ $subject->name }}"
-                                                                        data-subject-code="{{ $subject->code }}"
-                                                                        data-subject-credits="{{ $subject->credits }}"
-                                                                        data-change-type="{{ $subject->change_type ?? 'unchanged' }}"
-                                                                        title="Configurar grupo N:N (1 = múltiples)">
-                                                                    <i class="fas fa-layer-group me-1"></i>
-                                                                    Grupo N:N
-                                                                </button>
-                                                                @if($isConvalidated)
-                                                                    @if($convalidationStatus['type'] === 'nn_group' && $subject->convalidationGroup)
-                                                                        <button type="button" 
-                                                                                class="btn btn-outline-danger"
-                                                                                onclick="removeNNGroup({{ $subject->convalidationGroup->id }})"
-                                                                                title="Eliminar grupo N:N">
-                                                                            <i class="fas fa-trash"></i>
-                                                                        </button>
-                                                                    @elseif($subject->convalidation)
+                                                            @if(!$externalCurriculum->pdf_report_path)
+                                                                <!-- Solo mostrar botones si NO está bloqueado -->
+                                                                <div class="btn-group-vertical btn-group-sm w-100" role="group">
+                                                                    <button type="button" 
+                                                                            class="btn btn-outline-primary convalidation-config-btn"
+                                                                            data-external-subject-id="{{ $subject->id }}"
+                                                                            @if($isConvalidated && $subject->convalidation)
+                                                                                data-convalidation-type="{{ $subject->convalidation->convalidation_type }}"
+                                                                                data-internal-subject-code="{{ $subject->convalidation->internal_subject_code ?? '' }}"
+                                                                                data-component-type="{{ $componentType }}"
+                                                                                data-notes="{{ $subject->convalidation->notes ?? '' }}"
+                                                                            @endif
+                                                                            title="Configurar convalidación 1 a 1 entre materias">
+                                                                        <i class="fas fa-cog me-1"></i>
+                                                                        Conv. Individual
+                                                                    </button>
+                                                                    <button type="button" 
+                                                                            class="btn btn-outline-success nn-group-config-btn"
+                                                                            data-external-subject-id="{{ $subject->id }}"
+                                                                            data-subject-name="{{ $subject->name }}"
+                                                                            data-subject-code="{{ $subject->code }}"
+                                                                            data-subject-credits="{{ $subject->credits }}"
+                                                                            data-change-type="{{ $subject->change_type ?? 'unchanged' }}"
+                                                                            title="Configurar grupo de convalidación múltiple (1 externa = múltiples internas)">
+                                                                        <i class="fas fa-layer-group me-1"></i>
+                                                                        Conv. Múltiple
+                                                                    </button>
+                                                                    @if($isConvalidated && $convalidationStatus['type'] !== 'nn_group')
+                                                                        {{-- Botón para eliminar convalidación individual (N:N se maneja por JavaScript) --}}
                                                                         <button type="button" 
                                                                                 class="btn btn-outline-danger"
                                                                                 onclick="removeConvalidation({{ $subject->convalidation->id }})"
-                                                                                title="Eliminar convalidación">
+                                                                                title="Eliminar convalidación individual">
                                                                             <i class="fas fa-trash"></i>
                                                                         </button>
                                                                     @endif
-                                                                @endif
-                                                            </div>
+                                                                </div>
+                                                            @else
+                                                                <!-- Malla bloqueada: mostrar mensaje -->
+                                                                <div class="text-center">
+                                                                    <span class="badge bg-secondary">
+                                                                        <i class="fas fa-lock me-1"></i>
+                                                                        Bloqueado
+                                                                    </span>
+                                                                </div>
+                                                            @endif
                                                         @endif
                                                     </td>
                                                 </tr>
@@ -840,8 +895,11 @@
                         <div class="col-md-3">
                             <div class="card border-primary">
                                 <div class="card-body text-center">
-                                    <h6 class="text-muted small">Progreso Ajustado</h6>
-                                    <h3 class="text-primary mb-0" id="impact-progress-percentage">0%</h3>
+                                    <h6 class="text-muted small">Cambio Promedio (Absoluto)</h6>
+                                    <h3 class="text-primary mb-1" id="impact-progress-percentage">0%</h3>
+                                    <small class="text-muted" id="impact-progress-range" style="font-size: 0.75rem;">
+                                        Min: <span id="impact-min-change">0</span>% | Max: <span id="impact-max-change">0</span>%
+                                    </small>
                                 </div>
                             </div>
                         </div>
@@ -870,6 +928,56 @@
                                         <!-- Populated by JavaScript -->
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Students Preview Table with Sorting -->
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas fa-users me-2"></i>
+                                Vista Previa de Estudiantes
+                            </h6>
+                            <small class="text-muted">Ordenar antes de exportar PDF</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-hover">
+                                    <thead class="sticky-top bg-white">
+                                        <tr>
+                                            <th>Documento</th>
+                                            <th class="text-center">
+                                                Progreso Original
+                                                <button class="btn btn-sm btn-link p-0 ms-1" onclick="sortStudentTable('original_progress')" title="Ordenar">
+                                                    <i class="fas fa-sort" id="sort-icon-original"></i>
+                                                </button>
+                                            </th>
+                                            <th class="text-center">
+                                                Progreso Nuevo
+                                                <button class="btn btn-sm btn-link p-0 ms-1" onclick="sortStudentTable('new_progress')" title="Ordenar">
+                                                    <i class="fas fa-sort" id="sort-icon-new"></i>
+                                                </button>
+                                            </th>
+                                            <th class="text-center">
+                                                Cambio
+                                                <button class="btn btn-sm btn-link p-0 ms-1" onclick="sortStudentTable('progress_change')" title="Ordenar">
+                                                    <i class="fas fa-sort" id="sort-icon-change"></i>
+                                                </button>
+                                            </th>
+                                            <th class="text-center">Convalidadas</th>
+                                            <th class="text-center">Nuevas</th>
+                                            <th class="text-center">Créditos</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="impact-students-preview">
+                                        <!-- Populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="text-muted small mt-2">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Haz clic en los iconos <i class="fas fa-sort"></i> para ordenar. El orden se aplicará al PDF.
                             </div>
                         </div>
                     </div>
@@ -943,7 +1051,7 @@
                 </p>
             </div>
             <div class="modal-footer justify-content-center">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                <button type="button" class="btn btn-outline-secondary" id="stayHereBtn" data-bs-dismiss="modal">
                     <i class="fas fa-times me-2"></i>
                     Permanecer aquí
                 </button>
@@ -1008,7 +1116,7 @@
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('❌ Error al restablecer las convalidaciones: ' + error.message);
+                alert('Error al restablecer las convalidaciones: ' + error.message);
                 
                 // Restore button
                 btn.disabled = false;

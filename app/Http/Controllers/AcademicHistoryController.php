@@ -30,12 +30,20 @@ class AcademicHistoryController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(15);
 
+        // Calculate accurate statistics from imports
         $stats = [
             'total_imports' => AcademicHistoryImport::count(),
-            'total_records' => DB::table('student_subject')->count(), // Changed to count from student_subject
-            'unique_students' => DB::table('student_subject')->distinct('student_document')->count('student_document'),
+            
+            // Sum of all records imported across all imports
+            'total_records' => AcademicHistoryImport::sum('total_records'),
+            
+            // Count unique students from students table (most accurate)
+            'unique_students' => DB::table('students')->count(),
+            
+            // Average success rate from completed imports
             'avg_success_rate' => AcademicHistoryImport::where('status', 'completed')
-                ->avg(DB::raw('(successful_imports / NULLIF(total_records, 0)) * 100')) ?? 0
+                ->where('total_records', '>', 0)
+                ->avg(DB::raw('(successful_imports * 100.0 / total_records)')) ?? 0
         ];
 
         return view('academic-history.index', compact('imports', 'stats'));

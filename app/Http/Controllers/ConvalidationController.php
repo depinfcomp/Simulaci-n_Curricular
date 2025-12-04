@@ -99,6 +99,12 @@ class ConvalidationController extends Controller
      */
     public function show(ExternalCurriculum $externalCurriculum)
     {
+        // Check if curriculum is locked (has PDF report)
+        if ($externalCurriculum->pdf_report_path) {
+            return redirect()->route('convalidation.index')
+                ->with('warning', 'Esta malla curricular está bloqueada. No se pueden modificar las convalidaciones. Puede descargar el reporte PDF desde el listado.');
+        }
+        
         $externalCurriculum->load([
             'externalSubjects.convalidation.internalSubject',
             'externalSubjects.convalidationGroup.internalSubjects'
@@ -246,7 +252,7 @@ class ConvalidationController extends Controller
                 'notes' => null
             ]);
 
-            \Log::info("✅ Convalidación creada exitosamente", [
+            \Log::info("Convalidación creada exitosamente", [
                 'external_subject_id' => $externalSubject->id,
                 'convalidation_type' => $request->convalidation_type,
                 'component_type' => $request->component_type
@@ -267,7 +273,7 @@ class ConvalidationController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error("❌ Error al crear convalidación: " . $e->getMessage(), [
+            \Log::error("Error al crear convalidación: " . $e->getMessage(), [
                 'exception' => $e,
                 'trace' => $e->getTraceAsString()
             ]);
@@ -286,8 +292,7 @@ class ConvalidationController extends Controller
             $convalidation->delete();
 
             return response()->json([
-                'success' => true,
-                'message' => 'Convalidación eliminada exitosamente'
+                'success' => true
             ]);
 
         } catch (\Exception $e) {
@@ -387,6 +392,28 @@ class ConvalidationController extends Controller
     }
 
     /**
+     * Download the PDF report generated during simulation save
+     */
+    public function downloadPdfReport(ExternalCurriculum $externalCurriculum)
+    {
+        if (!$externalCurriculum->pdf_report_path) {
+            abort(404, 'No se ha generado un reporte PDF para esta malla curricular.');
+        }
+
+        $filePath = storage_path('app/' . $externalCurriculum->pdf_report_path);
+
+        if (!file_exists($filePath)) {
+            abort(404, 'El archivo PDF no se encuentra disponible.');
+        }
+
+        return response()->download(
+            $filePath,
+            'Reporte_' . str_replace(' ', '_', $externalCurriculum->name) . '.pdf',
+            ['Content-Type' => 'application/pdf']
+        );
+    }
+
+    /**
      * Delete an external curriculum and all its data.
      */
     public function destroy(ExternalCurriculum $externalCurriculum)
@@ -436,7 +463,7 @@ class ConvalidationController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Convalidación eliminada. Los cambios en simulación serán reseteados.',
+                'message' => 'Convalidación eliminada exitosamente.',
                 'reset_simulation' => true
             ]);
 
@@ -646,6 +673,8 @@ class ConvalidationController extends Controller
                 'students_with_reduced_progress' => 0,
                 'affected_percentage' => 0,
                 'average_progress_change' => 0,
+                'min_progress_change' => null,
+                'max_progress_change' => null,
                 'total_convalidated_subjects' => $directConvalidations->count() + $nnGroups->count(),
                 'direct_convalidations_count' => $directConvalidations->count(),
                 'nn_groups_count' => $nnGroups->count(),
@@ -681,6 +710,8 @@ class ConvalidationController extends Controller
             ];
 
             $totalProgressChange = 0;
+            $totalAbsoluteProgressChange = 0;
+            $progressChanges = [];
             $subjectImpactMap = [];
 
             foreach ($students as $student) {
@@ -713,6 +744,8 @@ class ConvalidationController extends Controller
                     }
 
                     $totalProgressChange += $impact['progress_change'] ?? 0;
+                    $totalAbsoluteProgressChange += abs($impact['progress_change'] ?? 0);
+                    $progressChanges[] = $impact['progress_change'] ?? 0;
                         
                     $results['student_details'][] = [
                         'student_id' => $student->id,
@@ -739,9 +772,16 @@ class ConvalidationController extends Controller
                 ? round(($results['affected_students'] / $results['total_students']) * 100, 1)
                 : 0;
 
+            // Calculate average progress change in ABSOLUTE VALUE
             $results['average_progress_change'] = $results['affected_students'] > 0 
-                ? round($totalProgressChange / $results['affected_students'], 1)
+                ? round($totalAbsoluteProgressChange / $results['affected_students'], 1)
                 : 0;
+
+            // Calculate min and max progress change
+            if (!empty($progressChanges)) {
+                $results['min_progress_change'] = round(min($progressChanges), 1);
+                $results['max_progress_change'] = round(max($progressChanges), 1);
+            }
 
             // Calculate convalidated credits by component - use the same method as the main view
             $results['convalidated_credits_by_component'] = $externalCurriculum->getCreditsByComponent();
@@ -2021,7 +2061,7 @@ class ConvalidationController extends Controller
                     
                     // DEBUG: Log what was actually saved
                     if ($changeType === 'removed' || $changeType === 'added') {
-                        \Log::info("✅ Saved subject with change_type:", [
+                        \Log::info("Saved subject with change_type:", [
                             'code' => $subjectCode,
                             'change_type_variable' => $changeType,
                             'change_type_saved' => ($changeType !== 'unchanged' ? $changeType : null)
@@ -3293,6 +3333,68 @@ class ConvalidationController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener las materias internas: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete multiple external curriculums by their IDs
+     * Used when resetting simulation to clean up convalidations
+     */
+    public function deleteMultipleConvalidations(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'curriculum_ids' => 'required|array',
+                'curriculum_ids.*' => 'required|integer|exists:external_curriculums,id'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Datos de validación incorrectos',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $curriculumIds = $request->input('curriculum_ids');
+            $deletedCount = 0;
+
+            DB::beginTransaction();
+
+            foreach ($curriculumIds as $curriculumId) {
+                $curriculum = ExternalCurriculum::find($curriculumId);
+                
+                if ($curriculum) {
+                    // Delete related data using proper relationship names
+                    $curriculum->externalSubjects()->delete();
+                    $curriculum->convalidations()->delete();
+                    $curriculum->convalidationGroups()->delete();
+                    
+                    // Delete the curriculum itself
+                    $curriculum->delete();
+                    $deletedCount++;
+                    
+                    \Log::info("Deleted external curriculum: {$curriculumId}");
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$deletedCount} convalidación(es) eliminada(s) exitosamente",
+                'deleted_count' => $deletedCount
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error deleting multiple convalidations: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar las convalidaciones: ' . $e->getMessage()
             ], 500);
         }
     }

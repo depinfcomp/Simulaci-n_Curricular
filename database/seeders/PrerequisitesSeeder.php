@@ -9,7 +9,16 @@ use Illuminate\Support\Facades\DB;
 class PrerequisitesSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Seeds the subject_prerequisites table with prerequisite relationships for the UNAL Systems
+     * Engineering curriculum. This defines which subjects must be completed before a student can
+     * enroll in other subjects.
+     * 
+     * Prerequisites are organized by semester to follow the curriculum sequence. Empty arrays []
+     * indicate subjects with no prerequisites. Some advanced subjects like thesis and internship
+     * have special prerequisites handled by business logic (e.g., 70-80% curriculum completion).
+     * 
+     * The seeder uses updateOrInsert to safely handle re-seeding without creating duplicates.
+     * All existing prerequisites are cleared at the start to ensure a clean state.
      */
     public function run(): void
     {

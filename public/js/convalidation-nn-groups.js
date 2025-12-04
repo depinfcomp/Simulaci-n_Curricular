@@ -27,7 +27,7 @@ function initializeNNGroups() {
     // Load groups from backend
     loadExistingGroups();
     
-    // Attach event listeners to "Configurar Grupo N:N" buttons
+    // Attach event listeners to "Configurar Convalidación Múltiple" buttons
     attachNNGroupButtons();
 }
 
@@ -74,7 +74,7 @@ function updateGroupIndicators() {
                     <div class="d-flex align-items-center">
                         <i class="fas fa-layer-group text-primary me-2"></i>
                         <div>
-                            <small class="fw-bold text-primary">Grupo N:N</small><br>
+                            <small class="fw-bold text-primary">Conv. Múltiple</small><br>
                             <small class="text-muted">${internalCount} materia(s) equivalente(s)</small>
                         </div>
                     </div>
@@ -120,7 +120,7 @@ function updateGroupIndicators() {
                         deleteBtn.type = 'button';
                         deleteBtn.className = 'btn btn-outline-danger btn-sm nn-group-delete-btn';
                         deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-                        deleteBtn.title = 'Eliminar grupo N:N';
+                        deleteBtn.title = 'Eliminar convalidación múltiple';
                         deleteBtn.onclick = function(e) {
                             e.stopPropagation();
                             showDeleteConfirmModal(group.id);
@@ -281,7 +281,7 @@ function showNNGroupModal() {
                     <div class="modal-header bg-primary text-white">
                         <h5 class="modal-title">
                             <i class="fas fa-layer-group me-2"></i>
-                            Configurar Grupo N:N de Convalidación
+                            Configurar Convalidación Múltiple
                         </h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
@@ -747,17 +747,17 @@ async function saveNNGroup(groupId) {
     
     // Validation
     if (internalSubjects.length === 0) {
-        alert('⚠️ Debes seleccionar al menos una materia equivalente');
+        alert('Debes seleccionar al menos una materia equivalente');
         return;
     }
     
     if (!componentType) {
-        alert('⚠️ Debes seleccionar un componente curricular');
+        alert('Debes seleccionar un componente curricular');
         return;
     }
     
     if (equivalenceType === 'credits' && (creditsThreshold < 1 || creditsThreshold > 100)) {
-        alert('⚠️ El porcentaje de créditos debe estar entre 1 y 100');
+        alert('El porcentaje de créditos debe estar entre 1 y 100');
         return;
     }
     
@@ -768,7 +768,7 @@ async function saveNNGroup(groupId) {
         external_curriculum_id: window.externalCurriculumId,
         external_subject_id: externalSubjectId,
         group_name: groupName,
-        description: notes || `Grupo N:N para ${externalSubjectName}`,
+        description: notes || `Convalidación múltiple para ${externalSubjectName}`,
         equivalence_type: equivalenceType,
         equivalence_percentage: creditsThreshold,
         component_type: componentType,
@@ -827,7 +827,7 @@ async function saveNNGroup(groupId) {
         }
     } catch (error) {
         console.error('Error saving N:N group:', error);
-        alert('❌ ' + error.message);
+        alert('' + error.message);
         
         // Restore button
         btn.disabled = false;
@@ -856,7 +856,7 @@ function showDeleteConfirmModal(groupId) {
                     </div>
                     <div class="modal-body">
                         <p class="mb-3">
-                            ¿Estás seguro de que deseas eliminar el grupo N:N?
+                            ¿Estás seguro de que deseas eliminar la convalidación múltiple?
                         </p>
                         <div class="alert alert-warning">
                             <i class="fas fa-info-circle me-2"></i>
@@ -964,7 +964,7 @@ async function deleteNNGroup(groupId) {
                         const editBtn = btnGroup ? btnGroup.querySelector('.nn-group-config-btn') : null;
                         
                         if (editBtn) {
-                            editBtn.innerHTML = '<i class="fas fa-layer-group me-1"></i>Grupo N:N';
+                            editBtn.innerHTML = '<i class="fas fa-layer-group me-1"></i>Conv. Múltiple';
                             editBtn.classList.remove('btn-outline-primary');
                             editBtn.classList.add('btn-outline-success');
                         }
@@ -992,7 +992,7 @@ async function deleteNNGroup(groupId) {
         }
     } catch (error) {
         console.error('Error deleting N:N group:', error);
-        alert('❌ Error al eliminar el grupo: ' + error.message);
+        alert('Error al eliminar el grupo: ' + error.message);
     }
 }
 

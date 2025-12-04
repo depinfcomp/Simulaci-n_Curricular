@@ -191,28 +191,6 @@
             color: #383d41;
         }
         
-        .print-button {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background-color: #e74c3c;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            font-size: 12pt;
-            border-radius: 6px;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: all 0.3s;
-            z-index: 1000;
-        }
-        
-        .print-button:hover {
-            background-color: #c0392b;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
-        }
-        
         .summary-box {
             background-color: #f8f9fa;
             border-left: 4px solid #3498db;
@@ -234,11 +212,6 @@
     </style>
 </head>
 <body>
-    <!-- Print Button (hidden in print) -->
-    <button class="print-button no-print" onclick="window.print()">
-        Generar PDF (Ctrl+P)
-    </button>
-    
     <!-- Header -->
     <div class="header">
         <h1>Análisis de Impacto en Estudiantes</h1>
@@ -263,8 +236,12 @@
             </div>
             
             <div class="info-card {{ ($results['average_progress_change'] ?? 0) >= 0 ? 'success' : 'danger' }}">
-                <span class="value">{{ ($results['average_progress_change'] ?? 0) > 0 ? '+' : '' }}{{ number_format($results['average_progress_change'] ?? 0, 1) }}%</span>
-                <span class="label">Cambio Promedio</span>
+                <span class="value">{{ number_format($results['average_progress_change'] ?? 0, 1) }}%</span>
+                <span class="label">Cambio Promedio (Absoluto)</span>
+                <small style="font-size: 10px; color: #7f8c8d; display: block; margin-top: 3px;">
+                    Min: {{ number_format($results['min_progress_change'] ?? 0, 1) }}% | 
+                    Max: {{ number_format($results['max_progress_change'] ?? 0, 1) }}%
+                </small>
             </div>
             
             <div class="info-card {{ ($results['affected_percentage'] ?? 0) > 50 ? 'danger' : 'success' }}">
@@ -470,17 +447,14 @@
         
         <div class="summary-box">
             <h3>Interpretación de Resultados</h3>
-            <p><strong>Progreso Ajustado Promedio:</strong> 
-                @if(($results['average_progress_change'] ?? 0) > 0)
-                    <span style="color: #27ae60;">+{{ number_format($results['average_progress_change'], 1) }}%</span> 
-                    - Los estudiantes en promedio mejoran su progreso académico con la nueva malla.
-                @elseif(($results['average_progress_change'] ?? 0) < 0)
-                    <span style="color: #e74c3c;">{{ number_format($results['average_progress_change'], 1) }}%</span> 
-                    - Los estudiantes en promedio pierden progreso académico con la nueva malla.
-                @else
-                    <span style="color: #95a5a6;">0%</span> 
-                    - La nueva malla no afecta significativamente el progreso promedio.
-                @endif
+            <p><strong>Variación Promedio del Progreso (Valor Absoluto):</strong> 
+                <span style="color: #3498db;">{{ number_format($results['average_progress_change'], 1) }}%</span> 
+                - En promedio, el progreso de los estudiantes varía en esta magnitud con la nueva malla.
+            </p>
+            
+            <p><strong>Rango de Variación:</strong>
+                Mínimo: <span style="color: {{ ($results['min_progress_change'] ?? 0) < 0 ? '#e74c3c' : '#27ae60' }};">{{ number_format($results['min_progress_change'] ?? 0, 1) }}%</span> | 
+                Máximo: <span style="color: {{ ($results['max_progress_change'] ?? 0) < 0 ? '#e74c3c' : '#27ae60' }};">{{ number_format($results['max_progress_change'] ?? 0, 1) }}%</span>
             </p>
             
             <p><strong>Impacto General:</strong>
@@ -496,12 +470,12 @@
             </p>
             
             <p><strong>Recomendación:</strong>
-                @if(($results['average_progress_change'] ?? 0) > 0 && ($results['affected_percentage'] ?? 0) > 50)
-                    La nueva malla parece beneficiosa para la mayoría de estudiantes. Se recomienda su implementación.
-                @elseif(($results['average_progress_change'] ?? 0) < 0 && ($results['affected_percentage'] ?? 0) > 50)
-                    La nueva malla perjudica a la mayoría de estudiantes. Se recomienda revisar las convalidaciones antes de implementar.
+                @if(($results['average_progress_change'] ?? 0) < 5 && ($results['affected_percentage'] ?? 0) < 50)
+                    El impacto es bajo y homogéneo. La nueva malla puede implementarse con ajustes menores.
+                @elseif(($results['average_progress_change'] ?? 0) > 15 || ($results['affected_percentage'] ?? 0) > 75)
+                    El impacto es significativo. Se recomienda revisar casos individuales y ajustar convalidaciones.
                 @else
-                    El impacto es mixto. Se recomienda analizar casos individuales antes de tomar una decisión.
+                    El impacto es moderado. Se recomienda evaluar casos específicos antes de la implementación final.
                 @endif
             </p>
         </div>
@@ -650,7 +624,7 @@
         </table>
         
         <div style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107; font-size: 9pt;">
-            <strong>⚠️ Balance de Créditos:</strong><br>
+            <strong>Balance de Créditos:</strong><br>
             • <span style="color: green; font-weight: bold;">Balance positivo (+)</span>: El estudiante gana créditos al migrar (la materia nueva vale más que las viejas)<br>
             • <span style="color: red; font-weight: bold;">Balance negativo (-)</span>: El estudiante pierde créditos al migrar (las materias viejas valían más que la nueva)<br>
             • El análisis de impacto calcula el <strong>balance neto</strong> para determinar el avance real del estudiante

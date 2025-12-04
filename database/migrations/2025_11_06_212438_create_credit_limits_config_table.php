@@ -7,49 +7,51 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Run the migrations.
+     * Creates the credit_limits_config table which defines maximum credit limits for each curricular
+     * component. These limits control credit distribution and overflow behavior when students exceed
+     * component limits. Can be configured globally or per external curriculum.
      */
     public function up(): void
     {
         Schema::create('credit_limits_config', function (Blueprint $table) {
-            $table->id();
+            $table->id()->comment('Unique identifier for this credit limit configuration');
             $table->foreignId('external_curriculum_id')
                   ->nullable()
                   ->constrained('external_curriculums')
                   ->onDelete('cascade')
-                  ->comment('Related external curriculum (null for global defaults)');
+                  ->comment('Foreign key to external_curriculums table (null indicates global default configuration that applies to all curricula without specific settings)');
             
-            // Límites de créditos por componente curricular (todos obligatorios)
+            // Credit limits for each curricular component (all values are required and must be positive integers)
             $table->integer('max_free_elective_credits')
-                  ->comment('Máximo de créditos de libre elección');
+                  ->comment('Maximum number of free elective credits allowed (excess credits beyond all component limits are lost)');
             
             $table->integer('max_optional_professional_credits')
-                  ->comment('Máximo de créditos del componente disciplinar optativo');
+                  ->comment('Maximum number of optional professional/disciplinary credits allowed (overflow redirects to free elective if available)');
             
             $table->integer('max_required_fundamental_credits')
-                  ->comment('Máximo de créditos del componente fundamental obligatorio');
+                  ->comment('Maximum number of required fundamental credits allowed (typically matches curriculum requirements exactly)');
             
             $table->integer('max_optional_fundamental_credits')
-                  ->comment('Máximo de créditos del componente fundamental optativo');
+                  ->comment('Maximum number of optional fundamental credits allowed (overflow redirects to free elective if available)');
             
             $table->integer('max_required_professional_credits')
-                  ->comment('Máximo de créditos del componente disciplinar obligatorio');
+                  ->comment('Maximum number of required professional/disciplinary credits allowed (typically matches curriculum requirements exactly)');
             
             $table->integer('max_leveling_credits')
-                  ->comment('Máximo de créditos del componente de nivelación');
+                  ->comment('Maximum number of leveling credits allowed (remedial courses taken before or alongside regular curriculum)');
             
             $table->integer('max_thesis_credits')
-                  ->comment('Máximo de créditos del componente de trabajo de grado');
+                  ->comment('Maximum number of thesis/capstone project credits allowed (typically fixed by curriculum at 18-20 credits)');
             
             $table->timestamps();
             
-            // Índice único para evitar duplicados por curriculum
-            $table->unique('external_curriculum_id');
+            // Unique constraint ensures only one configuration per curriculum (or one global default)
+            $table->unique('external_curriculum_id')->comment('Ensures each external curriculum has at most one credit limit configuration');
         });
     }
 
     /**
-     * Reverse the migrations.
+     * Drops the credit_limits_config table.
      */
     public function down(): void
     {

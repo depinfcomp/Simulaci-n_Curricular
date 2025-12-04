@@ -8,7 +8,25 @@ use Illuminate\Support\Facades\DB;
 class SubjectSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Seeds the subjects table with the complete UNAL Systems Engineering curriculum (Administración
+     * de Sistemas Informáticos program). This includes all required and placeholder subjects across
+     * 10 semesters, organized by curricular components.
+     * 
+     * Subject types and their visual colors in the UI:
+     * - 'fundamental': Fundamental required subjects (orange color)
+     * - 'profesional': Professional/disciplinary required subjects (green color)
+     * - 'optativa_profesional': Optional professional subjects (green color)
+     * - 'optativa_fundamentacion': Optional fundamental subjects (orange color)
+     * - 'nivelacion': Leveling or foreign language subjects (pink/rose color)
+     * - 'libre_eleccion': Free elective credits (blue color)
+     * - 'trabajo_grado': Thesis/capstone project (green color)
+     * 
+     * Special subject codes:
+     * - Codes starting with '#' are placeholders (e.g., '#LIBRE-01', '#OPTFUN-01', '#OPTDIS-01')
+     * - These represent elective slots that students fill with specific subjects
+     * 
+     * Total curriculum: 166 credits distributed across fundamental, professional, elective, 
+     * leveling, and thesis components.
      */
     public function run(): void
     {

@@ -17,7 +17,7 @@ function deleteCurriculum(curriculumId, metadata = null) {
         deleteForm.action = `/convalidation/${curriculumId}/reset-simulation`;
         deleteModalBody.innerHTML = `
             ¿Estás seguro de eliminar esta malla externa?<br>
-            <strong class="text-warning">⚠️ Esta acción también reseteará los cambios en la simulación.</strong>
+            <strong class="text-warning">Esta acción también reseteará los cambios en la simulación.</strong>
         `;
         
         // Override form submission to handle AJAX
@@ -51,14 +51,13 @@ async function deleteConvalidationAndResetSimulation(curriculumId) {
         if (data.success) {
             // Clear simulation localStorage
             localStorage.removeItem('simulation_temporary_changes');
-            console.log('✅ localStorage cleared');
+            console.log('localStorage cleared');
             
             // Close modal and reload page
             const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
             modal.hide();
             
-            // Show success message and reload
-            alert(data.message || 'Convalidación eliminada y cambios de simulación reseteados');
+            // Reload page
             window.location.reload();
         } else {
             alert('Error: ' + (data.error || 'No se pudo eliminar la convalidación'));
@@ -215,7 +214,7 @@ function loadCurriculumTotalCredits(curriculumId) {
     const csrfToken = document.querySelector('meta[name="csrf-token"]');
     if (!csrfToken) {
         console.error('[loadCurriculumTotalCredits] CSRF token not found');
-        creditsElement.innerHTML = '<span class="text-danger">❌ Token no encontrado</span>';
+        creditsElement.innerHTML = '<span class="text-danger">Token no encontrado</span>';
         return;
     }
     
@@ -248,7 +247,7 @@ function loadCurriculumTotalCredits(curriculumId) {
     })
     .then(data => {
         const totalTime = performance.now() - startTime;
-        console.log('[loadCurriculumTotalCredits] ✅ Data received:', data);
+        console.log('[loadCurriculumTotalCredits] Data received:', data);
         console.log('[loadCurriculumTotalCredits] Total time:', totalTime.toFixed(2), 'ms');
         
         if (data.success) {
@@ -256,19 +255,19 @@ function loadCurriculumTotalCredits(curriculumId) {
                               (data.total_subjects ? ` <small class="text-muted">(${data.total_subjects} materias)</small>` : '') +
                               (data.duration_ms ? ` <small class="text-muted">[${data.duration_ms}ms]</small>` : '');
             creditsElement.innerHTML = displayText;
-            console.log('[loadCurriculumTotalCredits] ✅ Display updated successfully');
+            console.log('[loadCurriculumTotalCredits] Display updated successfully');
         } else {
             console.error('[loadCurriculumTotalCredits] Response success=false:', data);
-            creditsElement.innerHTML = '<span class="text-danger">❌ Error al calcular</span>';
+            creditsElement.innerHTML = '<span class="text-danger">Error al calcular</span>';
         }
     })
     .catch(error => {
         const totalTime = performance.now() - startTime;
-        console.error('[loadCurriculumTotalCredits] ❌ Error:', error);
+        console.error('[loadCurriculumTotalCredits] Error:', error);
         console.error('[loadCurriculumTotalCredits] Error type:', error.constructor.name);
         console.error('[loadCurriculumTotalCredits] Error message:', error.message);
         console.error('[loadCurriculumTotalCredits] Failed after:', totalTime.toFixed(2), 'ms');
-        creditsElement.innerHTML = `<span class="text-danger">❌ Error: ${error.message}</span>`;
+        creditsElement.innerHTML = `<span class="text-danger">Error: ${error.message}</span>`;
     });
 }
 
@@ -504,7 +503,7 @@ function generateSummaryTab(results) {
                     componentBreakdown += `
                         <div class="mb-2">
                             <div class="d-flex justify-content-between">
-                                <small>❌ Excedentes:</small>
+                                <small>Excedentes:</small>
                                 <span class="badge bg-secondary">${excess} créditos</span>
                             </div>
                         </div>

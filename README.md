@@ -1,360 +1,199 @@
-# Docker Setup for Simulación Curricular
+# Sistema de Convalidaciones Curriculares
 
-This document explains how to set up and run the Simulación Curricular project using Docker with separated services.
+Sistema web integral de convalidaciones curriculares que automatice el mapeo, análisis y gestión de equivalencias entre mallas curriculares externas o nuevas y la malla base del programa de Administración de Sistemas Informáticos, con el fin de optimizar los tiempos de procesamiento y garantizar la consistencia en los criterios de convalidación. Desarrollado con Laravel 12, PHP 8.2+ y PostgreSQL 15.
 
-## Prerequisites
 
-- Docker
-- Docker Compose
-- Git
+---
 
-## Architecture
+## Documentación
 
-The project uses a multi-container setup:
-- **app**: PHP 8.3-FPM with auto-initialization
-- **web**: Nginx web server
-- **db**: PostgreSQL 15 database
+Toda la documentación técnica y manuales se encuentran en la carpeta `/documentation`:
 
-## Quick Start
+- **[Manual de Usuario](documentation/Manual%20del%20usuario_%20Sistema%20de%20Convalidaciones%20Curriculares.pdf)**: Guía completa para usuarios finales
+- **[Documento de Ingeniería de Software](documentation/Ingeniería%20de%20Software_%20Sistema%20de%20Convalidaciones%20Curriculares.pdf)**: Especificaciones técnicas del sistema
+- **[Arquitectura del Sistema](documentation/ARQUITECTURA_SISTEMA.md)**: Diagramas completos de arquitectura con Mermaid
+- **[Diagrama Entidad-Relación](documentation/DIAGRAMA_ENTIDAD_RELACION.md)**: Modelo de datos completo (25 tablas)
 
-1. **Clone the repository** (if not already done):
-   ```bash
-   git clone <repository-url>
-   cd Simulaci-n_Curricular
-   ```
+---
 
-2. **Set up environment variables**:
-   ```bash
-   # Copy and edit the environment file
-   cp .env.example .env
-   
-   # Edit the .env file with your database credentials
-   nano .env
-   ```
+## Despliegue con Docker
 
-3. **Start the application**:
-   ```bash
-   # Make the script executable
-   chmod +x docker.sh
-   
-   # Run the initial setup
-   ./docker.sh setup
-   ```
+### Requisitos Previos
 
-   This will:
-   - Build the Docker containers
-   - Install PHP dependencies automatically
-   - Generate application key
-   - Run database migrations
-   - Seed the database with initial data
+- **Docker** (versión 20.10 o superior)
+- **Docker Compose** (versión 2.0 o superior)
+- **Git**
 
-4. **Access the application**:
-   - Application: http://localhost:8080
-   - Database: localhost:5432
+### Instalación Rápida
 
-## Docker Services
-
-### App Container
-- **Image**: Custom PHP 8.3-FPM
-- **Features**: 
-  - Auto-installs Composer dependencies
-  - Auto-generates Laravel key
-  - Installs Laravel Breeze for authentication
-  - Installs Pest for testing
-  - Builds NPM assets automatically
-
-### Web Container
-- **Image**: Nginx Alpine
-- **Port**: 8080
-- **Function**: Serves the Laravel application
-
-### Database Container
-- **Image**: PostgreSQL 15
-- **Port**: 5432
-- **Persistence**: Data stored in Docker volume
-
-## Available Commands
-
-The `docker.sh` script provides convenient commands:
+#### 1. Clonar el Repositorio
 
 ```bash
-# Initial setup
-./docker.sh setup
-
-# Start containers
-./docker.sh start
-
-# Stop containers
-./docker.sh stop
-
-# Restart containers
-./docker.sh restart
-
-# View logs (all services or specific service)
-./docker.sh logs
-./docker.sh logs app
-
-# Access app container shell
-./docker.sh shell
-
-# Access database shell
-./docker.sh db-shell
-
-# Run Laravel artisan commands
-./docker.sh artisan migrate
-./docker.sh artisan db:seed
-
-# Run composer commands
-./docker.sh composer install
-./docker.sh composer update
-
-# Run npm commands
-./docker.sh npm install
-./docker.sh npm run dev
-
-# Show help
-./docker.sh help
+git clone https://github.com/DmejiariUnal8313/Simulaci-n_Curricular.git
+cd Simulaci-n_Curricular
 ```
 
-## Environment Variables
+#### 2. Configurar Variables de Entorno
 
-### Required Environment Variables
+```bash
+# Copiar el archivo de ejemplo
+cp .env.example .env
 
-Create a `.env` file based on `.env.example` and set:
+# Editar las credenciales de base de datos
+nano .env
+```
+
+**Configuración mínima requerida en `.env`:**
 
 ```env
-# Database Configuration
+# Base de Datos
 DB_CONNECTION=pgsql
 DB_HOST=db
 DB_PORT=5432
 DB_DATABASE=simulacion_curricular
 DB_USERNAME=postgres
-DB_PASSWORD=your_secure_password_here
+DB_PASSWORD=TuPasswordSegura123
 
-# Application
-APP_KEY=your_app_key_here
+# Aplicación
+APP_NAME="Sistema de Convalidaciones"
 APP_URL=http://localhost:8080
 ```
 
-## Auto-Initialization Features
-
-The app container includes an entrypoint script that automatically:
-
-1. **Installs Dependencies**: Runs `composer install` if vendor directory is missing
-2. **Environment Setup**: Copies `.env.example` to `.env` if missing
-3. **Key Generation**: Generates Laravel application key
-4. **Laravel Breeze**: Installs authentication scaffolding
-5. **Pest Testing**: Installs Pest testing framework
-6. **Asset Building**: Runs `npm install` and `npm run build`
-7. **Database Migrations**: Runs migrations when database is ready
-8. **Permissions**: Sets proper file permissions
-
-## Database Initialization
-
-The `docker/init_db.sh` script provides additional database setup:
+#### 3. Dar Permisos al Script
 
 ```bash
-# Initialize database with seeding
-./docker/init_db.sh --seed
-
-# Check database status
-./docker/init_db.sh
+chmod +x docker.sh
 ```
 
-## Development Workflow
-
-1. **Start development environment**:
-   ```bash
-   ./docker.sh start
-   ```
-
-2. **Make changes** to your code (files are automatically synced)
-
-3. **Run migrations** when needed:
-   ```bash
-   ./docker.sh artisan migrate
-   ```
-
-4. **Install Excel package for convalidations** (if not auto-installed):
-   ```bash
-   ./docker.sh composer require maatwebsite/excel
-   ```
-
-5. **Access the convalidation system**:
-   ```bash
-   # Navigate to http://localhost:8080/convalidation
-   # Or click "Realizar Convalidación" in the main simulation view
-   ```
-
-4. **Run tests**:
-   ```bash
-   ./docker.sh artisan test
-   ```
-
-5. **View logs**:
-   ```bash
-   ./docker.sh logs app
-   ./docker.sh logs web
-   ./docker.sh logs db
-   ```
-
-## Sistema de Convalidaciones
-
-El proyecto incluye un sistema completo de convalidaciones curriculares que permite:
-
-### Características
-- **Carga de mallas externas**: Importación desde CSV (.csv)
-- **Convalidación manual**: Equivalencias directas y libre elección
-- **Sugerencias automáticas**: Basadas en similitud de nombres
-- **Dashboard estadístico**: Progreso y métricas en tiempo real
-- **Reportes exportables**: Documentación completa del proceso
-
-### Configuración Inicial
-```bash
-# Ejecutar migraciones específicas de convalidaciones
-./docker.sh artisan migrate
-
-# Verificar que las tablas se crearon correctamente
-./docker.sh artisan tinker
-# En tinker: \App\Models\ExternalCurriculum::count()
-```
-
-### Uso del Sistema
-1. **Acceder**: http://localhost:8080/convalidation
-2. **Cargar malla**: Botón "Realizar Convalidación"
-3. **Formato CSV**: Ver detalles del formato más abajo
-4. **Convalidar**: Configurar cada materia como directa o libre elección
-5. **Seguimiento**: Ver progreso en tiempo real sin recargas de página
-6. **Exportar**: Generar reporte final de convalidaciones
-
-### Características Avanzadas
-- **Progreso de Carrera**: Cálculo automático del porcentaje de carrera completada basado en créditos
-- **Navegación Inteligente**: Mantiene la posición en el semestre actual durante convalidaciones
-- **Estadísticas en Tiempo Real**: Actualización automática sin recargar la página
-- **Plantilla CSV**: Descarga automática de formato de ejemplo
-
-### Formato de Archivo CSV para Mallas Externas
-
-**Campos Obligatorios:**
-- `codigo` - Código único de la materia (ej: "INF101")
-- `nombre` - Nombre completo de la materia (ej: "Programación I")
-
-**Campos Opcionales:**
-- `creditos` - Número de créditos (ej: 3, 4, 5)
-- `semestre` - Semestre de la materia (ej: 1, 2, 3)
-- `descripcion` - Descripción de la materia
-
-**Ejemplo de CSV:**
-```csv
-codigo,nombre,creditos,semestre,descripcion
-INF101,Introducción a la Informática,3,1,Conceptos básicos
-MAT101,Matemáticas I,4,1,Álgebra y cálculo básico
-PRG101,Programación I,4,2,Fundamentos de programación
-```
-
-**Requisitos técnicos:**
-- Formato: CSV (separado por comas)
-- Tamaño máximo: 10MB
-- Codificación: UTF-8 recomendada
-- Primera fila debe contener los nombres de columnas
-
-### Porcentaje de Equivalencia
-El sistema permite asignar un **porcentaje de equivalencia** (0-100%) a cada convalidación:
-
-- **100%**: Equivalencia total (contenido idéntico)
-- **80-99%**: Equivalencia alta (contenido muy similar)
-- **60-79%**: Equivalencia parcial (contenido parcialmente cubierto)
-- **30-59%**: Equivalencia mínima (elementos básicos cubiertos)
-
-**Ejemplos:**
-```
-- "Programación I" externa → "Programación I" interna: 100%
-- "Fundamentos de Programación" → "Programación I": 85%
-- "Introducción a Algoritmos" → "Programación I": 60%
-```
-
-El porcentaje afecta el cálculo de créditos convalidados para el progreso de carrera.
-
-### Troubleshooting Convalidaciones
-```bash
-# Si hay errores de tablas faltantes
-./docker.sh artisan migrate:status
-./docker.sh artisan migrate
-
-# Para reset completo del sistema de convalidaciones
-./docker.sh artisan migrate:rollback --path=database/migrations/2025_07_26_000001_create_external_curriculums_table.php
-./docker.sh artisan migrate
-```
-
-## Troubleshooting
-
-### Container Issues
+#### 4. Desplegar el Sistema
 
 ```bash
-# Check container status
+./docker.sh setup
+```
+
+Este comando ejecutará automáticamente:
+- Construcción de contenedores Docker
+- Instalación de dependencias PHP (Composer)
+- Generación de clave de aplicación Laravel
+- Instalación de dependencias JavaScript (NPM)
+- Compilación de assets frontend
+- Ejecución de migraciones de base de datos
+- Carga de datos iniciales (seeders)
+
+#### 5. Acceder al Sistema
+
+Una vez completada la instalación:
+
+- **Aplicación Web**: http://localhost:8080
+- **Base de Datos**: localhost:5432
+
+> **Importante**: Cambiar la contraseña en el primer inicio de sesión.
+---
+
+## 🛠️ Comandos Disponibles con `docker.sh`
+
+El script `docker.sh` proporciona comandos convenientes para gestionar el sistema:
+
+### Gestión de Contenedores
+
+```bash
+# Iniciar todos los contenedores
+./docker.sh start
+
+# Detener todos los contenedores
+./docker.sh stop
+
+# Reiniciar todos los contenedores
+./docker.sh restart
+
+# Ver el estado de los contenedores
 docker-compose ps
-
-# View specific container logs
-./docker.sh logs app
-./docker.sh logs web
-./docker.sh logs db
-
-# Restart specific service
-docker-compose restart app
 ```
 
-### Database Issues
+### Logs y Debugging
 
 ```bash
-# Access database directly
-./docker.sh db-shell
+# Ver logs de todos los servicios
+./docker.sh logs
 
-# Reset database
-./docker.sh artisan migrate:fresh --seed
+# Ver logs de un servicio específico
+./docker.sh logs app     # Logs de PHP-FPM
+./docker.sh logs web     # Logs de Nginx
+./docker.sh logs db      # Logs de PostgreSQL
+
+# Seguir logs en tiempo real
+./docker.sh logs -f app
 ```
 
-### Permission Issues
+### Acceso a Contenedores
 
 ```bash
-# Fix Laravel permissions (handled automatically by entrypoint)
+# Acceder al contenedor de la aplicación (bash)
 ./docker.sh shell
-chown -R www-data:www-data storage bootstrap/cache
-chmod -R 775 storage bootstrap/cache
+
+# Acceder a la base de datos PostgreSQL
+./docker.sh db-shell
 ```
 
-### Build Issues
+### Comandos Laravel (Artisan)
 
 ```bash
-# Rebuild containers
-docker-compose down
-docker-compose up -d --build
+# Ejecutar migraciones
+./docker.sh artisan migrate
 
-# Clear Docker cache
-docker system prune -f
+# Ejecutar migraciones con seed
+./docker.sh artisan migrate --seed
+
+# Revertir última migración
+./docker.sh artisan migrate:rollback
+
+# Ver estado de migraciones
+./docker.sh artisan migrate:status
+
+# Limpiar caché de la aplicación
+./docker.sh artisan cache:clear
+./docker.sh artisan config:clear
+./docker.sh artisan route:clear
+./docker.sh artisan view:clear
+
+# Ejecutar tests
+./docker.sh artisan test
 ```
 
-## File Structure
+### Comandos Composer
 
+```bash
+# Instalar dependencias
+./docker.sh composer install
+
+# Actualizar dependencias
+./docker.sh composer update
+
+# Agregar un paquete
+./docker.sh composer require vendor/package
 ```
-docker/
-├── nginx/
-│   └── default.conf    # Nginx configuration
-├── php/
-│   ├── Dockerfile      # PHP container definition
-│   ├── entrypoint.sh   # Auto-initialization script
-│   └── local.ini       # PHP configuration
-└── init_db.sh          # Database initialization script
+
+### Comandos NPM
+
+```bash
+# Instalar dependencias
+./docker.sh npm install
+
+# Compilar assets en modo desarrollo
+./docker.sh npm run dev
+
+# Compilar assets en modo producción
+./docker.sh npm run build
+
+# Modo watch (recompilación automática)
+./docker.sh npm run watch
 ```
 
-## Ports
+### Ayuda
 
-- **8080**: Nginx web server
-- **5432**: PostgreSQL database
-- **9000**: PHP-FPM (internal)
+```bash
+# Ver todos los comandos disponibles
+./docker.sh help
+```
 
-## Security Notes
-
-- Environment files with real passwords should not be committed
-- Use strong passwords for production environments
-- The app container runs as www-data user for security
-- Database is isolated in its own container
+---

@@ -8,11 +8,23 @@ use Illuminate\Support\Facades\DB;
 class LevelingSubjectSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Seeds the leveling_subjects table with UNAL leveling (nivelación) subjects. These are
+     * remedial or preparatory courses that students must complete based on their entrance exam
+     * results or academic background deficiencies.
      * 
-     * Materias de nivelación de la UNAL
-     * Mínimo requerido: 12 créditos
-     * Pero los estudiantes pueden tener más según su nivel
+     * Leveling subjects include:
+     * - English I-IV: Foreign language requirement (minimum 12 credits required, progressive levels)
+     * - Matemáticas Básicas: Basic mathematics for students needing reinforcement
+     * - Lecto-escritura: Reading and writing skills for students needing reinforcement
+     * - Suficiencia en Lengua Extranjera: Foreign language proficiency certificate (12 credits)
+     * 
+     * Important notes:
+     * - Minimum required: 12 credits (typically fulfilled by English I-IV)
+     * - Students may need additional leveling credits based on their entrance evaluation
+     * - Leveling credits do NOT count toward the main curriculum credit requirements
+     * - These courses must be completed before students can graduate
+     * 
+     * The seeder uses updateOrInsert to handle re-seeding safely.
      */
     public function run(): void
     {

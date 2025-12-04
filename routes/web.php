@@ -41,6 +41,9 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         Route::delete('/{externalCurriculum}/reset-simulation', [ConvalidationController::class, 'destroyAndResetSimulation'])->name('convalidation.destroy-reset');
         Route::get('/{externalCurriculum}/export', [ConvalidationController::class, 'exportReport'])->name('convalidation.export');
         
+        // Download PDF report generated during simulation save
+        Route::get('/{externalCurriculum}/pdf/download', [ConvalidationController::class, 'downloadPdfReport'])->name('convalidation.pdf.download');
+        
         // Reset all convalidations for a curriculum
         Route::post('/{externalCurriculum}/reset', [ConvalidationController::class, 'resetConvalidations'])->name('convalidation.reset');
         
@@ -95,6 +98,9 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         
         // Save modified curriculum from simulation
         Route::post('/save-modified-curriculum', [ConvalidationController::class, 'saveModifiedCurriculum'])->name('convalidation.save-modified-curriculum');
+        
+        // Delete multiple convalidations by IDs (for reset functionality)
+        Route::post('/delete-multiple', [ConvalidationController::class, 'deleteMultipleConvalidations'])->name('convalidation.delete-multiple');
     });
     
     // API routes for internal subjects (used by N:N groups)

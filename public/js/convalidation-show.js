@@ -532,24 +532,24 @@ let isSavingConvalidation = false;
 
 function saveConvalidation() {
     const timestamp = new Date().toISOString();
-    console.log(`🕒 [${timestamp}] saveConvalidation() called`);
+    console.log(`[${timestamp}] saveConvalidation() called`);
     
-    // ✅ CRITICAL: Prevent duplicate submissions - CHECK IMMEDIATELY
+    // CRITICAL: Prevent duplicate submissions - CHECK IMMEDIATELY
     if (isSavingConvalidation) {
-        console.warn(`⚠️ [${timestamp}] Ya hay una convalidación en proceso, ignorando click duplicado`);
+        console.warn(`[${timestamp}] Ya hay una convalidación en proceso, ignorando click duplicado`);
         return;
     }
     
-    // ✅ Set flag IMMEDIATELY before any validation or async operation
+    // Set flag IMMEDIATELY before any validation or async operation
     isSavingConvalidation = true;
-    console.log(`🔒 [${timestamp}] Flag seteado - Bloqueando nuevas convalidaciones hasta completar esta...`);
+    console.log(`[${timestamp}] Flag seteado - Bloqueando nuevas convalidaciones hasta completar esta...`);
     
-    // ✅ Disable save button IMMEDIATELY to provide visual feedback
+    // Disable save button IMMEDIATELY to provide visual feedback
     const saveButton = document.querySelector('#convalidationModal button[onclick="saveConvalidation()"]');
     if (saveButton) {
         saveButton.disabled = true;
         saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
-        console.log(`🔒 [${timestamp}] Botón deshabilitado`);
+        console.log(`[${timestamp}] Botón deshabilitado`);
     }
     
     const formData = new FormData(document.getElementById('convalidationForm'));
@@ -558,7 +558,7 @@ function saveConvalidation() {
     const convalidationType = formData.get('convalidation_type');
     if (!convalidationType) {
         showAlert('danger', 'Por favor seleccione el tipo de convalidación');
-        // ✅ Reset flag on validation error to allow retry
+        // Reset flag on validation error to allow retry
         isSavingConvalidation = false;
         if (saveButton) {
             saveButton.disabled = false;
@@ -571,7 +571,7 @@ function saveConvalidation() {
     const componentType = formData.get('component_type');
     if (!componentType) {
         showAlert('danger', 'Por favor seleccione un componente académico');
-        // ✅ Reset flag on validation error to allow retry
+        // Reset flag on validation error to allow retry
         isSavingConvalidation = false;
         if (saveButton) {
             saveButton.disabled = false;
@@ -586,7 +586,7 @@ function saveConvalidation() {
     
     if (convalidationType === 'direct' && !internalSubjectCode && !(createNewCodeCheckbox && createNewCodeCheckbox.checked)) {
         showAlert('danger', 'Las convalidaciones directas requieren seleccionar una materia interna o marcar "Crear nuevo código"');
-        // ✅ Reset flag on validation error to allow retry
+        // Reset flag on validation error to allow retry
         isSavingConvalidation = false;
         if (saveButton) {
             saveButton.disabled = false;
@@ -600,7 +600,7 @@ function saveConvalidation() {
         const flexibleComponents = ['optional_fundamental', 'optional_professional', 'free_elective'];
         if (!flexibleComponents.includes(componentType)) {
             showAlert('danger', 'Los componentes electivos deben ser Optativa Fundamental, Optativa Profesional o Libre Elección');
-            // ✅ Reset flag on validation error to allow retry
+            // Reset flag on validation error to allow retry
             isSavingConvalidation = false;
             if (saveButton) {
                 saveButton.disabled = false;
@@ -629,14 +629,29 @@ function saveConvalidation() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Success - reload page to get fresh data and avoid modal state issues
-            console.log('✅ Convalidación guardada exitosamente, recargando página...');
+            console.log('Stats received:', data.stats);
+            console.log('Convalidated percentage:', data.stats?.convalidated_percentage);
+            console.log('Completion percentage:', data.stats?.completion_percentage);
+            
+            // Check if curriculum is 100% complete
+            // Use completion_percentage instead of convalidated_percentage
+            const percentage = data.stats?.completion_percentage || data.stats?.convalidated_percentage || 0;
+            console.log('Final percentage to check:', percentage);
+            
+            if (percentage >= 100) {
+                console.log('Setting show_completion_modal flag');
+                // Store flag to show completion modal after reload
+                sessionStorage.setItem('show_completion_modal', 'true');
+            }
+            
+            // Reload page to get fresh data
+            console.log('Convalidación guardada exitosamente, recargando página...');
             location.reload();
         } else {
             // Show error (modal stays open)
             showAlert('danger', data.error || 'Error al guardar la convalidación');
             
-            // ✅ Reset flag on error to allow retry
+            // Reset flag on error to allow retry
             isSavingConvalidation = false;
             
             // Re-enable button
@@ -651,7 +666,7 @@ function saveConvalidation() {
         // Show error (modal stays open)
         showAlert('danger', 'Error de conexión');
         
-        // ✅ Reset flag on error to allow retry
+        // Reset flag on error to allow retry
         isSavingConvalidation = false;
         
         // Re-enable button
@@ -1104,6 +1119,70 @@ function displayBulkResults(results) {
 
 // Add event listener for all convalidation config buttons
 document.addEventListener('DOMContentLoaded', function() {
+    // Check if we should show the completion modal
+    const shouldShowModal = sessionStorage.getItem('show_completion_modal');
+    console.log('DOMContentLoaded - shouldShowModal flag:', shouldShowModal);
+    
+    if (shouldShowModal === 'true') {
+        console.log('Showing completion modal...');
+        sessionStorage.removeItem('show_completion_modal');
+        
+        const modalElement = document.getElementById('completionSuccessModal');
+        console.log('Modal element found:', !!modalElement);
+        
+        if (modalElement) {
+            const completionModal = new bootstrap.Modal(modalElement);
+            completionModal.show();
+            
+            // Fix: Add event listener to properly clean up backdrop when modal is closed
+            modalElement.addEventListener('hidden.bs.modal', function(e) {
+                // Remove any remaining backdrops
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                backdrops.forEach(backdrop => backdrop.remove());
+                
+                // Remove modal-open class from body
+                document.body.classList.remove('modal-open');
+                
+                // Remove any inline styles that Bootstrap might have added
+                document.body.style.removeProperty('overflow');
+                document.body.style.removeProperty('padding-right');
+                
+                console.log('Completion modal closed - backdrop cleaned up');
+            }, { once: true }); // Only run once
+        } else {
+            console.error('completionSuccessModal element not found!');
+        }
+    }
+    
+    // Additional safety: Add click handler for "Stay Here" button
+    const stayHereBtn = document.getElementById('stayHereBtn');
+    if (stayHereBtn) {
+        stayHereBtn.addEventListener('click', function(e) {
+            console.log('Stay Here button clicked');
+            
+            // Get the modal instance
+            const modalElement = document.getElementById('completionSuccessModal');
+            if (modalElement) {
+                const modalInstance = bootstrap.Modal.getInstance(modalElement);
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
+            }
+            
+            // Force cleanup of any remaining backdrops after a short delay
+            setTimeout(() => {
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                if (backdrops.length > 0) {
+                    console.log('Force removing', backdrops.length, 'backdrop(s)');
+                    backdrops.forEach(backdrop => backdrop.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style.removeProperty('overflow');
+                    document.body.style.removeProperty('padding-right');
+                }
+            }, 300);
+        });
+    }
+    
     // Fix aria-hidden warning by removing focus before hiding modal
     const modalElement = document.getElementById('convalidationModal');
     if (modalElement) {
@@ -1274,14 +1353,116 @@ function renderImpactAnalysis(results) {
     document.getElementById('impact-progress-percentage').textContent = 
         (results.average_progress_change || 0).toFixed(1) + '%';
     
+    // Show min and max progress change
+    if (results.min_progress_change !== null && results.max_progress_change !== null) {
+        document.getElementById('impact-min-change').textContent = 
+            (results.min_progress_change || 0).toFixed(1);
+        document.getElementById('impact-max-change').textContent = 
+            (results.max_progress_change || 0).toFixed(1);
+    }
+    
     // Credits by component - use new data structure
     renderCreditsByComponent(
         results.convalidated_credits_by_component || {}, 
         results.original_curriculum_credits || {}
     );
     
+    // Render students preview table
+    renderStudentsPreview(results.student_details || []);
+    
     // Subject mapping - show configured convalidations
     renderSubjectMapping(results);
+}
+
+// Global variables for sorting
+let currentStudentData = [];
+let currentSortColumn = null;
+let currentSortDirection = 'none'; // 'none', 'asc', 'desc'
+
+function renderStudentsPreview(studentDetails) {
+    currentStudentData = studentDetails;
+    updateStudentsTable();
+}
+
+function updateStudentsTable() {
+    const tbody = document.getElementById('impact-students-preview');
+    tbody.innerHTML = '';
+    
+    if (!currentStudentData || currentStudentData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay datos disponibles</td></tr>';
+        return;
+    }
+    
+    currentStudentData.forEach(student => {
+        const change = student.progress_change || 0;
+        const badgeClass = change > 0 ? 'success' : (change < 0 ? 'danger' : 'secondary');
+        const symbol = change > 0 ? '+' : '';
+        
+        const row = `
+            <tr>
+                <td>${student.document || 'N/A'}</td>
+                <td class="text-center"><strong>${(student.original_progress || 0).toFixed(1)}%</strong></td>
+                <td class="text-center"><strong>${(student.new_progress || 0).toFixed(1)}%</strong></td>
+                <td class="text-center">
+                    <span class="badge bg-${badgeClass}">${symbol}${change.toFixed(1)}%</span>
+                </td>
+                <td class="text-center">${student.convalidated_subjects || 0}</td>
+                <td class="text-center">${student.new_subjects || 0}</td>
+                <td class="text-center"><strong>${student.total_convalidated_credits || 0}</strong></td>
+            </tr>
+        `;
+        tbody.innerHTML += row;
+    });
+}
+
+function sortStudentTable(column) {
+    // Cycle through: none -> asc -> desc -> none
+    if (currentSortColumn === column) {
+        if (currentSortDirection === 'none') {
+            currentSortDirection = 'desc'; // Mayor a menor
+        } else if (currentSortDirection === 'desc') {
+            currentSortDirection = 'asc'; // Menor a mayor
+        } else {
+            currentSortDirection = 'none'; // Sin filtro
+        }
+    } else {
+        currentSortColumn = column;
+        currentSortDirection = 'desc'; // Start with descending (mayor a menor)
+    }
+    
+    // Reset all icons
+    document.getElementById('sort-icon-original').className = 'fas fa-sort';
+    document.getElementById('sort-icon-new').className = 'fas fa-sort';
+    document.getElementById('sort-icon-change').className = 'fas fa-sort';
+    
+    // Update current icon
+    let iconId = '';
+    if (column === 'original_progress') iconId = 'sort-icon-original';
+    else if (column === 'new_progress') iconId = 'sort-icon-new';
+    else if (column === 'progress_change') iconId = 'sort-icon-change';
+    
+    if (currentSortDirection === 'none') {
+        document.getElementById(iconId).className = 'fas fa-sort';
+        // Restore original order from currentImpactResults
+        currentStudentData = [...(currentImpactResults.student_details || [])];
+    } else {
+        document.getElementById(iconId).className = currentSortDirection === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+        
+        // Sort the data
+        currentStudentData.sort((a, b) => {
+            const aVal = parseFloat(a[column]) || 0;
+            const bVal = parseFloat(b[column]) || 0;
+            
+            if (currentSortDirection === 'asc') {
+                return aVal - bVal; // Menor a mayor
+            } else {
+                return bVal - aVal; // Mayor a menor
+            }
+        });
+    }
+    
+    // Update the table
+    updateStudentsTable();
 }
 
 function renderCreditsByComponent(convalidatedCredits, originalCredits) {
@@ -1471,7 +1652,7 @@ function renderSubjectMapping(results) {
             
         } else if (convalidationType === 'nn_group') {
             // N:N Group convalidation - show group info
-            const groupName = row.dataset.groupName || 'Grupo N:N';
+            const groupName = row.dataset.groupName || 'Conv. Múltiple';
             const equivalenceType = row.dataset.equivalenceType || 'all';
             const componentType = row.dataset.componentType;
             
@@ -1492,7 +1673,7 @@ function renderSubjectMapping(results) {
                 console.error('Error parsing internal subjects:', e);
             }
             
-            console.log('  Tipo: GRUPO N:N');
+            console.log('  Tipo: CONV. MÚLTIPLE');
             console.log('    → Nombre grupo:', groupName);
             console.log('    → Tipo equivalencia:', equivalenceType);
             console.log('    → Componente:', componentType);
@@ -1506,7 +1687,7 @@ function renderSubjectMapping(results) {
             convalidationInfo = `
                 <div class="text-info">
                     <i class="fas fa-layer-group me-1"></i>
-                    <strong>Grupo N:N</strong> 
+                    <strong>Conv. Múltiple</strong> 
                     <span class="badge bg-info">${equivalenceLabels[equivalenceType] || equivalenceType}</span><br>
                     <small class="text-muted fst-italic">${groupName}</small>
                     ${internalSubjectsList}
@@ -1560,7 +1741,7 @@ function exportImpactAnalysis() {
  */
 function generateImpactPdfReportFromShow() {
     if (!currentImpactResults || !window.externalCurriculumId) {
-        alert('No hay resultados para generar el reporte');
+        console.error('No hay resultados o ID de curriculum');
         return;
     }
 
@@ -1570,6 +1751,12 @@ function generateImpactPdfReportFromShow() {
     button.disabled = true;
     button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Generando reporte...';
 
+    // Use the currently sorted student data
+    const resultsToSend = {
+        ...currentImpactResults,
+        student_details: currentStudentData // Use the sorted array
+    };
+
     // Send request to generate PDF report view
     fetch(`/convalidation/${window.externalCurriculumId}/impact-report-pdf`, {
         method: 'POST',
@@ -1578,24 +1765,38 @@ function generateImpactPdfReportFromShow() {
             'X-CSRF-TOKEN': window.csrfToken
         },
         body: JSON.stringify({
-            results: currentImpactResults,
+            results: resultsToSend,
             credit_limits: {} // Empty for now, can be added later if needed
         })
     })
     .then(response => {
         if (!response.ok) {
-            throw new Error('Error al generar el reporte');
+            return response.text().then(text => {
+                console.error('Response error:', text);
+                throw new Error(`Error ${response.status}: ${response.statusText}`);
+            });
         }
+        
         return response.text();
     })
     .then(html => {
+        // Store the report HTML in sessionStorage
+        // This will be used when "Guardar Cambios" is clicked in simulation
+        sessionStorage.setItem('convalidation_report_html_' + window.externalCurriculumId, html);
+        
         // Open the report in a new window
         const newWindow = window.open('', '_blank');
         if (newWindow) {
             newWindow.document.write(html);
             newWindow.document.close();
+            
+            // Trigger print dialog automatically after a small delay
+            // This allows the user to download/print, but they can cancel and still see the preview
+            setTimeout(() => {
+                newWindow.print();
+            }, 500);
         } else {
-            throw new Error('No se pudo abrir la ventana del reporte. Verifique que no esté bloqueando ventanas emergentes');
+            showAlert('warning', 'No se pudo abrir la ventana del reporte. Verifique que no esté bloqueando ventanas emergentes.');
         }
 
         // Reset button
@@ -1603,8 +1804,8 @@ function generateImpactPdfReportFromShow() {
         button.innerHTML = originalText;
     })
     .catch(error => {
-        console.error('Error:', error);
-        alert('✗ Error al generar el reporte PDF: ' + error.message);
+        console.error('Error generating report:', error);
+        showAlert('danger', `Error al generar el reporte PDF: ${error.message}`);
         
         // Reset button
         button.disabled = false;
