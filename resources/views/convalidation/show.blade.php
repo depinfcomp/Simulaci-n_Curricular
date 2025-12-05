@@ -2,20 +2,7 @@
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('css/convalidation-nn-groups.css') }}?v={{ time() }}">
-    <style>
-        /* Sort button styles */
-        .table thead button.btn-link {
-            color: #6c757d;
-            text-decoration: none;
-        }
-        .table thead button.btn-link:hover {
-            color: #0d6efd;
-        }
-        .table thead .sticky-top {
-            z-index: 10;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-    </style>
+    <link rel="stylesheet" href="{{ asset('css/convalidation-show.css') }}?v={{ time() }}">
 @endpush
 
 @section('content')
@@ -1067,83 +1054,21 @@
 @endsection
 
 @push('scripts')
+    <script src="{{ asset('js/convalidation-show-init.js') }}?v={{ time() }}"></script>
     <script>
-        // Global variables for routes and CSRF token
-        window.convalidationRoutes = {
-            store: '{{ route("convalidation.store-convalidation") }}',
-            destroy: '{{ route("convalidation.destroy-convalidation", ":id") }}',
-            suggestions: '{{ route("convalidation.suggestions") }}',
-            export: '{{ route("convalidation.export", $externalCurriculum) }}',
-            bulkConvalidation: '{{ route("convalidation.bulk-convalidation") }}',
-            reset: '{{ route("convalidation.reset", $externalCurriculum) }}'
-        };
-        window.csrfToken = '{{ csrf_token() }}';
-        window.externalCurriculumId = {{ $externalCurriculum->id }};
-
-        // Reset convalidations functions
-        function confirmResetConvalidations() {
-            const modal = new bootstrap.Modal(document.getElementById('resetConvalidationsModal'));
-            modal.show();
-        }
-
-        function executeResetConvalidations() {
-            const btn = document.getElementById('confirm_reset_btn');
-            const originalHtml = btn.innerHTML;
-            
-            // Disable button and show loading
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Restableciendo...';
-
-            fetch(window.convalidationRoutes.reset, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': window.csrfToken,
-                    'Accept': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Hide modal
-                    bootstrap.Modal.getInstance(document.getElementById('resetConvalidationsModal')).hide();
-                    
-                    // Reload page directly without alert
-                    location.reload();
-                } else {
-                    throw new Error(data.error || 'Error desconocido');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error al restablecer las convalidaciones: ' + error.message);
-                
-                // Restore button
-                btn.disabled = false;
-                btn.innerHTML = originalHtml;
-            });
-        }
-        
-        // Check if convalidation is complete and from simulation
-        document.addEventListener('DOMContentLoaded', function() {
-            const completionPercentage = {{ $stats['completion_percentage'] ?? 0 }};
-            const fromSimulation = {{ isset($metadata['source']) && $metadata['source'] === 'simulation' ? 'true' : 'false' }};
-            const hasShownModal = sessionStorage.getItem('completion_modal_shown_' + window.externalCurriculumId);
-            
-            console.log('Completion check:', {
-                percentage: completionPercentage,
-                fromSimulation: fromSimulation,
-                hasShownModal: hasShownModal
-            });
-            
-            // Show modal if 100% complete, from simulation, and not shown before
-            if (completionPercentage >= 100 && fromSimulation && !hasShownModal) {
-                const modal = new bootstrap.Modal(document.getElementById('completionSuccessModal'));
-                modal.show();
-                
-                // Mark as shown to prevent showing again
-                sessionStorage.setItem('completion_modal_shown_' + window.externalCurriculumId, 'true');
-            }
+        initConvalidationShow({
+            routes: {
+                store: '{{ route("convalidation.store-convalidation") }}',
+                destroy: '{{ route("convalidation.destroy-convalidation", ":id") }}',
+                suggestions: '{{ route("convalidation.suggestions") }}',
+                export: '{{ route("convalidation.export", $externalCurriculum) }}',
+                bulkConvalidation: '{{ route("convalidation.bulk-convalidation") }}',
+                reset: '{{ route("convalidation.reset", $externalCurriculum) }}'
+            },
+            csrfToken: '{{ csrf_token() }}',
+            externalCurriculumId: {{ $externalCurriculum->id }},
+            completionPercentage: {{ $stats['completion_percentage'] ?? 0 }},
+            fromSimulation: {{ isset($metadata['source']) && $metadata['source'] === 'simulation' ? 'true' : 'false' }}
         });
     </script>
     <script src="{{ asset('js/convalidation-show.js') }}?v={{ time() }}"></script>

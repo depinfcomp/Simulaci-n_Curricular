@@ -19,7 +19,7 @@
                         <i class="fas fa-arrow-left me-2"></i>
                         Volver a Componentes
                     </a>
-                    <button class="btn btn-success" onclick="createSimulation()">
+                    <button class="btn btn-success" onclick="createSimulation({{ $curriculum->id }})">
                         <i class="fas fa-play-circle me-2"></i>
                         Crear Simulación
                     </button>
@@ -301,117 +301,13 @@
 </div>
 
 @push('scripts')
+<script src="{{ asset('js/convalidation-simulation-analysis.js') }}?v={{ time() }}"></script>
 <script>
-// Create simulation
-function createSimulation() {
-    const form = document.getElementById('simulationForm');
-    const simulationName = document.getElementById('simulation_name').value;
-    const levelingCredits = document.getElementById('leveling_credits').value;
-    const description = document.getElementById('description').value;
-    const minLeveling = {{ $creditsByComponent['leveling'] ?? 0 }};
-
-    if (!simulationName) {
-        alert('Por favor ingrese un nombre para la simulación');
-        return;
-    }
-
-    if (parseInt(levelingCredits) < minLeveling) {
-        alert(`Los créditos de nivelación no pueden ser menores a ${minLeveling}`);
-        return;
-    }
-
-    // Disable button
-    const btn = event.target;
-    const originalHtml = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creando...';
-
-    fetch('{{ route("convalidation.simulation.create") }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-        },
-        body: JSON.stringify({
-            external_curriculum_id: {{ $curriculum->id }},
-            simulation_name: simulationName,
-            description: description,
-            leveling_credits: levelingCredits
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showToast('success', 'Simulación creada exitosamente');
-            setTimeout(() => {
-                if (data.redirect) {
-                    window.location.href = data.redirect;
-                } else {
-                    location.reload();
-                }
-            }, 1500);
-        } else {
-            showToast('error', data.error || 'Error al crear simulación');
-            btn.disabled = false;
-            btn.innerHTML = originalHtml;
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showToast('error', 'Error de conexión');
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
+    initSimulationAnalysis({
+        createRoute: '{{ route("convalidation.simulation.create") }}',
+        csrfToken: '{{ csrf_token() }}',
+        minLevelingCredits: {{ $creditsByComponent['leveling'] ?? 0 }}
     });
-}
-
-// Show toast notification
-function showToast(type, message) {
-    const colors = {
-        success: 'bg-success',
-        error: 'bg-danger',
-        warning: 'bg-warning',
-        info: 'bg-info'
-    };
-
-    const toast = document.createElement('div');
-    toast.className = `toast align-items-center text-white ${colors[type] || 'bg-secondary'} border-0`;
-    toast.setAttribute('role', 'alert');
-    toast.innerHTML = `
-        <div class="d-flex">
-            <div class="toast-body">${message}</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-        </div>
-    `;
-
-    const container = document.getElementById('toast-container') || createToastContainer();
-    container.appendChild(toast);
-
-    const bsToast = new bootstrap.Toast(toast);
-    bsToast.show();
-
-    toast.addEventListener('hidden.bs.toast', () => toast.remove());
-}
-
-function createToastContainer() {
-    const container = document.createElement('div');
-    container.id = 'toast-container';
-    container.className = 'toast-container position-fixed top-0 end-0 p-3';
-    document.body.appendChild(container);
-    return container;
-}
-
-// Validate leveling credits input
-document.addEventListener('DOMContentLoaded', function() {
-    const levelingInput = document.getElementById('leveling_credits');
-    const minValue = {{ $creditsByComponent['leveling'] ?? 0 }};
-
-    levelingInput.addEventListener('change', function() {
-        if (parseInt(this.value) < minValue) {
-            alert(`Los créditos de nivelación no pueden ser menores a ${minValue}`);
-            this.value = minValue;
-        }
-    });
-});
 </script>
 @endpush
 @endsection
