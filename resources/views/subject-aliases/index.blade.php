@@ -198,79 +198,13 @@
         </div>
 </div>
 
+<script src="{{ asset('js/subject-aliases.js') }}?v={{ time() }}"></script>
 <script>
-let modal;
-
-document.addEventListener('DOMContentLoaded', function() {
-    modal = new bootstrap.Modal(document.getElementById('addAliasModal'));
-});
-
-function showAddAliasModal(subjectCode, subjectName, subjectType) {
-    document.getElementById('subject_code').value = subjectCode;
-    document.getElementById('subject_name').textContent = `${subjectCode} - ${subjectName}`;
-    document.getElementById('subject_type').value = subjectType;
-    document.getElementById('alias_code').value = '';
-    document.getElementById('notes').value = '';
-    modal.show();
-}
-
-function saveAlias() {
-    const form = document.getElementById('addAliasForm');
-    const formData = new FormData(form);
-    
-    fetch('{{ route("subject-aliases.store") }}', {
-        method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            subject_code: formData.get('subject_code'),
-            alias_code: formData.get('alias_code'),
-            description: formData.get('notes')
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            modal.hide();
-            location.reload(); // Reload to show new alias
-        } else {
-            alert('Error: ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error al guardar el alias');
+    // Initialize with Laravel routes and CSRF token
+    initSubjectAliases({
+        storeRoute: '{{ route("subject-aliases.store") }}',
+        csrfToken: '{{ csrf_token() }}'
     });
-}
-
-function deleteAlias(aliasId) {
-    if (!confirm('¿Está seguro de eliminar este alias?')) {
-        return;
-    }
-    
-    fetch(`/subject-aliases/${aliasId}`, {
-        method: 'DELETE',
-        headers: {
-            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-            'Accept': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Error: ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error al eliminar el alias');
-    });
-}
 </script>
 
 @endsection
