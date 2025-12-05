@@ -1,0 +1,21 @@
+/**
+ * Convalidation Show Styles
+ * 
+ * Custom styles for the convalidation show page.
+ * Includes sort button styles and sticky header effects.
+ */
+
+/* Sort button styles */
+.table thead button.btn-link {
+    color: #6c757d;
+    text-decoration: none;
+}
+
+.table thead button.btn-link:hover {
+    color: #0d6efd;
+}
+
+.table thead .sticky-top {
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
