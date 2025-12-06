@@ -79,6 +79,12 @@ Este comando ejecutará automáticamente:
 - Ejecución de migraciones de base de datos
 - Carga de datos iniciales (seeders)
 
+**Correr esto si es primera vez que se despliega**
+
+```bash
+docker-compose exec app php artisan db:seed --class=DepartmentUserSeeder
+```
+
 #### 5. Acceder al Sistema
 
 Una vez completada la instalación:
