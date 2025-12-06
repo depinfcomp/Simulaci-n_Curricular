@@ -4,7 +4,24 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Collection;
 
+/**
+ * @property int $id
+ * @property int $external_curriculum_id
+ * @property int|null $external_subject_id
+ * @property string $group_name
+ * @property string|null $description
+ * @property string $equivalence_type
+ * @property float|null $equivalence_percentage
+ * @property string|null $component_type
+ * @property array|null $metadata
+ * @property \Carbon\Carbon $created_at
+ * @property \Carbon\Carbon $updated_at
+ * @property-read ExternalCurriculum $externalCurriculum
+ * @property-read ExternalSubject|null $externalSubject
+ * @property-read Collection|ConvalidationGroupSubject[] $groupSubjects
+ */
 class ConvalidationGroup extends Model
 {
     use HasFactory;

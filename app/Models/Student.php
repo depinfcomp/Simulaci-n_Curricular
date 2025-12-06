@@ -4,7 +4,19 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Collection;
 
+/**
+ * @property int $id
+ * @property string $document
+ * @property float|null $progress_percentage
+ * @property float|null $average_grade
+ * @property int|null $total_credits_taken
+ * @property int|null $approved_credits
+ * @property \Carbon\Carbon $created_at
+ * @property \Carbon\Carbon $updated_at
+ * @property-read Collection|Subject[] $subjects
+ */
 class Student extends Model
 {
     use HasFactory;

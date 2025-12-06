@@ -750,7 +750,7 @@ class AcademicHistoryController extends Controller
             $importDate = $import->created_at;
             $importEndDate = $import->updated_at;
             
-            Log::info("Import date range: {$importDate} to {$importEndDate}");
+            Log::info("Import date range: {$importDate->toDateTimeString()} to {$importEndDate->toDateTimeString()}");
             
             // Get students imported in this batch
             $students = DB::table('students')
@@ -826,7 +826,7 @@ class AcademicHistoryController extends Controller
             $importDate = $import->created_at;
             $importEndDate = $import->updated_at;
             
-            Log::info("Import date range: {$importDate} to {$importEndDate}");
+            Log::info("Import date range: {$importDate->toDateTimeString()} to {$importEndDate->toDateTimeString()}");
             
             // Get students imported in this batch
             $students = DB::table('students')
