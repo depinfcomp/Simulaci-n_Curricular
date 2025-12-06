@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $name
  * @property int $credits
  * @property int $semester
+ * @property int $display_order
  * @property string|null $description
  * @property array|null $additional_data
  * @property string|null $change_type
@@ -32,6 +33,7 @@ class ExternalSubject extends Model
         'name',
         'credits',
         'semester',
+        'display_order',
         'description',
         'additional_data',
         'change_type',

@@ -1947,7 +1947,7 @@ class ConvalidationController extends Controller
             foreach ($curriculumData as $semester => $subjects) {
                 Log::info("Processing semester {$semester} with " . count($subjects) . " subjects");
                 
-                foreach ($subjects as $subjectData) {
+                foreach ($subjects as $displayOrder => $subjectData) {
                     $subjectCode = $subjectData['code'];
                     
                     // Skip ghost cards / duplicates (shouldn't happen with frontend fix, but just in case)
@@ -2081,6 +2081,7 @@ class ConvalidationController extends Controller
                         'code' => $subjectCode,
                         'name' => $subjectData['name'],
                         'semester' => (int) $semester,
+                        'display_order' => (int) $displayOrder,
                         'credits' => $credits,
                         'description' => $subjectData['description'] ?? $subjectData['name'],
                         'additional_data' => $additionalData,

@@ -946,8 +946,33 @@ document.addEventListener('DOMContentLoaded', function() {
                         card.classList.add('edited-subject');
                     }
                     break;
+                    
+                case 'display_order':
+                    // Update display order in dataset (actual reordering happens after all changes)
+                    if (card && change.new_value) {
+                        card.dataset.displayOrder = change.new_value;
+                    }
+                    break;
+                    
+                case 'semester_order':
+                    // Restore complete semester order (new approach)
+                    if (change.semester && change.new_value) {
+                        const orderMap = change.new_value;
+                        
+                        // Apply display_order to all cards in the order map
+                        Object.keys(orderMap).forEach(subjectCode => {
+                            const card = document.querySelector(`[data-subject-id="${subjectCode}"]`);
+                            if (card) {
+                                card.dataset.displayOrder = orderMap[subjectCode];
+                            }
+                        });
+                    }
+                    break;
             }
         });
+        
+        // After applying all changes, reorder cards based on display_order
+        reorderCardsFromDisplayOrder();
         
         // CRITICAL: Recalculate credits after restoring changes
         // This ensures removed subjects are excluded from totals
@@ -1044,6 +1069,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize simulation system
     function initializeSimulation() {
         storeOriginalCurriculum();
+        
+        // Initialize display_order for all existing cards
+        for (let semester = 1; semester <= 10; semester++) {
+            const column = document.querySelector(`.semester-column[data-semester="${semester}"]`);
+            if (!column) continue;
+            
+            const cards = Array.from(column.querySelectorAll('.subject-card'));
+            cards.forEach((card, index) => {
+                // Set display_order based on current DOM position (0-indexed)
+                card.dataset.displayOrder = index;
+            });
+        }
+        
         enableDragAndDrop();
         
         // Debug: Log initialization
@@ -1098,6 +1136,32 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log(`Selected: ${subjectId}`);
         console.log(`Prerequisites: ${prerequisites.join(', ')}`);
         console.log(`Unlocks: ${unlocks.join(', ')}`);
+    }
+    
+    // Reorder cards in DOM based on their display_order dataset attribute
+    function reorderCardsFromDisplayOrder() {
+        for (let semester = 1; semester <= 10; semester++) {
+            const column = document.querySelector(`.semester-column[data-semester="${semester}"]`);
+            if (!column) continue;
+            
+            const subjectList = column.querySelector('.subject-list');
+            if (!subjectList) continue;
+            
+            // Get all cards in this semester
+            const cards = Array.from(subjectList.querySelectorAll('.subject-card'));
+            
+            // Sort cards by display_order (convert to number, treat undefined as 999)
+            cards.sort((a, b) => {
+                const orderA = a.dataset.displayOrder !== undefined ? parseInt(a.dataset.displayOrder) : 999;
+                const orderB = b.dataset.displayOrder !== undefined ? parseInt(b.dataset.displayOrder) : 999;
+                return orderA - orderB;
+            });
+            
+            // Reappend cards in sorted order
+            cards.forEach(card => {
+                subjectList.appendChild(card);
+            });
+        }
     }
     
     // Enable drag and drop functionality using event delegation
@@ -1383,19 +1447,42 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!column) return;
         
         const cards = Array.from(column.querySelectorAll('.subject-card'));
+        
+        // Build the new order map
+        const newOrderMap = {};
         cards.forEach((card, index) => {
             const subjectCode = card.dataset.subjectId;
-            const newOrder = index + 1;
-            const currentOrder = card.dataset.displayOrder;
+            const newOrder = index;
             
             // Update the display order in the dataset
             card.dataset.displayOrder = newOrder;
             
-            // Only record the change if tracking is enabled AND order actually changed
-            if (trackChanges && currentOrder && parseInt(currentOrder) !== newOrder) {
-                recordSimulationChange(subjectCode, 'display_order', newOrder, parseInt(currentOrder));
-            }
+            // Add to order map
+            newOrderMap[subjectCode] = newOrder;
         });
+        
+        // If tracking is enabled, save the complete order state for this semester
+        if (trackChanges && Object.keys(newOrderMap).length > 0) {
+            // Remove any existing semester_order change for this semester
+            simulationChanges = simulationChanges.filter(change => 
+                !(change.type === 'semester_order' && change.semester === semester)
+            );
+            
+            // Add the new complete order state
+            simulationChanges.push({
+                subject_code: `SEMESTER_${semester}`, // Special identifier
+                subject_name: `Orden del Semestre ${semester}`,
+                type: 'semester_order',
+                semester: semester,
+                new_value: newOrderMap,
+                old_value: null,
+                timestamp: new Date().toISOString()
+            });
+            
+            // Save to localStorage
+            saveChangesToStorage();
+            updateSimulationStatus();
+        }
     }
     
     // Record simulation changes
@@ -1428,8 +1515,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update simulation status display
     function updateSimulationStatus() {
-        // Count meaningful changes (exclude display_order)
-        const meaningfulChanges = simulationChanges.filter(c => c.type !== 'display_order');
+        // Count meaningful changes (exclude display_order and semester_order)
+        const meaningfulChanges = simulationChanges.filter(c => 
+            c.type !== 'display_order' && c.type !== 'semester_order'
+        );
         const changesByType = {
             added: simulationChanges.filter(c => c.type === 'added').length,
             removed: simulationChanges.filter(c => c.type === 'removed').length,
@@ -4711,7 +4800,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const semesterColumn = document.querySelector(`[data-semester="${semester}"]`);
             if (!semesterColumn) continue;
             
-            const subjects = Array.from(semesterColumn.querySelectorAll('.subject-card')).map(card => {
+            const subjects = Array.from(semesterColumn.querySelectorAll('.subject-card')).map((card, index) => {
                 // Extract credits from multiple possible sources
                 let credits = 3; // Default value
                 
@@ -4740,11 +4829,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Check if this subject was removed
                 const isRemoved = card.classList.contains('removed-subject');
                 
+                // Get display_order from dataset or use current position (index)
+                const displayOrder = card.dataset.displayOrder ? parseInt(card.dataset.displayOrder) : index;
+                
                 return {
                     code: subjectCode,
                     name: card.querySelector('.subject-name')?.textContent.trim() || 'Sin nombre',
                     prerequisites: card.dataset.prerequisites ? card.dataset.prerequisites.split(',').filter(p => p.trim()) : [],
                     semester: semester,
+                    display_order: displayOrder,
                     credits: credits,
                     classroom_hours: classroomHours,
                     student_hours: studentHours,
