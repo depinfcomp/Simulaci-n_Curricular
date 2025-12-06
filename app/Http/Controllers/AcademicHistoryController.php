@@ -46,7 +46,12 @@ class AcademicHistoryController extends Controller
                 ->avg(DB::raw('(successful_imports * 100.0 / total_records)')) ?? 0
         ];
 
-        return view('academic-history.index', compact('imports', 'stats'));
+        // Check if there is academic data to show "Clear All" button
+        $hasAcademicData = DB::table('students')->count() > 0 
+                        || DB::table('student_subject')->count() > 0 
+                        || DB::table('academic_histories')->count() > 0;
+
+        return view('academic-history.index', compact('imports', 'stats', 'hasAcademicData'));
     }
 
     /**
@@ -644,22 +649,88 @@ class AcademicHistoryController extends Controller
     }
 
     /**
-     * Delete an import and its records
+     * Delete an import and ALL its associated data (students, subjects, histories)
      */
     public function destroy(AcademicHistoryImport $import)
     {
         try {
+            DB::beginTransaction();
+            
+            Log::info('Starting import deletion with all associated data', [
+                'import_id' => $import->id,
+                'filename' => $import->original_filename
+            ]);
+            
+            // Get date range for this import to identify students created during this import
+            $importDate = $import->created_at;
+            $importEndDate = $import->updated_at;
+            
+            // Get students imported in this batch
+            $studentDocuments = DB::table('students')
+                ->whereBetween('created_at', [$importDate, $importEndDate])
+                ->pluck('document')
+                ->toArray();
+            
+            Log::info('Found students to delete', [
+                'count' => count($studentDocuments),
+                'import_id' => $import->id
+            ]);
+            
+            // Delete student_subject records for these students
+            $deletedStudentSubjects = 0;
+            if (!empty($studentDocuments)) {
+                $deletedStudentSubjects = DB::table('student_subject')
+                    ->whereIn('student_document', $studentDocuments)
+                    ->delete();
+            }
+            
+            // Delete academic_histories linked to this import
+            $deletedHistories = DB::table('academic_histories')
+                ->where('import_id', $import->id)
+                ->delete();
+            
+            // Delete students
+            $deletedStudents = 0;
+            if (!empty($studentDocuments)) {
+                $deletedStudents = DB::table('students')
+                    ->whereIn('document', $studentDocuments)
+                    ->delete();
+            }
+            
             // Delete associated file
             Storage::delete('academic-history-imports/' . $import->filename);
             
-            // Delete import and cascading histories
+            // Delete the import record
             $import->delete();
+            
+            DB::commit();
+
+            Log::info('Import and associated data deleted successfully', [
+                'import_id' => $import->id,
+                'deleted_students' => $deletedStudents,
+                'deleted_student_subjects' => $deletedStudentSubjects,
+                'deleted_histories' => $deletedHistories,
+                'user_id' => auth()->id()
+            ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Importación eliminada correctamente'
+                'message' => 'Importación y datos asociados eliminados correctamente',
+                'deleted' => [
+                    'students' => $deletedStudents,
+                    'student_subjects' => $deletedStudentSubjects,
+                    'histories' => $deletedHistories
+                ]
             ]);
         } catch (\Exception $e) {
+            DB::rollBack();
+            
+            Log::error('Error deleting import and data', [
+                'import_id' => $import->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Error al eliminar: ' . $e->getMessage()
@@ -900,8 +971,9 @@ class AcademicHistoryController extends Controller
     }
 
     /**
-     * Clear all academic history data
-     * This will truncate: student_subject, students, academic_histories, academic_history_imports
+     * Clear ONLY academic data, preserving import history
+     * This will delete all: student_subject, students, academic_histories
+     * Import records (academic_history_imports) are preserved but counters are reset
      */
     public function clearAll(Request $request)
     {
@@ -912,49 +984,66 @@ class AcademicHistoryController extends Controller
             $studentSubjectCount = DB::table('student_subject')->count();
             $studentsCount = DB::table('students')->count();
             $academicHistoriesCount = DB::table('academic_histories')->count();
-            $importsCount = DB::table('academic_history_imports')->count();
 
-            // Truncate tables in order (respecting foreign keys)
-            DB::statement('SET CONSTRAINTS ALL DEFERRED');
+            Log::info('Starting clearAll - counts before deletion', [
+                'student_subject' => $studentSubjectCount,
+                'students' => $studentsCount,
+                'academic_histories' => $academicHistoriesCount,
+            ]);
+
+            // Delete in correct order (respecting foreign keys)
+            // 1. First delete student_subject (no FK dependencies on it)
+            $deletedSubjects = DB::table('student_subject')->delete();
+            Log::info('Deleted student_subject records', ['count' => $deletedSubjects]);
             
-            // Delete data from tables with foreign keys first
-            DB::table('student_subject')->truncate();
-            DB::table('academic_histories')->truncate();
-            DB::table('students')->truncate();
-            DB::table('academic_history_imports')->truncate();
+            // 2. Delete academic_histories (no FK dependencies on it)
+            $deletedHistories = DB::table('academic_histories')->delete();
+            Log::info('Deleted academic_histories records', ['count' => $deletedHistories]);
+            
+            // 3. Finally delete students (other tables may reference it)
+            $deletedStudents = DB::table('students')->delete();
+            Log::info('Deleted students records', ['count' => $deletedStudents]);
+            
+            // 4. Reset counters in academic_history_imports (keep records but zero out stats)
+            $updatedImports = DB::table('academic_history_imports')->update([
+                'total_records' => 0,
+                'successful_imports' => 0,
+                'failed_imports' => 0,
+            ]);
+            Log::info('Reset import counters', ['imports_updated' => $updatedImports]);
 
             DB::commit();
 
-            Log::info('Academic history data cleared', [
+            Log::info('Academic data cleared successfully (import records preserved with reset counters)', [
                 'user_id' => auth()->id(),
-                'student_subject_deleted' => $studentSubjectCount,
-                'students_deleted' => $studentsCount,
-                'academic_histories_deleted' => $academicHistoriesCount,
-                'imports_deleted' => $importsCount,
+                'student_subject_deleted' => $deletedSubjects,
+                'students_deleted' => $deletedStudents,
+                'academic_histories_deleted' => $deletedHistories,
+                'imports_reset' => $updatedImports,
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Todas las historias académicas han sido eliminadas correctamente',
+                'message' => 'Datos académicos eliminados correctamente. Contadores de importación reseteados.',
                 'deleted' => [
-                    'student_subject' => $studentSubjectCount,
-                    'students' => $studentsCount,
-                    'academic_histories' => $academicHistoriesCount,
-                    'imports' => $importsCount,
+                    'student_subject' => $deletedSubjects,
+                    'students' => $deletedStudents,
+                    'academic_histories' => $deletedHistories,
+                    'imports_reset' => $updatedImports,
                 ]
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
             
-            Log::error('Error clearing academic history data', [
+            Log::error('Error clearing academic data', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error al eliminar las historias académicas: ' . $e->getMessage()
+                'message' => 'Error al eliminar los datos académicos: ' . $e->getMessage()
             ], 500);
         }
     }
