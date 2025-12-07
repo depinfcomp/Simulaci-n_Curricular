@@ -1562,7 +1562,162 @@ document.addEventListener('DOMContentLoaded', function() {
                 statusDiv.innerHTML = '';
             }
         }
+        
+        // Update button states based on current changes and convalidation status
+        updateConvalidationButtonStates();
     }
+    
+    /**
+     * Update the visibility and state of Convalidar and Guardar Malla buttons
+     * - "Convalidar" visible when there are added/removed subjects
+     * - "Guardar Malla" disabled until convalidation is complete (when required)
+     */
+    async function updateConvalidationButtonStates() {
+        const btnConvalidar = document.getElementById('btnConvalidar');
+        const btnGuardarMalla = document.getElementById('btnGuardarMalla');
+        
+        if (!btnConvalidar || !btnGuardarMalla) return;
+        
+        // Check if there are added or removed subjects
+        const hasAddedSubjects = simulationChanges.some(c => c.type === 'added');
+        const hasRemovedSubjects = simulationChanges.some(c => c.type === 'removed');
+        const requiresConvalidation = hasAddedSubjects || hasRemovedSubjects;
+        
+        // Check if there are ANY changes at all
+        const hasAnyChanges = simulationChanges && simulationChanges.length > 0;
+        const meaningfulChanges = simulationChanges.filter(c => 
+            c.type !== 'display_order' && c.type !== 'semester_order'
+        );
+        const hasMeaningfulChanges = meaningfulChanges.length > 0;
+        
+        if (requiresConvalidation) {
+            // Show Convalidar button
+            btnConvalidar.style.display = 'inline-block';
+            
+            // Check if there's a complete convalidation
+            const baseVersion = getBaseCurriculumVersion();
+            const existingConvalidations = baseVersion?.convalidations || [];
+            
+            if (existingConvalidations.length > 0) {
+                const lastConvalidation = existingConvalidations[existingConvalidations.length - 1];
+                
+                try {
+                    // Check convalidation status from backend
+                    const statusResponse = await fetch('/convalidation/check-status', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({ curriculum_id: lastConvalidation.curriculum_id })
+                    });
+                    
+                    const statusData = await statusResponse.json();
+                    
+                    if (statusData.success && statusData.exists && statusData.is_complete) {
+                        // Convalidation is complete - enable save button
+                        btnGuardarMalla.disabled = false;
+                        btnGuardarMalla.title = 'Guardar la malla curricular';
+                        btnGuardarMalla.classList.remove('btn-secondary');
+                        btnGuardarMalla.classList.add('btn-primary');
+                        
+                        // Update Convalidar button to show it's complete
+                        btnConvalidar.classList.remove('btn-warning');
+                        btnConvalidar.classList.add('btn-success');
+                        btnConvalidar.innerHTML = '<i class="fas fa-check-circle me-1"></i>Convalidación Completa';
+                    } else {
+                        // Convalidation not complete - disable save button
+                        btnGuardarMalla.disabled = true;
+                        btnGuardarMalla.title = 'Complete la convalidación primero';
+                        btnGuardarMalla.classList.remove('btn-primary');
+                        btnGuardarMalla.classList.add('btn-secondary');
+                        
+                        // Update Convalidar button with progress
+                        btnConvalidar.classList.remove('btn-success');
+                        btnConvalidar.classList.add('btn-warning');
+                        if (statusData.exists) {
+                            btnConvalidar.innerHTML = `<i class="fas fa-exchange-alt me-1"></i>Convalidar (${statusData.completion_percentage}%)`;
+                        } else {
+                            btnConvalidar.innerHTML = '<i class="fas fa-exchange-alt me-1"></i>Convalidar';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error checking convalidation status:', error);
+                    // On error, assume not complete
+                    btnGuardarMalla.disabled = true;
+                    btnGuardarMalla.title = 'Complete la convalidación primero';
+                }
+            } else {
+                // No convalidation exists yet - disable save button
+                btnGuardarMalla.disabled = true;
+                btnGuardarMalla.title = 'Debe convalidar antes de guardar';
+                btnGuardarMalla.classList.remove('btn-primary');
+                btnGuardarMalla.classList.add('btn-secondary');
+                
+                btnConvalidar.classList.remove('btn-success');
+                btnConvalidar.classList.add('btn-warning');
+                btnConvalidar.innerHTML = '<i class="fas fa-exchange-alt me-1"></i>Convalidar';
+            }
+        } else {
+            // No added/removed subjects - hide Convalidar button
+            btnConvalidar.style.display = 'none';
+            
+            // Enable save button if there are meaningful changes
+            if (hasMeaningfulChanges) {
+                btnGuardarMalla.disabled = false;
+                btnGuardarMalla.title = 'Guardar la malla curricular';
+                btnGuardarMalla.classList.remove('btn-secondary');
+                btnGuardarMalla.classList.add('btn-primary');
+            } else {
+                btnGuardarMalla.disabled = true;
+                btnGuardarMalla.title = 'No hay cambios para guardar';
+                btnGuardarMalla.classList.remove('btn-primary');
+                btnGuardarMalla.classList.add('btn-secondary');
+            }
+        }
+    }
+    
+    /**
+     * Go to convalidation - handles existing or new convalidation
+     */
+    window.goToConvalidation = async function() {
+        const baseVersion = getBaseCurriculumVersion();
+        const existingConvalidations = baseVersion?.convalidations || [];
+        
+        if (existingConvalidations.length > 0) {
+            const lastConvalidation = existingConvalidations[existingConvalidations.length - 1];
+            
+            try {
+                // Check convalidation status from backend
+                const statusResponse = await fetch('/convalidation/check-status', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ curriculum_id: lastConvalidation.curriculum_id })
+                });
+                
+                const statusData = await statusResponse.json();
+                
+                if (statusData.success && statusData.exists) {
+                    // Show choice modal
+                    showConvalidationChoiceModal(statusData, lastConvalidation);
+                } else {
+                    // Convalidation was deleted, create new one
+                    createNewConvalidation();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                createNewConvalidation();
+            }
+        } else {
+            // No existing convalidation, create new one
+            createNewConvalidation();
+        }
+    };
     
     // Update affected percentage display
     function updateAffectedPercentage(percentage) {
@@ -5206,12 +5361,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     /**
      * Save current curriculum as a new version
+     * Button is only enabled when convalidation is complete (if required)
      */
-    window.saveCurrentCurriculum = function() {
-        // SECURITY CHECK 1: Verify if there are ANY changes at all
+    window.saveCurrentCurriculum = async function() {
+        // Verify if there are ANY changes at all
         const hasAnyChanges = simulationChanges && simulationChanges.length > 0;
+        const meaningfulChanges = simulationChanges.filter(c => 
+            c.type !== 'display_order' && c.type !== 'semester_order'
+        );
         
-        if (!hasAnyChanges) {
+        if (!hasAnyChanges || meaningfulChanges.length === 0) {
             showAlertModal(
                 'No hay cambios pendientes para guardar.\n\nDebes realizar al menos una modificación a la malla antes de poder guardarla.',
                 'warning',
@@ -5220,124 +5379,294 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Check if there are added or removed subjects that haven't been exported yet
-        const hasAddedSubjects = simulationChanges.some(c => c.type === 'added' && !c.exported);
-        const hasRemovedSubjects = simulationChanges.some(c => c.type === 'removed' && !c.exported);
+        // Check if convalidation is required and complete
+        const hasAddedSubjects = simulationChanges.some(c => c.type === 'added');
+        const hasRemovedSubjects = simulationChanges.some(c => c.type === 'removed');
+        const requiresConvalidation = hasAddedSubjects || hasRemovedSubjects;
         
-        if (hasAddedSubjects || hasRemovedSubjects) {
-            // Show info message and redirect to convalidation
-            const message = `CONVALIDACIÓN REQUERIDA
-
-Has ${hasAddedSubjects ? 'agregado' : ''} ${hasAddedSubjects && hasRemovedSubjects ? 'y' : ''} ${hasRemovedSubjects ? 'eliminado' : ''} materias.
-
-Antes de guardar la versión, debes convalidar estas materias.
-
-Serás redirigido al apartado de convalidación.
-Una vez completada la convalidación, podrás guardar la nueva versión de la malla.`;
+        if (requiresConvalidation) {
+            // Double-check convalidation status (button should already be disabled if not complete)
+            const baseVersion = getBaseCurriculumVersion();
+            const existingConvalidations = baseVersion?.convalidations || [];
             
-            showConfirmModal(
-                message,
-                function() {
-                    // Export to convalidation system
-                    const exportName = `Malla_Modificada_${new Date().toISOString().split('T')[0]}`;
-                    const curriculum = getCurrentCurriculumState();
-                    
-                    // Show loading
-                    const loadingModal = showLoadingModal('Exportando malla para convalidación...');
-                    const originalButton = event?.target || document.querySelector('button[onclick="saveCurrentCurriculum()"]');
-                    if (originalButton) {
-                        originalButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Exportando...';
-                        originalButton.disabled = true;
-                    }
-                    
-                    // Prepare payload
-                    const payload = {
-                        name: exportName,
-                        institution: 'Simulación Curricular - Cambios Pendientes',
-                        curriculum: curriculum,
-                        changes: simulationChanges,
-                        _token: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                    };
-                    
-                    // Send to backend
-                    fetch('/convalidation/save-modified-curriculum', {
+            if (existingConvalidations.length > 0) {
+                const lastConvalidation = existingConvalidations[existingConvalidations.length - 1];
+                
+                try {
+                    const statusResponse = await fetch('/convalidation/check-status', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': payload._token,
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
                             'Accept': 'application/json'
                         },
-                        body: JSON.stringify(payload)
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // Save the curriculum ID to prevent duplicate exports
-                            if (data.curriculum_id) {
-                                localStorage.setItem('current_external_curriculum_id', data.curriculum_id);
-                                console.log('Saved external curriculum ID for convalidation:', data.curriculum_id);
-                                
-                                // Mark all added/removed changes as exported
-                                simulationChanges.forEach(change => {
-                                    if (change.type === 'added' || change.type === 'removed') {
-                                        change.exported = true;
-                                    }
-                                });
-                                saveChangesToStorage();
-                            }
-                            
-                            // Save the redirect URL to localStorage for future reference
-                            if (data.redirect_url) {
-                                localStorage.setItem('convalidation_redirect_url', data.redirect_url);
-                                console.log('Saved convalidation redirect URL:', data.redirect_url);
-                            }
-                            
-                            // Link this convalidation to the current base curriculum version
-                            if (data.curriculum_id && data.redirect_url) {
-                                addConvalidationToBaseVersion(data.curriculum_id, data.redirect_url);
-                                const baseVersion = getBaseCurriculumVersion();
-                                console.log(`Convalidación vinculada a la versión base ${baseVersion.version_number} (${baseVersion.version_id})`);
-                            }
-                            
-                            showSuccessMessage('Malla exportada. Redirigiendo a convalidación...');
-                            
-                            // Store pending save flag in sessionStorage
-                            sessionStorage.setItem('pendingSave', JSON.stringify({
-                                description: 'Versión con convalidaciones completadas',
-                                exportedAt: new Date().toISOString()
-                            }));
-                            
-                            // Redirect to convalidation
-                            setTimeout(() => {
-                                window.location.href = data.redirect_url;
-                            }, 1500);
-                        } else {
-                            throw new Error(data.message || 'Error desconocido');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        showAlertModal(`No se pudo exportar la malla: ${error.message}`, 'error', 'Error al Exportar');
-                        
-                        // Restore button
-                        if (originalButton) {
-                            originalButton.innerHTML = '<i class="fas fa-save me-1"></i>Guardar Malla';
-                            originalButton.disabled = false;
-                        }
+                        body: JSON.stringify({ curriculum_id: lastConvalidation.curriculum_id })
                     });
-                },
-                'warning',
-                'Convalidación Requerida',
-                'Ir a Convalidación',
-                'Cancelar'
-            );
-            
-            return; // Exit early, don't save version yet
+                    
+                    const statusData = await statusResponse.json();
+                    
+                    if (!statusData.success || !statusData.exists || !statusData.is_complete) {
+                        showAlertModal(
+                            'Debes completar la convalidación antes de guardar la malla.\n\nUsa el botón "Convalidar" para continuar.',
+                            'warning',
+                            'Convalidación Requerida'
+                        );
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Error checking convalidation:', error);
+                    showAlertModal(
+                        'Error al verificar el estado de la convalidación. Por favor, intenta de nuevo.',
+                        'error',
+                        'Error'
+                    );
+                    return;
+                }
+            } else {
+                showAlertModal(
+                    'Debes crear y completar una convalidación antes de guardar la malla.\n\nUsa el botón "Convalidar" para comenzar.',
+                    'warning',
+                    'Convalidación Requerida'
+                );
+                return;
+            }
         }
         
-        // SECURITY CHECK 2: Show critical warning before saving
+        // All validations passed - proceed with save
+        proceedWithSave();
+    };
+    
+    /**
+     * Show modal asking to continue existing convalidation or create new one
+     */
+    function showConvalidationChoiceModal(statusData, lastConvalidation) {
+        const message = `CONVALIDACIÓN EN PROGRESO
+
+Ya existe una convalidación para esta versión de la malla:
+
+📋 ${statusData.curriculum_name}
+📊 Progreso: ${statusData.completion_percentage}% (${statusData.convalidated_subjects}/${statusData.total_subjects} materias)
+⏳ Faltan: ${statusData.pending_subjects} materias por convalidar
+
+¿Qué deseas hacer?`;
+
+        // Create custom modal with 3 options
+        const modalHtml = `
+            <div class="modal fade" id="convalidationChoiceModal" tabindex="-1" data-bs-backdrop="static">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-warning text-dark">
+                            <h5 class="modal-title">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Convalidación Pendiente
+                            </h5>
+                        </div>
+                        <div class="modal-body">
+                            <pre style="white-space: pre-wrap; font-family: inherit;">${message}</pre>
+                        </div>
+                        <div class="modal-footer d-flex flex-column gap-2">
+                            <button type="button" class="btn btn-primary w-100" id="btnContinueConvalidation">
+                                <i class="fas fa-arrow-right me-2"></i>
+                                Continuar convalidación existente
+                            </button>
+                            <button type="button" class="btn btn-warning w-100" id="btnNewConvalidation">
+                                <i class="fas fa-plus me-2"></i>
+                                Crear nueva convalidación
+                            </button>
+                            <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">
+                                <i class="fas fa-times me-2"></i>
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        const existingModal = document.getElementById('convalidationChoiceModal');
+        if (existingModal) existingModal.remove();
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modal = new bootstrap.Modal(document.getElementById('convalidationChoiceModal'));
+        
+        // Handle continue existing convalidation
+        document.getElementById('btnContinueConvalidation').addEventListener('click', function() {
+            modal.hide();
+            window.location.href = statusData.redirect_url;
+        });
+        
+        // Handle create new convalidation
+        document.getElementById('btnNewConvalidation').addEventListener('click', function() {
+            modal.hide();
+            createNewConvalidation();
+        });
+        
+        modal.show();
+    }
+    
+    /**
+     * Show modal for new convalidation (no existing one)
+     */
+    function showNewConvalidationModal() {
+        const hasAddedSubjects = simulationChanges.some(c => c.type === 'added');
+        const hasRemovedSubjects = simulationChanges.some(c => c.type === 'removed');
+        
+        const message = `CONVALIDACIÓN REQUERIDA
+
+Has ${hasAddedSubjects ? 'agregado' : ''}${hasAddedSubjects && hasRemovedSubjects ? ' y ' : ''}${hasRemovedSubjects ? 'eliminado' : ''} materias.
+
+Antes de guardar la versión, debes convalidar todas las materias de la nueva malla.
+
+Serás redirigido al apartado de convalidación.
+Una vez completada la convalidación (100%), podrás guardar la nueva versión de la malla.`;
+        
+        showConfirmModal(
+            message,
+            function() {
+                createNewConvalidation();
+            },
+            'warning',
+            'Convalidación Requerida',
+            'Ir a Convalidación',
+            'Cancelar'
+        );
+    }
+    
+    /**
+     * Create a new convalidation and redirect to it
+     * Also deletes any existing convalidations linked to this base version
+     */
+    async function createNewConvalidation() {
+        const exportName = `Malla_Modificada_${new Date().toISOString().split('T')[0]}`;
+        const curriculum = getCurrentCurriculumState();
+        
+        // Show loading
+        showLoadingModal('Preparando nueva convalidación...');
+        const originalButton = document.querySelector('button[onclick="saveCurrentCurriculum()"]');
+        if (originalButton) {
+            originalButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Exportando...';
+            originalButton.disabled = true;
+        }
+        
+        // First, delete any existing convalidations linked to this base version
+        const baseVersion = getBaseCurriculumVersion();
+        const existingConvalidations = baseVersion?.convalidations || [];
+        
+        if (existingConvalidations.length > 0) {
+            console.log('Deleting existing convalidations:', existingConvalidations.map(c => c.curriculum_id));
+            
+            // Delete each existing convalidation from backend
+            for (const conv of existingConvalidations) {
+                try {
+                    const deleteResponse = await fetch(`/convalidation/${conv.curriculum_id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    if (deleteResponse.ok) {
+                        console.log(`Deleted convalidation ${conv.curriculum_id}`);
+                    } else {
+                        console.warn(`Failed to delete convalidation ${conv.curriculum_id}`);
+                    }
+                } catch (error) {
+                    console.warn(`Error deleting convalidation ${conv.curriculum_id}:`, error);
+                }
+            }
+            
+            // Clear convalidations from base version in localStorage
+            baseVersion.convalidations = [];
+            updateBaseCurriculumVersion(baseVersion);
+            console.log('Cleared convalidations from base version');
+        }
+        
+        // Now create the new convalidation
+        showLoadingModal('Exportando malla para convalidación...');
+        
+        // Prepare payload
+        const payload = {
+            name: exportName,
+            institution: 'Simulación Curricular - Cambios Pendientes',
+            curriculum: curriculum,
+            changes: simulationChanges,
+            _token: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+        };
+        
+        // Send to backend
+        fetch('/convalidation/save-modified-curriculum', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': payload._token,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Save the curriculum ID
+                if (data.curriculum_id) {
+                    localStorage.setItem('current_external_curriculum_id', data.curriculum_id);
+                    console.log('Saved external curriculum ID for convalidation:', data.curriculum_id);
+                    
+                    // Mark all added/removed changes as exported
+                    simulationChanges.forEach(change => {
+                        if (change.type === 'added' || change.type === 'removed') {
+                            change.exported = true;
+                        }
+                    });
+                    saveChangesToStorage();
+                }
+                
+                // Save the redirect URL
+                if (data.redirect_url) {
+                    localStorage.setItem('convalidation_redirect_url', data.redirect_url);
+                }
+                
+                // Link to current base version
+                if (data.curriculum_id && data.redirect_url) {
+                    addConvalidationToBaseVersion(data.curriculum_id, data.redirect_url);
+                    const baseVersion = getBaseCurriculumVersion();
+                    console.log(`Convalidación vinculada a la versión base ${baseVersion.version_number}`);
+                }
+                
+                showSuccessMessage('Malla exportada. Redirigiendo a convalidación...');
+                
+                // Store pending save flag
+                sessionStorage.setItem('pendingSave', JSON.stringify({
+                    description: 'Versión con convalidaciones completadas',
+                    exportedAt: new Date().toISOString()
+                }));
+                
+                // Redirect to convalidation
+                setTimeout(() => {
+                    window.location.href = data.redirect_url;
+                }, 1500);
+            } else {
+                throw new Error(data.message || 'Error desconocido');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlertModal(`No se pudo exportar la malla: ${error.message}`, 'error', 'Error al Exportar');
+            
+            // Restore button
+            if (originalButton) {
+                originalButton.innerHTML = '<i class="fas fa-save me-1"></i>Guardar Malla';
+                originalButton.disabled = false;
+            }
+        });
+    }
+    
+    /**
+     * Proceed with saving after convalidation is complete or no convalidation needed
+     */
+    function proceedWithSave() {
         // Count changes for the warning message
-        const changeCount = simulationChanges.length;
         const changeTypes = [...new Set(simulationChanges.map(c => c.type))];
         const changesSummary = changeTypes.map(type => {
             const count = simulationChanges.filter(c => c.type === type).length;
@@ -5380,7 +5709,7 @@ POR SEGURIDAD: Para continuar, debes escribir exactamente la palabra "GUARDAR"`;
             'GUARDAR',
             'CONFIRMACIÓN DE GUARDADO PERMANENTE'
         );
-    };
+    }
     
     /**
      * Internal function to perform the actual curriculum save
@@ -5746,6 +6075,11 @@ POR SEGURIDAD: Para continuar, debes escribir exactamente la palabra "GUARDAR"`;
 
     // Initialize simulation when page loads
     initializeSimulation();
+    
+    // Update button states after initialization
+    setTimeout(() => {
+        updateConvalidationButtonStates();
+    }, 500);
     
     // ============================================
     // BIDIRECTIONAL SYNC: Listen for changes from other sources

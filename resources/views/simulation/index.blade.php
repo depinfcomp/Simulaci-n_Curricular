@@ -147,7 +147,11 @@
                         <i class="fas fa-plus me-1"></i>
                         Agregar Materia
                     </button>
-                    <button class="btn btn-primary me-2" onclick="saveCurrentCurriculum()">
+                    <button class="btn btn-warning me-2" id="btnConvalidar" onclick="goToConvalidation()" style="display: none;">
+                        <i class="fas fa-exchange-alt me-1"></i>
+                        Convalidar
+                    </button>
+                    <button class="btn btn-primary me-2" id="btnGuardarMalla" onclick="saveCurrentCurriculum()" disabled title="Complete la convalidación primero">
                         <i class="fas fa-save me-1"></i>
                         Guardar Malla
                     </button>

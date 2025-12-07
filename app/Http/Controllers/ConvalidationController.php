@@ -1839,6 +1839,98 @@ class ConvalidationController extends Controller
     }
 
     /**
+     * Check the status of a convalidation (complete or incomplete)
+     * Returns details about the convalidation progress
+     */
+    public function checkConvalidationStatus(Request $request)
+    {
+        try {
+            $curriculumId = $request->input('curriculum_id');
+            
+            if (!$curriculumId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Se requiere curriculum_id'
+                ], 400);
+            }
+            
+            $curriculum = ExternalCurriculum::find($curriculumId);
+            
+            if (!$curriculum) {
+                return response()->json([
+                    'success' => true,
+                    'exists' => false,
+                    'message' => 'La convalidación no existe'
+                ]);
+            }
+            
+            // Get total subjects (excluding removed)
+            $totalSubjects = $curriculum->externalSubjects()
+                ->where(function($query) {
+                    $query->whereNull('change_type')
+                          ->orWhere('change_type', '!=', 'removed');
+                })
+                ->count();
+            
+            // Get subjects with direct convalidation
+            $directConvalidations = $curriculum->convalidations()
+                ->whereHas('externalSubject', function($query) {
+                    $query->where(function($q) {
+                        $q->whereNull('change_type')
+                          ->orWhere('change_type', '!=', 'removed');
+                    });
+                })
+                ->count();
+            
+            // Get subjects with N:N group convalidation
+            $nnGroupConvalidations = $curriculum->convalidationGroups()
+                ->whereHas('externalSubject', function($query) {
+                    $query->where(function($q) {
+                        $q->whereNull('change_type')
+                          ->orWhere('change_type', '!=', 'removed');
+                    });
+                })
+                ->count();
+            
+            // Total convalidated
+            $convalidatedSubjects = $directConvalidations + $nnGroupConvalidations;
+            
+            // Subjects pending convalidation
+            $pendingSubjects = $totalSubjects - $convalidatedSubjects;
+            
+            // Is complete when all subjects have been convalidated
+            $isComplete = $pendingSubjects === 0 && $totalSubjects > 0;
+            
+            // Calculate percentage
+            $completionPercentage = $totalSubjects > 0 
+                ? round(($convalidatedSubjects / $totalSubjects) * 100, 1) 
+                : 0;
+            
+            return response()->json([
+                'success' => true,
+                'exists' => true,
+                'curriculum_id' => $curriculum->id,
+                'curriculum_name' => $curriculum->name,
+                'is_complete' => $isComplete,
+                'total_subjects' => $totalSubjects,
+                'convalidated_subjects' => $convalidatedSubjects,
+                'pending_subjects' => $pendingSubjects,
+                'completion_percentage' => $completionPercentage,
+                'redirect_url' => route('convalidation.show', $curriculum->id),
+                'created_at' => $curriculum->created_at->toISOString(),
+                'updated_at' => $curriculum->updated_at->toISOString()
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error checking convalidation status: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al verificar el estado: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Classify the impact type based on how many students benefit from a convalidation
      */
     private function classifyImpactType(int $studentsBenefited, int $totalStudents): string
