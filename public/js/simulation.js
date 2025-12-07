@@ -5695,14 +5695,25 @@ POR SEGURIDAD: Para continuar, debes escribir exactamente la palabra "GUARDAR"`;
             securityMessage,
             function() {
                 // After security confirmation, ask for description
+                const descriptionMessage = `DESCRIPCIÓN DE LOS CAMBIOS REALIZADOS
+
+Esta descripción se asociará a la VERSIÓN ANTERIOR de la malla (la que está siendo reemplazada).
+
+Sirve para documentar qué cambios se hicieron y por qué, facilitando la revisión del historial de versiones.
+
+La nueva versión que se creará quedará como la versión actual sin descripción adicional.
+
+Ejemplo de descripción:
+"Se agregaron 2 materias electivas y se eliminó Cálculo III por cambio en el plan de estudios 2025"`;
+
                 showPromptModal(
-                    'Describe brevemente los cambios realizados (opcional):\n\nEsto ayudará a identificar esta versión en el historial.',
+                    descriptionMessage,
                     function(description) {
                         // Proceed with saving
                         performCurriculumSave(description);
                     },
-                    'Descripción de la Versión',
-                    'Ej: Actualización de prerrequisitos del tercer semestre',
+                    'Registro de Cambios (Changelog)',
+                    'Ej: Se agregó Inteligencia Artificial y se movió Bases de Datos al 5to semestre...',
                     ''
                 );
             },
