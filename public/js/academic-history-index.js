@@ -86,11 +86,11 @@ async function handleUpload(e) {
 }
 
 /**
- * Delete an import
+ * Delete an import and all its associated data
  */
 function deleteImport(importId) {
     showConfirmModal(
-        '¿Está seguro de que desea eliminar esta importación?\n\nADVERTENCIA: Se eliminarán todos los registros asociados.\n\nEsta acción NO se puede deshacer.',
+        '¿Está seguro de que desea eliminar esta importación?\n\nADVERTENCIA: Se eliminarán:\n- La importación del historial\n- Todos los estudiantes de esta importación\n- Todas las materias cursadas\n- Todos los registros académicos\n\nEsta acción NO se puede deshacer.',
         async function() {
             try {
                 const response = await fetch(`/academic-history/${importId}`, {
@@ -104,8 +104,12 @@ function deleteImport(importId) {
                 const data = await response.json();
                 
                 if (data.success) {
-                    showAlertModal(data.message, 'success', 'Importación Eliminada');
-                    setTimeout(() => window.location.reload(), 1500);
+                    let message = data.message;
+                    if (data.deleted) {
+                        message += `\n\nEliminados:\n- ${data.deleted.students} estudiantes\n- ${data.deleted.student_subjects} materias cursadas\n- ${data.deleted.histories} historiales académicos`;
+                    }
+                    showAlertModal(message, 'success', 'Importación Eliminada');
+                    setTimeout(() => window.location.reload(), 2000);
                 } else {
                     throw new Error(data.message || 'Error al eliminar');
                 }
@@ -115,8 +119,8 @@ function deleteImport(importId) {
             }
         },
         'danger',
-        'Eliminar Importación',
-        'Sí, eliminar',
+        'Eliminar Importación y Datos',
+        'Sí, eliminar todo',
         'Cancelar'
     );
 }
@@ -244,35 +248,169 @@ function showConfirmModal(message, onConfirm, type = 'warning', title = null, co
 }
 
 /**
- * Confirm clearing all academic history data
+ * Confirm clearing all academic history data (but preserve import history)
  */
 function confirmClearAll() {
-    const message = `ADVERTENCIA: Esta acción es IRREVERSIBLE
+    const message = `Esta acción eliminará PERMANENTEMENTE:
 
-Esta acción eliminará PERMANENTEMENTE:
-- Todos los estudiantes importados
-- Todas las materias cursadas (student_subject)
-- Todos los historiales académicos (academic_histories)
-- Todos los registros de importación
+• Todos los estudiantes importados
+• Todas las materias cursadas (student_subject)
+• Todos los historiales académicos (academic_histories)
 
-¿Está seguro de que desea continuar?`;
+NOTA: El historial de importaciones se mantendrá para auditoría.`;
 
-    showConfirmModal(
+    showConfirmWithInputModal(
         message,
-        () => {
-            // Ask for confirmation word
-            const confirmWord = prompt('Para confirmar, escriba "ELIMINAR":');
-            if (confirmWord === 'ELIMINAR') {
+        'ELIMINAR',
+        (confirmedValue) => {
+            if (confirmedValue === 'ELIMINAR') {
                 clearAllData();
-            } else if (confirmWord !== null) {
-                showAlertModal('Confirmación incorrecta. No se eliminó ningún dato.', 'warning', 'Cancelado');
+            } else {
+                showAlertModal('Debe escribir exactamente "ELIMINAR" para confirmar.', 'warning', 'Confirmación Incorrecta');
             }
         },
         'danger',
-        'Eliminar Todas las Historias Académicas',
-        'Continuar',
+        'Limpiar Datos Académicos',
+        'Confirmar y Eliminar',
         'Cancelar'
     );
+}
+
+/**
+ * Show confirmation modal with text input
+ */
+function showConfirmWithInputModal(message, expectedValue, onConfirm, type = 'warning', title = null, confirmText = 'Confirmar', cancelText = 'Cancelar') {
+    const typeConfig = {
+        danger: { icon: 'fas fa-exclamation-triangle', defaultTitle: 'Confirmar Acción Crítica' },
+        warning: { icon: 'fas fa-exclamation-circle', defaultTitle: 'Confirmación' },
+    };
+
+    const config = typeConfig[type] || typeConfig.warning;
+    const modalTitle = title || config.defaultTitle;
+    
+    const modalHtml = `
+        <div class="modal fade" id="confirmInputModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-${type} text-white">
+                        <h5 class="modal-title">
+                            <i class="${config.icon} me-2"></i>
+                            ${modalTitle}
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-${type} mb-3">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>ADVERTENCIA: Esta acción es IRREVERSIBLE</strong>
+                        </div>
+                        <p style="white-space: pre-line;">${message}</p>
+                        <hr>
+                        <div class="mb-3">
+                            <label for="confirmInput" class="form-label fw-bold">
+                                Para confirmar, escriba: <span class="text-${type}">${expectedValue}</span>
+                            </label>
+                            <input type="text" 
+                                   class="form-control form-control-lg" 
+                                   id="confirmInput" 
+                                   placeholder="Escriba aquí..."
+                                   autocomplete="off">
+                            <small class="text-muted">Debe coincidir exactamente (mayúsculas y minúsculas)</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-2"></i>
+                            ${cancelText}
+                        </button>
+                        <button type="button" class="btn btn-${type}" id="confirmInputBtn" disabled>
+                            <i class="fas fa-check me-2"></i>
+                            ${confirmText}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if present
+    const existingModal = document.getElementById('confirmInputModal');
+    if (existingModal) {
+        const existingModalInstance = bootstrap.Modal.getInstance(existingModal);
+        if (existingModalInstance) existingModalInstance.dispose();
+        existingModal.remove();
+    }
+    
+    // Add modal to DOM
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modalElement = document.getElementById('confirmInputModal');
+    const modal = new bootstrap.Modal(modalElement);
+    const confirmBtn = document.getElementById('confirmInputBtn');
+    const inputField = document.getElementById('confirmInput');
+    
+    // Enable/disable confirm button based on input
+    inputField.addEventListener('input', function() {
+        if (this.value === expectedValue) {
+            confirmBtn.disabled = false;
+            confirmBtn.classList.remove('btn-secondary');
+            confirmBtn.classList.add(`btn-${type}`);
+        } else {
+            confirmBtn.disabled = true;
+            confirmBtn.classList.remove(`btn-${type}`);
+            confirmBtn.classList.add('btn-secondary');
+        }
+    });
+    
+    // Handle Enter key
+    inputField.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && this.value === expectedValue) {
+            confirmBtn.click();
+        }
+    });
+    
+    // Handle confirm button click
+    confirmBtn.addEventListener('click', function() {
+        const inputValue = inputField.value;
+        
+        // Store callback to execute after modal is fully hidden
+        modalElement.dataset.callbackValue = inputValue;
+        modalElement.dataset.hasCallback = 'true';
+        
+        modal.hide();
+    });
+    
+    // Auto-focus input when modal is shown
+    modalElement.addEventListener('shown.bs.modal', function () {
+        inputField.focus();
+    });
+    
+    // Execute callback AFTER modal is fully hidden to avoid conflicts
+    modalElement.addEventListener('hidden.bs.modal', function () {
+        const shouldCallback = modalElement.dataset.hasCallback === 'true';
+        const callbackValue = modalElement.dataset.callbackValue;
+        
+        // Remove modal from DOM
+        modalElement.remove();
+        
+        // Clean up any remaining backdrops
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => backdrop.remove());
+        
+        // Remove modal-open class from body
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+        
+        // Execute callback after modal is removed and cleaned up
+        if (shouldCallback && typeof onConfirm === 'function') {
+            // Longer delay to ensure complete DOM cleanup
+            setTimeout(() => {
+                onConfirm(callbackValue);
+            }, 300);
+        }
+    });
+    
+    modal.show();
 }
 
 /**
@@ -280,13 +418,12 @@ Esta acción eliminará PERMANENTEMENTE:
  */
 async function clearAllData() {
     try {
-        // Show loading indicator
-        showAlertModal(
-            '<div class="text-center"><i class="fas fa-spinner fa-spin fa-3x mb-3"></i><br>Eliminando datos...</div>',
-            'warning',
-            'Procesando',
-            false // Don't show close button
-        );
+        // Create a simple loading modal (no Bootstrap modal to avoid conflicts)
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'loadingOverlay';
+        loadingDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; justify-content: center; align-items: center;';
+        loadingDiv.innerHTML = '<div class="text-white text-center"><i class="fas fa-spinner fa-spin fa-3x mb-3"></i><br><h4>Eliminando datos...</h4></div>';
+        document.body.appendChild(loadingDiv);
 
         const response = await fetch('/academic-history/clear-all', {
             method: 'POST',
@@ -299,26 +436,23 @@ async function clearAllData() {
 
         const data = await response.json();
 
-        // Close loading modal
-        const loadingModal = document.getElementById('alertModal');
-        if (loadingModal) {
-            const modalInstance = bootstrap.Modal.getInstance(loadingModal);
-            if (modalInstance) modalInstance.hide();
-        }
+        // Remove loading overlay
+        loadingDiv.remove();
 
         if (data.success) {
             const deletedInfo = `
-Datos eliminados correctamente:
+Datos académicos eliminados correctamente:
 
 - Estudiantes: ${data.deleted.students}
 - Materias cursadas: ${data.deleted.student_subject}
 - Historiales académicos: ${data.deleted.academic_histories}
-- Importaciones: ${data.deleted.imports}
+- Contadores de importación reseteados: ${data.deleted.imports_reset || 0}
 
+El historial de importaciones se ha preservado (con contadores en 0).
 La página se recargará automáticamente.
             `;
             
-            showAlertModal(deletedInfo, 'success', 'Eliminación Exitosa');
+            showAlertModal(deletedInfo, 'success', 'Limpieza Exitosa');
             
             // Reload page after 3 seconds
             setTimeout(() => {
@@ -335,12 +469,9 @@ La página se recargará automáticamente.
     } catch (error) {
         console.error('Error clearing data:', error);
         
-        // Close loading modal if still open
-        const loadingModal = document.getElementById('alertModal');
-        if (loadingModal) {
-            const modalInstance = bootstrap.Modal.getInstance(loadingModal);
-            if (modalInstance) modalInstance.hide();
-        }
+        // Remove loading overlay if still present
+        const loadingDiv = document.getElementById('loadingOverlay');
+        if (loadingDiv) loadingDiv.remove();
         
         showAlertModal(
             `Error de conexión: ${error.message}`,

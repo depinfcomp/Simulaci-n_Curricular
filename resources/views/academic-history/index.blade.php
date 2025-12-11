@@ -14,7 +14,7 @@
                         <i class="fas fa-upload me-2"></i>
                         Importar Historia Académica
                     </button>
-                    @if($stats['total_records'] > 0)
+                    @if($hasAcademicData)
                         <button class="btn btn-danger" onclick="confirmClearAll()">
                             <i class="fas fa-trash-alt me-2"></i>
                             Eliminar Historias Actuales

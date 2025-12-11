@@ -5,6 +5,24 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @property int $id
+ * @property int $external_curriculum_id
+ * @property string $code
+ * @property string $name
+ * @property int $credits
+ * @property int $semester
+ * @property int $display_order
+ * @property string|null $description
+ * @property array|null $additional_data
+ * @property string|null $change_type
+ * @property int|null $original_semester
+ * @property array|null $change_details
+ * @property \Carbon\Carbon $created_at
+ * @property \Carbon\Carbon $updated_at
+ * @property-read ExternalCurriculum $externalCurriculum
+ * @property-read SubjectConvalidation|null $convalidation
+ */
 class ExternalSubject extends Model
 {
     use HasFactory;
@@ -15,6 +33,7 @@ class ExternalSubject extends Model
         'name',
         'credits',
         'semester',
+        'display_order',
         'description',
         'additional_data',
         'change_type',

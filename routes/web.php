@@ -99,6 +99,9 @@ Route::middleware(['auth', \App\Http\Middleware\CheckMustChangePassword::class])
         // Save modified curriculum from simulation
         Route::post('/save-modified-curriculum', [ConvalidationController::class, 'saveModifiedCurriculum'])->name('convalidation.save-modified-curriculum');
         
+        // Check convalidation status (complete/incomplete)
+        Route::post('/check-status', [ConvalidationController::class, 'checkConvalidationStatus'])->name('convalidation.check-status');
+        
         // Delete multiple convalidations by IDs (for reset functionality)
         Route::post('/delete-multiple', [ConvalidationController::class, 'deleteMultipleConvalidations'])->name('convalidation.delete-multiple');
     });

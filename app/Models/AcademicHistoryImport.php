@@ -5,7 +5,26 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Collection;
 
+/**
+ * @property int $id
+ * @property string|null $filename
+ * @property string|null $original_filename
+ * @property int $total_records
+ * @property int $successful_imports
+ * @property int $failed_imports
+ * @property array|null $column_mapping
+ * @property array|null $import_summary
+ * @property string|null $error_log
+ * @property string $status
+ * @property int|null $imported_by
+ * @property \Carbon\Carbon $created_at
+ * @property \Carbon\Carbon $updated_at
+ * @property-read float $success_rate
+ * @property-read Collection|AcademicHistory[] $histories
+ * @property-read User|null $importedBy
+ */
 class AcademicHistoryImport extends Model
 {
     protected $fillable = [
