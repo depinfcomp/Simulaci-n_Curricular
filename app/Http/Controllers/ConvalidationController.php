@@ -2048,15 +2048,16 @@ class ConvalidationController extends Controller
                         continue;
                     }
                     
-                    // Skip subjects marked as removed
-                    if (!empty($subjectData['isRemoved'])) {
-                        Log::info("Skipping removed subject: {$subjectCode}");
-                        $changeTypeCounts['removed']++;
-                        continue;
+                    // Mark subjects as removed but still create them (don't skip)
+                    // This allows them to be shown in convalidation view with "ELIMINADA" badge
+                    $isMarkedForRemoval = !empty($subjectData['isRemoved']);
+                    if ($isMarkedForRemoval) {
+                        Log::info("Processing removed subject (will create with removed status): {$subjectCode}");
                     }
                     
                     $processedCodes[] = $subjectCode;
                     $processedCount++;
+
                 
                     // Sample first 3 subjects for detailed logging
                     if ($processedCount <= 3) {
@@ -2075,11 +2076,20 @@ class ConvalidationController extends Controller
                     $originalSemester = null;
                     $changeDetails = [];
                 
+                    // Check if subject is marked as removed in the frontend (highest priority)
+                    if ($isMarkedForRemoval) {
+                        $changeType = 'removed';
+                    }
                     // Check if subject is marked as added in the frontend
-                    if (isset($subjectData['isAdded']) && $subjectData['isAdded']) {
+                    elseif (isset($subjectData['isAdded']) && $subjectData['isAdded']) {
                         $changeType = 'added';
                     }
-                    // Check simulationChanges array for this subject
+                    // Check if subject is marked as moved in the frontend
+                    elseif (isset($subjectData['isMoved']) && $subjectData['isMoved']) {
+                        $changeType = 'moved';
+                        $originalSemester = $subjectData['originalSemester'] ?? null;
+                    }
+                    // Check simulationChanges array for this subject (fallback)
                     else {
                         $changeInfo = $changesMap->get($subjectCode);
                         if ($changeInfo) {
@@ -2104,6 +2114,8 @@ class ConvalidationController extends Controller
                         'semester' => $semester,
                         'isRemoved_flag' => $subjectData['isRemoved'] ?? false,
                         'isAdded_flag' => $subjectData['isAdded'] ?? false,
+                        'isMoved_flag' => $subjectData['isMoved'] ?? false,
+                        'originalSemester' => $subjectData['originalSemester'] ?? null,
                         'has_change_in_map' => $changesMap->has($subjectCode),
                         'detected_changeType' => $changeType
                     ]);
