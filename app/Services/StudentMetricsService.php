@@ -84,7 +84,7 @@ class StudentMetricsService
      * @param string $studentDocument Student document
      * @return float Average grade
      */
-    private function calculateAverageGrade(string $studentDocument): float
+    public function calculateAverageGrade(string $studentDocument): float
     {
         // Get all subjects with numeric grades (excludes AP/RE qualitative grades)
         $subjects = DB::table('student_subject')

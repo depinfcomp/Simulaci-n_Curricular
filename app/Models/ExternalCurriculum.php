@@ -4,7 +4,23 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Collection;
 
+/**
+ * @property int $id
+ * @property string $name
+ * @property string|null $institution
+ * @property string|null $description
+ * @property string|null $uploaded_file
+ * @property array|null $metadata
+ * @property string $status
+ * @property string|null $pdf_report_path
+ * @property \Carbon\Carbon $created_at
+ * @property \Carbon\Carbon $updated_at
+ * @property-read Collection|ExternalSubject[] $externalSubjects
+ * @property-read Collection|SubjectConvalidation[] $convalidations
+ * @property-read Collection|ConvalidationGroup[] $convalidationGroups
+ */
 class ExternalCurriculum extends Model
 {
     use HasFactory;

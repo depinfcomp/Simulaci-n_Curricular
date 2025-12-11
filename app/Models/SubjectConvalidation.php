@@ -5,6 +5,22 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @property int $id
+ * @property int $external_curriculum_id
+ * @property int $external_subject_id
+ * @property string $internal_subject_code
+ * @property string $convalidation_type
+ * @property string|null $notes
+ * @property string $status
+ * @property int|null $approved_by
+ * @property \Carbon\Carbon|null $approved_at
+ * @property \Carbon\Carbon $created_at
+ * @property \Carbon\Carbon $updated_at
+ * @property-read ExternalCurriculum $externalCurriculum
+ * @property-read ExternalSubject $externalSubject
+ * @property-read Subject|null $internalSubject
+ */
 class SubjectConvalidation extends Model
 {
     use HasFactory;

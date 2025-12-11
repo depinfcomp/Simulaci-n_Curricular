@@ -20,6 +20,9 @@ return new class extends Migration
             $table->string('name')->comment('External subject full name');
             $table->integer('credits')->comment('Number of academic credits this subject is worth');
             $table->integer('semester')->comment('Recommended semester number in the curriculum sequence');
+            $table->integer('display_order')
+                  ->default(0)
+                  ->comment('Visual position/order of the subject within its semester (0-indexed)');
             $table->text('description')->nullable()->comment('Detailed subject description including learning objectives and content');
             $table->json('additional_data')->nullable()->comment('Additional metadata from Excel import (prerequisite codes, extra attributes, etc.)');
             

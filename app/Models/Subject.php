@@ -4,7 +4,25 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Collection;
 
+/**
+ * @property string $code
+ * @property string $name
+ * @property int $semester
+ * @property int|null $display_order
+ * @property int $credits
+ * @property int|null $classroom_hours
+ * @property int|null $student_hours
+ * @property string|null $type
+ * @property bool $is_required
+ * @property bool $is_leveling
+ * @property \Carbon\Carbon $created_at
+ * @property \Carbon\Carbon $updated_at
+ * @property-read Collection|Student[] $students
+ * @property-read Collection|Subject[] $prerequisites
+ * @property-read Collection|Subject[] $requiredFor
+ */
 class Subject extends Model
 {
     use HasFactory;

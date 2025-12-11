@@ -5,16 +5,21 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\ExternalCurriculum;
 use App\Models\ExternalSubject;
+use App\Models\ExternalSubjectComponent;
 use App\Models\SubjectConvalidation;
 use App\Models\Subject;
 use App\Models\Student;
 use App\Models\StudentConvalidation;
 use App\Models\ConvalidationGroup;
 use App\Models\ConvalidationGroupSubject;
+use App\Models\ConvalidationSimulation;
+use App\Models\LevelingSubject;
+use App\Models\ElectiveSubject;
 use App\Services\ExcelImportService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ConvalidationController extends Controller
 {
@@ -32,7 +37,7 @@ class ConvalidationController extends Controller
             'total_curriculums' => $externalCurriculums->count(),
             'total_external_subjects' => ExternalSubject::count(),
             'total_convalidations' => SubjectConvalidation::count(),
-            'pending_convalidations' => ExternalSubject::pendingConvalidation()->count(),
+            'pending_convalidations' => ExternalSubject::where('change_type', 'added')->count(),
         ];
 
         return view('convalidation.index', compact('externalCurriculums', 'stats'));
@@ -116,9 +121,8 @@ class ConvalidationController extends Controller
         // Parse metadata to check if it comes from simulation
         $metadata = null;
         if ($externalCurriculum->metadata) {
-            $metadata = is_string($externalCurriculum->metadata) 
-                ? json_decode($externalCurriculum->metadata, true) 
-                : $externalCurriculum->metadata;
+            $rawMetadata = $externalCurriculum->metadata;
+            $metadata = is_array($rawMetadata) ? $rawMetadata : (is_string($rawMetadata) ? json_decode($rawMetadata, true) : null);
         }
 
         return view('convalidation.show', compact('externalCurriculum', 'subjectsBySemester', 'internalSubjects', 'stats', 'metadata'));
@@ -174,14 +178,14 @@ class ConvalidationController extends Controller
             // CRITICAL: Check if there's already a convalidation being created (race condition protection)
             $existingConvalidation = SubjectConvalidation::where('external_subject_id', $externalSubject->id)->first();
             if ($existingConvalidation) {
-                \Log::warning("Ya existe una convalidación para external_subject_id: {$externalSubject->id}, eliminando duplicado...");
+                Log::warning("Ya existe una convalidación para external_subject_id: {$externalSubject->id}, eliminando duplicado...");
             }
 
             // Delete existing convalidation if any
             SubjectConvalidation::where('external_subject_id', $externalSubject->id)->delete();
 
             // Delete existing component assignment if any
-            \App\Models\ExternalSubjectComponent::where('external_subject_id', $externalSubject->id)->delete();
+            ExternalSubjectComponent::where('external_subject_id', $externalSubject->id)->delete();
 
             $internalSubjectCode = null;
             $notes = $request->notes ?? '';
@@ -245,14 +249,14 @@ class ConvalidationController extends Controller
             ]);
 
             // Create component assignment
-            $componentAssignment = \App\Models\ExternalSubjectComponent::create([
+            $componentAssignment = ExternalSubjectComponent::create([
                 'external_curriculum_id' => $externalSubject->external_curriculum_id,
                 'external_subject_id' => $externalSubject->id,
                 'component_type' => $request->component_type,
                 'notes' => null
             ]);
 
-            \Log::info("Convalidación creada exitosamente", [
+            Log::info("Convalidación creada exitosamente", [
                 'external_subject_id' => $externalSubject->id,
                 'convalidation_type' => $request->convalidation_type,
                 'component_type' => $request->component_type
@@ -273,7 +277,7 @@ class ConvalidationController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error("Error al crear convalidación: " . $e->getMessage(), [
+            Log::error("Error al crear convalidación: " . $e->getMessage(), [
                 'exception' => $e,
                 'trace' => $e->getTraceAsString()
             ]);
@@ -422,9 +426,8 @@ class ConvalidationController extends Controller
             // Check if this curriculum has simulation metadata (came from /simulation)
             $hasSimulationSource = false;
             if ($externalCurriculum->metadata) {
-                $metadata = is_string($externalCurriculum->metadata) 
-                    ? json_decode($externalCurriculum->metadata, true) 
-                    : $externalCurriculum->metadata;
+                $rawMetadata = $externalCurriculum->metadata;
+                $metadata = is_array($rawMetadata) ? $rawMetadata : (is_string($rawMetadata) ? json_decode($rawMetadata, true) : []);
                 
                 $hasSimulationSource = isset($metadata['source']) && $metadata['source'] === 'simulation';
             }
@@ -490,7 +493,7 @@ class ConvalidationController extends Controller
             $externalSubjectIds = $externalCurriculum->externalSubjects()->pluck('id');
             
             // Delete component assignments for these subjects
-            $deletedComponents = \App\Models\ExternalSubjectComponent::whereIn('external_subject_id', $externalSubjectIds)->delete();
+            $deletedComponents = ExternalSubjectComponent::whereIn('external_subject_id', $externalSubjectIds)->delete();
 
             return response()->json([
                 'success' => true,
@@ -602,7 +605,7 @@ class ConvalidationController extends Controller
     {
         try {
             // Log para debugging
-            \Log::info('Iniciando análisis de impacto', [
+            Log::info('Iniciando análisis de impacto', [
                 'curriculum_id' => $externalCurriculum->id,
                 'request_data' => $request->all()
             ]);
@@ -618,7 +621,7 @@ class ConvalidationController extends Controller
                 'max_thesis_credits' => $request->input('max_thesis_credits', 6),
             ];
 
-            \Log::info('Límites de créditos configurados', $creditLimits);
+            Log::info('Límites de créditos configurados', $creditLimits);
 
             // Get all students from the original curriculum
             $students = Student::with([
@@ -634,7 +637,7 @@ class ConvalidationController extends Controller
                 ->get();
             
             // Get N:N convalidation groups
-            $nnGroups = \App\Models\ConvalidationGroup::where('external_curriculum_id', $externalCurriculum->id)
+            $nnGroups = ConvalidationGroup::where('external_curriculum_id', $externalCurriculum->id)
                 ->with(['externalSubject', 'internalSubjects'])
                 ->get();
 
@@ -684,9 +687,9 @@ class ConvalidationController extends Controller
                     return $conv->externalSubject->credits ?? 0; 
                 }),
                 'curriculum_size_change' => [
-                    'original_subjects' => $totalOriginalSubjects ?? \App\Models\Subject::count(),
+                    'original_subjects' => $totalOriginalSubjects ?? Subject::count(),
                     'new_subjects' => $externalCurriculum->externalSubjects->count(),
-                    'size_difference' => $externalCurriculum->externalSubjects->count() - (\App\Models\Subject::count())
+                    'size_difference' => $externalCurriculum->externalSubjects->count() - (Subject::count())
                 ],
                 'student_details' => [],
                 'subject_impact' => [],
@@ -705,7 +708,7 @@ class ConvalidationController extends Controller
                 'original_assigned_credits' => $externalCurriculum->getStats()['original_curriculum_stats']['assigned_credits'] ?? 0,
                 'new_convalidated_credits' => $externalCurriculum->getStats()['new_curriculum_stats']['convalidated_credits'] ?? 0,
                 // Keep these for the component breakdown table
-                'original_curriculum_credits' => \App\Models\Subject::getCreditsByComponent(),
+                'original_curriculum_credits' => Subject::getCreditsByComponent(),
                 'convalidated_credits_by_component' => $convalidatedCredits,
             ];
 
@@ -760,7 +763,7 @@ class ConvalidationController extends Controller
                         'progress_explanation' => $impact['progress_explanation'] ?? 'Sin explicación disponible'
                     ];
                 } catch (\Exception $e) {
-                    \Log::error('Error processing student ' . $student->id . ': ' . $e->getMessage(), [
+                    Log::error('Error processing student ' . $student->id . ': ' . $e->getMessage(), [
                         'trace' => $e->getTraceAsString()
                     ]);
                     continue; // Skip this student and continue with the next one
@@ -792,7 +795,7 @@ class ConvalidationController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Error en análisis de impacto', [
+            Log::error('Error en análisis de impacto', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -810,7 +813,7 @@ class ConvalidationController extends Controller
     public function getTotalCredits(ExternalCurriculum $externalCurriculum)
     {
         try {
-            \Log::info('getTotalCredits called for curriculum ID: ' . $externalCurriculum->id);
+            Log::info('getTotalCredits called for curriculum ID: ' . $externalCurriculum->id);
             $startTime = microtime(true);
             
             $totalCredits = $externalCurriculum->externalSubjects()
@@ -821,7 +824,7 @@ class ConvalidationController extends Controller
             $endTime = microtime(true);
             $duration = round(($endTime - $startTime) * 1000, 2);
             
-            \Log::info('getTotalCredits completed', [
+            Log::info('getTotalCredits completed', [
                 'duration_ms' => $duration,
                 'total_credits' => $totalCredits,
                 'total_subjects' => $totalSubjects
@@ -835,7 +838,7 @@ class ConvalidationController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('getTotalCredits error: ' . $e->getMessage());
+            Log::error('getTotalCredits error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Error al calcular créditos: ' . $e->getMessage()
@@ -939,7 +942,7 @@ class ConvalidationController extends Controller
         try {
             // Get student's passed subjects in original curriculum
             $passedSubjects = $student->subjects->where('pivot.status', 'passed')->keyBy('code');
-            $originalTotalSubjects = \App\Models\Subject::count(); // Original curriculum size
+            $originalTotalSubjects = Subject::count(); // Original curriculum size
             
             // Prevent division by zero
             if ($originalTotalSubjects == 0) {
@@ -1075,9 +1078,9 @@ class ConvalidationController extends Controller
                 'progress_explanation' => $progressExplanation
             ];
         } catch (\Exception $e) {
-            \Log::error('Error in calculateStudentConvalidationImpactCorrect: ' . $e->getMessage());
-            \Log::error('Student ID: ' . $student->id);
-            \Log::error('External Curriculum ID: ' . $externalCurriculum->id);
+            Log::error('Error in calculateStudentConvalidationImpactCorrect: ' . $e->getMessage());
+            Log::error('Student ID: ' . $student->id);
+            Log::error('External Curriculum ID: ' . $externalCurriculum->id);
             
             // Return safe default values
             return [
@@ -1619,8 +1622,8 @@ class ConvalidationController extends Controller
                 ),
             ];
         } catch (\Exception $e) {
-            \Log::error('Error in calculateStudentConvalidationImpactWithComponentLimits: ' . $e->getMessage());
-            \Log::error('Student ID: ' . $student->id);
+            Log::error('Error in calculateStudentConvalidationImpactWithComponentLimits: ' . $e->getMessage());
+            Log::error('Student ID: ' . $student->id);
             
             return [
                 'has_impact' => false,
@@ -1836,6 +1839,98 @@ class ConvalidationController extends Controller
     }
 
     /**
+     * Check the status of a convalidation (complete or incomplete)
+     * Returns details about the convalidation progress
+     */
+    public function checkConvalidationStatus(Request $request)
+    {
+        try {
+            $curriculumId = $request->input('curriculum_id');
+            
+            if (!$curriculumId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Se requiere curriculum_id'
+                ], 400);
+            }
+            
+            $curriculum = ExternalCurriculum::find($curriculumId);
+            
+            if (!$curriculum) {
+                return response()->json([
+                    'success' => true,
+                    'exists' => false,
+                    'message' => 'La convalidación no existe'
+                ]);
+            }
+            
+            // Get total subjects (excluding removed)
+            $totalSubjects = $curriculum->externalSubjects()
+                ->where(function($query) {
+                    $query->whereNull('change_type')
+                          ->orWhere('change_type', '!=', 'removed');
+                })
+                ->count();
+            
+            // Get subjects with direct convalidation
+            $directConvalidations = $curriculum->convalidations()
+                ->whereHas('externalSubject', function($query) {
+                    $query->where(function($q) {
+                        $q->whereNull('change_type')
+                          ->orWhere('change_type', '!=', 'removed');
+                    });
+                })
+                ->count();
+            
+            // Get subjects with N:N group convalidation
+            $nnGroupConvalidations = $curriculum->convalidationGroups()
+                ->whereHas('externalSubject', function($query) {
+                    $query->where(function($q) {
+                        $q->whereNull('change_type')
+                          ->orWhere('change_type', '!=', 'removed');
+                    });
+                })
+                ->count();
+            
+            // Total convalidated
+            $convalidatedSubjects = $directConvalidations + $nnGroupConvalidations;
+            
+            // Subjects pending convalidation
+            $pendingSubjects = $totalSubjects - $convalidatedSubjects;
+            
+            // Is complete when all subjects have been convalidated
+            $isComplete = $pendingSubjects === 0 && $totalSubjects > 0;
+            
+            // Calculate percentage
+            $completionPercentage = $totalSubjects > 0 
+                ? round(($convalidatedSubjects / $totalSubjects) * 100, 1) 
+                : 0;
+            
+            return response()->json([
+                'success' => true,
+                'exists' => true,
+                'curriculum_id' => $curriculum->id,
+                'curriculum_name' => $curriculum->name,
+                'is_complete' => $isComplete,
+                'total_subjects' => $totalSubjects,
+                'convalidated_subjects' => $convalidatedSubjects,
+                'pending_subjects' => $pendingSubjects,
+                'completion_percentage' => $completionPercentage,
+                'redirect_url' => route('convalidation.show', $curriculum->id),
+                'created_at' => $curriculum->created_at->toISOString(),
+                'updated_at' => $curriculum->updated_at->toISOString()
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error checking convalidation status: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al verificar el estado: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Classify the impact type based on how many students benefit from a convalidation
      */
     private function classifyImpactType(int $studentsBenefited, int $totalStudents): string
@@ -1886,7 +1981,7 @@ class ConvalidationController extends Controller
             $institution = $request->input('institution', 'Simulación Curricular');
 
             // DEBUG: Log incoming data
-            \Log::info('=== SAVE MODIFIED CURRICULUM DEBUG ===', [
+            Log::info('=== SAVE MODIFIED CURRICULUM DEBUG ===', [
                 'name' => $name,
                 'total_semesters' => count($curriculumData),
                 'changes_count' => count($changes),
@@ -1905,7 +2000,21 @@ class ConvalidationController extends Controller
                 $totalSubjects += count($subjects);
             }
 
-            // Create external curriculum using the correct fields
+            // Generate a unique name if one with the same name already exists
+            $baseName = $name;
+            $counter = 1;
+            while (ExternalCurriculum::where('name', $name)->where('institution', $institution)->exists()) {
+                $name = $baseName . ' (' . $counter . ')';
+                $counter++;
+            }
+
+            Log::info('Creating new external curriculum', [
+                'name' => $name,
+                'institution' => $institution,
+                'original_name' => $baseName
+            ]);
+
+            // Always create a new external curriculum for each simulation save
             $externalCurriculum = ExternalCurriculum::create([
                 'name' => $name,
                 'institution' => $institution,
@@ -1922,20 +2031,36 @@ class ConvalidationController extends Controller
             ]);
 
             // Process curriculum data and create external subjects
-            \Log::info('Starting to process curriculum subjects...');
+            Log::info('Starting to process curriculum subjects...');
             $processedCount = 0;
             $changeTypeCounts = ['added' => 0, 'removed' => 0, 'modified' => 0, 'moved' => 0, 'unchanged' => 0];
+            $processedCodes = []; // Track already processed subject codes to avoid duplicates
             
             foreach ($curriculumData as $semester => $subjects) {
-                \Log::info("Processing semester {$semester} with " . count($subjects) . " subjects");
+                Log::info("Processing semester {$semester} with " . count($subjects) . " subjects");
                 
-                foreach ($subjects as $subjectData) {
+                foreach ($subjects as $displayOrder => $subjectData) {
                     $subjectCode = $subjectData['code'];
-                    $processedCount++;
                     
+                    // Skip ghost cards / duplicates (shouldn't happen with frontend fix, but just in case)
+                    if (in_array($subjectCode, $processedCodes)) {
+                        Log::info("Skipping duplicate subject: {$subjectCode} in semester {$semester}");
+                        continue;
+                    }
+                    
+                    // Skip subjects marked as removed
+                    if (!empty($subjectData['isRemoved'])) {
+                        Log::info("Skipping removed subject: {$subjectCode}");
+                        $changeTypeCounts['removed']++;
+                        continue;
+                    }
+                    
+                    $processedCodes[] = $subjectCode;
+                    $processedCount++;
+                
                     // Sample first 3 subjects for detailed logging
                     if ($processedCount <= 3) {
-                        \Log::info("Sample subject data:", [
+                        Log::info("Sample subject data:", [
                             'code' => $subjectCode,
                             'name' => $subjectData['name'],
                             'semester' => $semester,
@@ -1944,18 +2069,14 @@ class ConvalidationController extends Controller
                             'all_keys' => array_keys($subjectData)
                         ]);
                     }
-                    
+                
                     // Determine change type based on multiple sources
                     $changeType = 'unchanged';
                     $originalSemester = null;
                     $changeDetails = [];
-                    
-                    // Check if subject is marked as removed in the frontend
-                    if (isset($subjectData['isRemoved']) && $subjectData['isRemoved']) {
-                        $changeType = 'removed';
-                    }
+                
                     // Check if subject is marked as added in the frontend
-                    elseif (isset($subjectData['isAdded']) && $subjectData['isAdded']) {
+                    if (isset($subjectData['isAdded']) && $subjectData['isAdded']) {
                         $changeType = 'added';
                     }
                     // Check simulationChanges array for this subject
@@ -1979,7 +2100,7 @@ class ConvalidationController extends Controller
                     }
                     
                     // DEBUG: Log change type detection
-                    \Log::info("Processing subject: {$subjectCode} - {$subjectData['name']}", [
+                    Log::info("Processing subject: {$subjectCode} - {$subjectData['name']}", [
                         'semester' => $semester,
                         'isRemoved_flag' => $subjectData['isRemoved'] ?? false,
                         'isAdded_flag' => $subjectData['isAdded'] ?? false,
@@ -2046,11 +2167,13 @@ class ConvalidationController extends Controller
                         'type' => $subjectData['type'] ?? null
                     ];
 
+                    // Create the external subject (curriculum is always new, so no duplicates)
                     ExternalSubject::create([
                         'external_curriculum_id' => $externalCurriculum->id,
                         'code' => $subjectCode,
                         'name' => $subjectData['name'],
                         'semester' => (int) $semester,
+                        'display_order' => (int) $displayOrder,
                         'credits' => $credits,
                         'description' => $subjectData['description'] ?? $subjectData['name'],
                         'additional_data' => $additionalData,
@@ -2061,7 +2184,7 @@ class ConvalidationController extends Controller
                     
                     // DEBUG: Log what was actually saved
                     if ($changeType === 'removed' || $changeType === 'added') {
-                        \Log::info("Saved subject with change_type:", [
+                        Log::info("Saved subject with change_type:", [
                             'code' => $subjectCode,
                             'change_type_variable' => $changeType,
                             'change_type_saved' => ($changeType !== 'unchanged' ? $changeType : null)
@@ -2073,7 +2196,7 @@ class ConvalidationController extends Controller
                 }
             }
             
-            \Log::info('Finished processing curriculum', [
+            Log::info('Finished processing curriculum', [
                 'total_processed' => $processedCount,
                 'change_type_counts' => $changeTypeCounts
             ]);
@@ -2086,8 +2209,8 @@ class ConvalidationController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Error saving modified curriculum: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            Log::error('Error saving modified curriculum: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
             
             return response()->json([
                 'success' => false,
@@ -2410,10 +2533,10 @@ class ConvalidationController extends Controller
             $externalSubject = ExternalSubject::findOrFail($request->external_subject_id);
 
             // Delete existing assignment if any
-            \App\Models\ExternalSubjectComponent::where('external_subject_id', $externalSubject->id)->delete();
+            ExternalSubjectComponent::where('external_subject_id', $externalSubject->id)->delete();
 
             // Create new assignment
-            $assignment = \App\Models\ExternalSubjectComponent::create([
+            $assignment = ExternalSubjectComponent::create([
                 'external_curriculum_id' => $externalSubject->external_curriculum_id,
                 'external_subject_id' => $externalSubject->id,
                 'component_type' => $request->component_type,
@@ -2532,7 +2655,7 @@ class ConvalidationController extends Controller
             $componentCredits['leveling'] = $requestedLevelingCredits;
 
             // Create simulation
-            $simulation = \App\Models\ConvalidationSimulation::create([
+            $simulation = ConvalidationSimulation::create([
                 'external_curriculum_id' => $curriculum->id,
                 'simulation_name' => $request->simulation_name,
                 'description' => $request->description,
@@ -2572,7 +2695,7 @@ class ConvalidationController extends Controller
         }
 
         try {
-            $simulation = \App\Models\ConvalidationSimulation::findOrFail($simulationId);
+            $simulation = ConvalidationSimulation::findOrFail($simulationId);
 
             // Get original calculated leveling credits from component assignments
             $calculatedLevelingCredits = $simulation->externalCurriculum->externalSubjects()
@@ -2624,19 +2747,19 @@ class ConvalidationController extends Controller
         switch ($componentType) {
             case 'leveling':
                 // Search in leveling_subjects table
-                $subjects = \App\Models\LevelingSubject::all();
+                $subjects = LevelingSubject::all();
                 break;
 
             case 'optional_fundamental':
                 // Search in elective_subjects with type optativa_fundamental
-                $subjects = \App\Models\ElectiveSubject::where('elective_type', 'optativa_fundamental')
+                $subjects = ElectiveSubject::where('elective_type', 'optativa_fundamental')
                     ->where('is_active', true)
                     ->get();
                 break;
 
             case 'optional_professional':
                 // Search in elective_subjects with type optativa_profesional
-                $subjects = \App\Models\ElectiveSubject::where('elective_type', 'optativa_profesional')
+                $subjects = ElectiveSubject::where('elective_type', 'optativa_profesional')
                     ->where('is_active', true)
                     ->get();
                 break;
@@ -2721,7 +2844,7 @@ class ConvalidationController extends Controller
         $allSubjects = $allSubjects->merge($mainSubjects);
 
         // 2. Get leveling subjects
-        $levelingSubjects = \App\Models\LevelingSubject::all()->map(function ($subject) {
+        $levelingSubjects = LevelingSubject::all()->map(function ($subject) {
             return [
                 'code' => $subject->code,
                 'name' => $subject->name,
@@ -2734,7 +2857,7 @@ class ConvalidationController extends Controller
         $allSubjects = $allSubjects->merge($levelingSubjects);
 
         // 3. Get elective subjects
-        $electiveSubjects = \App\Models\ElectiveSubject::where('is_active', true)->get()->map(function ($subject) {
+        $electiveSubjects = ElectiveSubject::where('is_active', true)->get()->map(function ($subject) {
             // Map elective_type to component_type
             $componentType = match($subject->elective_type) {
                 'optativa_fundamental' => 'optional_fundamental',
@@ -2904,7 +3027,7 @@ class ConvalidationController extends Controller
                                     ]);
 
                                     // Create component assignment
-                                    \App\Models\ExternalSubjectComponent::create([
+                                    ExternalSubjectComponent::create([
                                         'external_curriculum_id' => $curriculum->id,
                                         'external_subject_id' => $externalSubject->id,
                                         'component_type' => $componentType,
@@ -2932,7 +3055,7 @@ class ConvalidationController extends Controller
                         ]);
 
                         // Create component assignment
-                        \App\Models\ExternalSubjectComponent::create([
+                        ExternalSubjectComponent::create([
                             'external_curriculum_id' => $curriculum->id,
                             'external_subject_id' => $externalSubject->id,
                             'component_type' => $componentType,
@@ -3039,7 +3162,7 @@ class ConvalidationController extends Controller
                 ->get();
             
             // Get N:N convalidation groups
-            $nnGroups = \App\Models\ConvalidationGroup::where('external_curriculum_id', $externalCurriculum->id)
+            $nnGroups = ConvalidationGroup::where('external_curriculum_id', $externalCurriculum->id)
                 ->with(['externalSubject', 'internalSubjects'])
                 ->get();
             
@@ -3058,7 +3181,7 @@ class ConvalidationController extends Controller
             return view('convalidation.impact-report-pdf', $reportData);
 
         } catch (\Exception $e) {
-            \Log::error('Error generating impact report PDF', [
+            Log::error('Error generating impact report PDF', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -3076,7 +3199,7 @@ class ConvalidationController extends Controller
     public function getConvalidationGroups(ExternalCurriculum $externalCurriculum)
     {
         try {
-            $groups = \App\Models\ConvalidationGroup::where('external_curriculum_id', $externalCurriculum->id)
+            $groups = ConvalidationGroup::where('external_curriculum_id', $externalCurriculum->id)
                 ->with(['externalSubject', 'internalSubjects'])
                 ->get();
 
@@ -3098,7 +3221,7 @@ class ConvalidationController extends Controller
     public function storeConvalidationGroup(Request $request)
     {
         // Log incoming request data for debugging
-        \Log::info('Creating N:N group - Request data:', $request->all());
+        Log::info('Creating N:N group - Request data:', $request->all());
         
         $validator = Validator::make($request->all(), [
             'external_curriculum_id' => 'required|exists:external_curriculums,id',
@@ -3113,7 +3236,7 @@ class ConvalidationController extends Controller
         ]);
 
         if ($validator->fails()) {
-            \Log::error('Validation failed for N:N group:', [
+            Log::error('Validation failed for N:N group:', [
                 'errors' => $validator->errors()->toArray(),
                 'request_data' => $request->all()
             ]);
@@ -3128,7 +3251,7 @@ class ConvalidationController extends Controller
             DB::beginTransaction();
 
             // Create the convalidation group
-            $group = \App\Models\ConvalidationGroup::create([
+            $group = ConvalidationGroup::create([
                 'external_curriculum_id' => $request->external_curriculum_id,
                 'external_subject_id' => $request->external_subject_id,
                 'group_name' => $request->group_name,
@@ -3141,7 +3264,7 @@ class ConvalidationController extends Controller
 
             // Attach internal subjects to the group
             foreach ($request->internal_subject_codes as $index => $subjectCode) {
-                \App\Models\ConvalidationGroupSubject::create([
+                ConvalidationGroupSubject::create([
                     'convalidation_group_id' => $group->id,
                     'internal_subject_code' => $subjectCode,
                     'sort_order' => $index,
@@ -3163,7 +3286,7 @@ class ConvalidationController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('Error creating convalidation group: ' . $e->getMessage());
+            Log::error('Error creating convalidation group: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -3195,7 +3318,7 @@ class ConvalidationController extends Controller
         try {
             DB::beginTransaction();
 
-            $group = \App\Models\ConvalidationGroup::findOrFail($groupId);
+            $group = ConvalidationGroup::findOrFail($groupId);
 
             // Update basic fields
             $group->update([
@@ -3208,11 +3331,11 @@ class ConvalidationController extends Controller
             // Update internal subjects if provided
             if ($request->has('internal_subject_codes')) {
                 // Delete existing associations
-                \App\Models\ConvalidationGroupSubject::where('convalidation_group_id', $group->id)->delete();
+                ConvalidationGroupSubject::where('convalidation_group_id', $group->id)->delete();
 
                 // Create new associations
                 foreach ($request->internal_subject_codes as $index => $subjectCode) {
-                    \App\Models\ConvalidationGroupSubject::create([
+                    ConvalidationGroupSubject::create([
                         'convalidation_group_id' => $group->id,
                         'internal_subject_code' => $subjectCode,
                         'sort_order' => $index,
@@ -3247,7 +3370,7 @@ class ConvalidationController extends Controller
     public function destroyConvalidationGroup($groupId)
     {
         try {
-            $group = \App\Models\ConvalidationGroup::findOrFail($groupId);
+            $group = ConvalidationGroup::findOrFail($groupId);
             $group->delete(); // Cascade will delete related records
 
             return response()->json([
@@ -3375,7 +3498,7 @@ class ConvalidationController extends Controller
                     $curriculum->delete();
                     $deletedCount++;
                     
-                    \Log::info("Deleted external curriculum: {$curriculumId}");
+                    Log::info("Deleted external curriculum: {$curriculumId}");
                 }
             }
 
@@ -3389,8 +3512,8 @@ class ConvalidationController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('Error deleting multiple convalidations: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            Log::error('Error deleting multiple convalidations: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
             
             return response()->json([
                 'success' => false,
