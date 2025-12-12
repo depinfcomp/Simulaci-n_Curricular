@@ -78,6 +78,7 @@
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 3;
+    line-clamp: 3;
     -webkit-box-orient: vertical;
 }
 
@@ -544,6 +545,15 @@
     }
 }
 
+/* Highlight style for prerequisites (yellow/orange) */
+.subject-card.prerequisite {
+    background: linear-gradient(135deg, #fff9e6 0%, #ffe6a6 100%) !important;
+    border-color: #f0ad4e !important;
+    border-width: 3px !important;
+    transform: scale(1.05) !important;
+}
+
+/* Highlight style for subjects that this unlocks (blue) */
 .subject-card.unlocks {
     background: linear-gradient(135deg, #e7f3ff 0%, #cce7ff 100%) !important;
     border-color: #0066cc !important;
@@ -551,6 +561,7 @@
     transform: scale(1.05) !important;
 }
 
+/* Highlight style for selected subject (cyan) */
 .subject-card.selected {
     background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%) !important;
     border-color: #17a2b8 !important;
@@ -566,6 +577,7 @@
     margin-bottom: 2px;
     display: -webkit-box;
     -webkit-line-clamp: 3;
+    line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
