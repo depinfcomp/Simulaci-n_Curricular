@@ -12,6 +12,9 @@ Toda la documentación técnica y manuales se encuentran en la carpeta `/documen
 - **[Manual de Usuario](documentation/Manual%20del%20usuario_%20Sistema%20de%20Convalidaciones%20Curriculares.pdf)**: Guía completa para usuarios finales
 - **[Documento de Ingeniería de Software](documentation/Ingeniería%20de%20Software_%20Sistema%20de%20Convalidaciones%20Curriculares.pdf)**: Especificaciones técnicas del sistema
 - **[Diagrama Entidad-Relación](documentation/DIAGRAMA_ENTIDAD_RELACION.md)**: Modelo de datos completo (25 tablas)
+- **[Trabajo Futuro y Mejoras Propuestas](documentation/Trabajo%20Futuro%20y%20Mejoras%20Propuestas_%20Sistema%20de%20Convalidaciones%20Curriculares.pdf)**: Guía para resumir el trabajo previo
+- **[Video tutorial](https://drive.google.com/file/d/1n6iGEVPiNFc38PbxUmkE0z0QoKd9bxzY/view?usp=drive_link)**: Video tutorial de cómo usar el aplicativo
+
 
 ---
 
