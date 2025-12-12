@@ -1117,17 +1117,17 @@ document.addEventListener('DOMContentLoaded', function() {
         // Highlight the selected card
         card.classList.add('selected');
         
-        // Highlight prerequisites (yellow)
+        // Highlight prerequisites (yellow) - exclude ghosts
         prerequisites.forEach(prereqCode => {
-            const prereqCard = document.querySelector(`[data-subject-id="${prereqCode}"]`);
+            const prereqCard = document.querySelector(`[data-subject-id="${prereqCode}"]:not(.moved-ghost)`);
             if (prereqCard) {
                 prereqCard.classList.add('prerequisite');
             }
         });
         
-        // Highlight unlocks (blue)
+        // Highlight unlocks (blue) - exclude ghosts
         unlocks.forEach(unlockCode => {
-            const unlockCard = document.querySelector(`[data-subject-id="${unlockCode}"]`);
+            const unlockCard = document.querySelector(`[data-subject-id="${unlockCode}"]:not(.moved-ghost)`);
             if (unlockCard) {
                 unlockCard.classList.add('unlocks');
             }
@@ -4402,11 +4402,6 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update unlocks relationships for all subjects
             updateUnlocksRelationships();
             
-            // If card was selected, update highlights
-            if (selectedCard === card) {
-                highlightRelated(card);
-            }
-            
             // Run automatic impact analysis
             setTimeout(() => {
                 analyzeImpact();
@@ -4914,13 +4909,13 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateUnlocksRelationships() {
         console.log('[UPDATE] Updating unlocks relationships...');
         
-        // Clear all existing unlocks
-        document.querySelectorAll('.subject-card').forEach(card => {
+        // Clear all existing unlocks (exclude ghosts)
+        document.querySelectorAll('.subject-card:not(.moved-ghost)').forEach(card => {
             card.dataset.unlocks = '';
         });
 
-        // Rebuild unlocks relationships
-        document.querySelectorAll('.subject-card').forEach(card => {
+        // Rebuild unlocks relationships (exclude ghosts)
+        document.querySelectorAll('.subject-card:not(.moved-ghost)').forEach(card => {
             const subjectCode = card.dataset.subjectId;
             const prerequisites = card.dataset.prerequisites.split(',').filter(p => p.trim());
             
@@ -4930,7 +4925,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // For each prerequisite, add this subject to their unlocks
             prerequisites.forEach(prereqCode => {
-                const prereqCard = document.querySelector(`[data-subject-id="${prereqCode}"]`);
+                const prereqCard = document.querySelector(`[data-subject-id="${prereqCode}"]:not(.moved-ghost)`);
                 if (prereqCard) {
                     const currentUnlocks = prereqCard.dataset.unlocks.split(',').filter(u => u.trim());
                     if (!currentUnlocks.includes(subjectCode)) {
@@ -4955,7 +4950,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const semesterColumn = document.querySelector(`[data-semester="${semester}"]`);
             if (!semesterColumn) continue;
             
-            const subjects = Array.from(semesterColumn.querySelectorAll('.subject-card')).map((card, index) => {
+            // CRITICAL: Exclude ghosts (.moved-ghost) to avoid duplicate entries with wrong semester
+            const subjects = Array.from(semesterColumn.querySelectorAll('.subject-card:not(.moved-ghost)')).map((card, index) => {
                 // Extract credits from multiple possible sources
                 let credits = 3; // Default value
                 
@@ -4983,6 +4979,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Check if this subject was removed
                 const isRemoved = card.classList.contains('removed-subject');
+                const isMoved = card.classList.contains('moved-subject');
+                
+                // Get original semester for moved subjects from simulationChanges
+                let originalSemester = null;
+                if (isMoved) {
+                    const moveChange = simulationChanges.find(c => 
+                        c.subject_code === subjectCode && c.type === 'semester'
+                    );
+                    if (moveChange) {
+                        originalSemester = moveChange.old_value;
+                    }
+                }
                 
                 // Get display_order from dataset or use current position (index)
                 const displayOrder = card.dataset.displayOrder ? parseInt(card.dataset.displayOrder) : index;
@@ -4999,6 +5007,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     type: subjectType,
                     isAdded: card.classList.contains('added-subject'),
                     isRemoved: isRemoved,
+                    isMoved: isMoved,
+                    originalSemester: originalSemester,
                     description: card.title || card.querySelector('.subject-name')?.textContent.trim() || 'Sin descripción'
                 };
             });
@@ -5730,22 +5740,36 @@ Ejemplo de descripción:
         // Gather all current curriculum data
         const curriculumData = {
             subjects: [],
-            changes: window.simulationChanges || []  // Should be an array, not an object
+            changes: simulationChanges || []  // Use local variable, not window
         };
 
         // Collect all subjects with their current state
-        document.querySelectorAll('.subject-card').forEach(card => {
+        // CRITICAL: Exclude ghosts (.moved-ghost) to avoid duplicate entries with wrong semester
+        document.querySelectorAll('.subject-card:not(.moved-ghost)').forEach(card => {
             const semester = card.closest('.semester-column')?.dataset.semester;
+            const subjectCode = card.dataset.subjectId;
             const prerequisites = card.dataset.prerequisites ? 
                 card.dataset.prerequisites.split(',').map(p => p.trim()).filter(p => p) : 
                 [];
 
-            // CRITICAL: Include isAdded and isRemoved flags
+            // CRITICAL: Include isAdded, isRemoved, and isMoved flags
             const isAdded = card.classList.contains('added-subject');
             const isRemoved = card.classList.contains('removed-subject');
+            const isMoved = card.classList.contains('moved-subject');
+            
+            // Get original semester for moved subjects
+            let originalSemester = null;
+            if (isMoved) {
+                const moveChange = simulationChanges.find(c => 
+                    c.subject_code === subjectCode && c.type === 'semester'
+                );
+                if (moveChange) {
+                    originalSemester = moveChange.old_value;
+                }
+            }
 
             curriculumData.subjects.push({
-                code: card.dataset.subjectId,
+                code: subjectCode,
                 name: card.querySelector('.subject-name')?.textContent.trim(),
                 semester: parseInt(semester),
                 credits: parseInt(card.querySelector('.subject-credits')?.textContent) || 3,
@@ -5753,8 +5777,10 @@ Ejemplo de descripción:
                 prerequisites: prerequisites,
                 description: card.title || '',
                 display_order: Array.from(card.parentElement.children).indexOf(card) + 1,
-                isAdded: isAdded,      // Flag para materias nuevas
-                isRemoved: isRemoved   // Flag para materias eliminadas
+                isAdded: isAdded,           // Flag para materias nuevas
+                isRemoved: isRemoved,       // Flag para materias eliminadas
+                isMoved: isMoved,           // Flag para materias movidas de semestre
+                originalSemester: originalSemester  // Semestre original si fue movida
             });
         });
 
@@ -5778,6 +5804,13 @@ Ejemplo de descripción:
                 console.log('No se encontró reporte PDF en sessionStorage, se generará versión simplificada');
             }
         }
+        
+        // DEBUG: Log what we're sending
+        console.log('=== SAVE CURRICULUM DEBUG ===');
+        console.log('simulationChanges:', simulationChanges);
+        console.log('Moved subjects:', curriculumData.subjects.filter(s => s.isMoved));
+        console.log('Changes in payload:', curriculumData.changes);
+        console.log('=============================');
         
         // Show loading indicator
         const loadingModal = showLoadingModal('Guardando cambios, por favor espere...');

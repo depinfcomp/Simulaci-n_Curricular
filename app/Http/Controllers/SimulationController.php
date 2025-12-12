@@ -730,6 +730,18 @@ class SimulationController extends Controller
             'report_html' => 'nullable|string', // HTML content of the impact report
         ]);
 
+        // DEBUG: Log everything received from frontend
+        \Log::info("=== SAVE VERSION REQUEST DEBUG ===", [
+            'curriculum_data_keys' => array_keys($request->input('curriculum_data', [])),
+            'changes_count' => count($request->input('curriculum_data.changes', [])),
+            'changes' => $request->input('curriculum_data.changes', []),
+            'subjects_count' => count($request->input('curriculum_data.subjects', [])),
+            'moved_subjects' => collect($request->input('curriculum_data.subjects', []))
+                ->filter(fn($s) => isset($s['isMoved']) && $s['isMoved'])
+                ->values()
+                ->toArray(),
+        ]);
+
         try {
             // ===== GENERATE PDF BEFORE ANY DATABASE CHANGES =====
             $pdfPath = null;
@@ -869,6 +881,15 @@ class SimulationController extends Controller
             'changes' => $changes
         ]);
         
+        // DEBUG: Log all prerequisites in the payload
+        $allPrereqs = [];
+        foreach ($subjects as $subject) {
+            if (!empty($subject['prerequisites'])) {
+                $allPrereqs[$subject['code']] = $subject['prerequisites'];
+            }
+        }
+        \Log::info("DEBUG - Todos los prerrequisitos en el payload:", $allPrereqs);
+        
         // PASO 1: Procesar cambios explícitos del array 'changes'
         foreach ($changes as $change) {
             $subjectCode = $change['subject_code'] ?? null;
@@ -962,18 +983,76 @@ class SimulationController extends Controller
                 }
             } elseif ($changeType === 'prerequisites') {
                 // Update prerequisites
+                \Log::info("=== PROCESANDO CAMBIO DE PRERREQUISITOS ===", [
+                    'subject_code' => $subjectCode,
+                    'change_data' => $change
+                ]);
+                
                 $subject = Subject::where('code', $subjectCode)->first();
                 $subjectInfo = collect($subjects)->firstWhere('code', $subjectCode);
                 
-                if ($subject && $subjectInfo) {
-                    $newPrereqs = $subjectInfo['prerequisites'] ?? [];
-                    $prereqIds = Subject::whereIn('code', $newPrereqs)->pluck('id')->toArray();
-                    
-                    $subject->prerequisites()->sync($prereqIds);
-                    
-                    \Log::info("Prerrequisitos actualizados: {$subjectCode} - " . implode(', ', $newPrereqs));
+                if (!$subject) {
+                    \Log::error("MATERIA NO ENCONTRADA: {$subjectCode}");
+                    continue;
+                }
+                
+                if (!$subjectInfo) {
+                    \Log::error("MATERIA NO ENCONTRADA EN SUBJECTS ARRAY: {$subjectCode}");
+                    continue;
+                }
+                
+                $newPrereqs = $subjectInfo['prerequisites'] ?? [];
+                \Log::info("Prerrequisitos en subjectInfo:", ['prereqs' => $newPrereqs]);
+                
+                // Ensure all prerequisites are strings and filter out empty values
+                $newPrereqs = array_filter(array_map(function($code) {
+                    return trim((string)$code);
+                }, $newPrereqs));
+                
+                \Log::info("Prerrequisitos después de filtrar:", ['prereqs' => $newPrereqs]);
+                
+                if (empty($newPrereqs)) {
+                    // No prerequisites - clear all
+                    \Log::info("Limpiando prerrequisitos de {$subjectCode}");
+                    $subject->prerequisites()->sync([]);
+                    \Log::info("Prerrequisitos eliminados exitosamente: {$subjectCode}");
                 } else {
-                    \Log::warning("Materia no encontrada para cambio de prerrequisitos: {$subjectCode}");
+                    try {
+                        \Log::info("Buscando materias con códigos:", ['codes' => $newPrereqs]);
+                        
+                        // Get IDs of prerequisites that actually exist
+                        $existingSubjects = Subject::whereIn('code', $newPrereqs)->get();
+                        
+                        \Log::info("Materias encontradas:", [
+                            'count' => $existingSubjects->count(),
+                            'codes' => $existingSubjects->pluck('code')->toArray()
+                        ]);
+                        
+                        // IMPORTANT: The relationship uses 'code' not 'id', so we need codes not IDs
+                        $prereqCodes = $existingSubjects->pluck('code')->toArray();
+                        
+                        // Log if some prerequisites were not found
+                        $foundCodes = $existingSubjects->pluck('code')->toArray();
+                        $missingCodes = array_diff($newPrereqs, $foundCodes);
+                        
+                        if (!empty($missingCodes)) {
+                            \Log::warning("Prerrequisitos no encontrados para {$subjectCode}: " . implode(', ', $missingCodes));
+                        }
+                        
+                        if (empty($prereqCodes)) {
+                            \Log::warning("Ningún prerrequisito válido encontrado para {$subjectCode}, limpiando prerrequisitos");
+                            $subject->prerequisites()->sync([]);
+                        } else {
+                            \Log::info("Sincronizando prerrequisitos de {$subjectCode} con CÓDIGOS:", ['codes' => $prereqCodes]);
+                            $subject->prerequisites()->sync($prereqCodes);
+                            \Log::info("Prerrequisitos actualizados exitosamente: {$subjectCode} - " . implode(', ', $foundCodes));
+                        }
+                    } catch (\Exception $e) {
+                        \Log::error("ERROR CAPTURADO actualizando prerrequisitos para {$subjectCode}: " . $e->getMessage());
+                        \Log::error("Stack trace: " . $e->getTraceAsString());
+                        // Don't clear prerequisites on error, just log and skip
+                        throw $e; // Re-throw to rollback transaction
+                    }
                 }
             } elseif ($changeType === 'modified') {
                 // Update subject data
